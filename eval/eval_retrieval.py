@@ -1,7 +1,7 @@
 """Compara recuperação sem RAG (git grep) e com RAG (busca híbrida): Recall@10, MRR e IC95% pareado.
 
 Uso: uv run python eval/eval_retrieval.py <repo> <sha-do-snapshot> <nome-do-snap-no-indice> eval/golden.jsonl
-Lê o banco com RAG_DSN_READ e o embedder com EMBED_URL. Adaptado da seção 8.1 do guia.
+Lê o banco com RAGNAR_DSN_READ e o embedder com EMBED_URL. Adaptado da seção 8.1 do guia.
 """
 
 import json
@@ -14,9 +14,9 @@ from statistics import mean
 
 import psycopg
 
-from raglib.config import read_dsn
-from raglib.embedder import from_env
-from raglib.search import search
+from ragnar.config import read_dsn
+from ragnar.embedder import from_env
+from ragnar.search import search
 
 REPO_DIR, SNAP, INDEX_NAME, GOLDEN = sys.argv[1:5]
 STOP = {"the", "and", "for", "with", "fix", "add", "use", "para", "com", "que", "não", "uma", "dos", "das", "feat"}

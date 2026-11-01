@@ -1,0 +1,7 @@
+{
+  "name": "ragnar",
+  "version": "0.1.0",
+  "description": "Conecta o Claude Code ao servidor MCP do RAG de código (search_code, find_symbol, list_repos) e traz as skills rag-indexar e rag-avaliar.",
+  "author": { "name": "Pedro Jr" },
+  "keywords": ["ragnar", "mcp", "busca-de-codigo"]
+}

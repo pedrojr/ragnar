@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import PurePosixPath
 
-from raglib.chunker import LANGS
+from ragnar.chunker import LANGS
 
 SKIP = re.compile(r"^(merge|bump|chore|release|revert|format|wip)\b", re.I)
 

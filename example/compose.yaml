@@ -1,0 +1,96 @@
+# Ambiente de desenvolvimento: 1 primário (escrita) + N réplicas (leitura), embedder, MCP.
+#   uv run ragnar init-env                 # cria .env e acl.json
+#   docker compose up -d --build --scale db-replica=2
+#   ./scripts/index.sh /path/to/repo myapp
+# Sem escala automática aqui: escala manual com --scale. Escala automática: Kubernetes (k8s/).
+name: ragnar-exemplo
+
+x-app: &app
+  image: ragnar-app:0.1.0   # construída pelo serviço ragnar-mcp
+  # sem env_file aqui: cada serviço recebe só a credencial que usa (o MCP nunca vê a senha de escrita)
+
+services:
+  db-primary:
+    image: pgvector/pgvector:0.8.7-pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?rode "uv run ragnar init-env" antes}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+      RAGNAR_WRITER_PASSWORD: ${RAGNAR_WRITER_PASSWORD}
+      RAGNAR_READER_PASSWORD: ${RAGNAR_READER_PASSWORD}
+    command: ["postgres", "-c", "wal_keep_size=256MB"]
+    ports: ["127.0.0.1:15432:5432"]   # só para o indexador no host (5432 costuma ter Postgres local); o MCP não usa
+    volumes:
+      - primary-data:/var/lib/postgresql/data
+      - ./docker/postgres/10-roles.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "ragnar"]
+      interval: 2s
+      retries: 30
+
+  db-replica:
+    image: pgvector/pgvector:0.8.7-pg17
+    user: postgres
+    environment:
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+    entrypoint: ["bash", "/scripts/replica-entrypoint.sh"]
+    volumes:
+      - ./docker/postgres/replica-entrypoint.sh:/scripts/replica-entrypoint.sh:ro
+    depends_on:
+      db-primary: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 2s
+      retries: 60
+
+  embedder:
+    image: ragnar-embedder:0.1.0
+    build: { context: .., dockerfile: example/docker/Dockerfile, target: embedder }
+    environment:
+      EMBED_THREADS: "4"
+    mem_limit: 3g   # estouro mata só o container, não a VM do Docker
+    ports: ["127.0.0.1:8001:8000"]   # só para o indexador no host
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 5s
+      retries: 60
+
+  migrate:
+    <<: *app
+    command: ["ragnar", "migrate"]
+    environment:
+      RAGNAR_DSN_WRITE: postgresql://ragnar_writer:${RAGNAR_WRITER_PASSWORD}@db-primary:5432/ragnar
+    depends_on:
+      db-primary: { condition: service_healthy }
+    restart: "no"
+
+  ragnar-mcp:
+    <<: *app
+    build: { context: .., dockerfile: example/docker/Dockerfile, target: app }
+    command: ["ragnar", "mcp"]
+    environment:
+      # host=db-replica: o DNS do Docker distribui entre as réplicas (aproximado, suficiente para dev)
+      RAGNAR_DSN_READ: postgresql://ragnar_reader:${RAGNAR_READER_PASSWORD}@db-replica:5432/ragnar
+      RAGNAR_ACL_FILE: /run/ragnar/acl.json
+      EMBED_URL: http://embedder:8000/v1
+    volumes:
+      - ./acl.json:/run/ragnar/acl.json:ro
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      db-replica: { condition: service_healthy }
+      embedder: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  # Ferramentas sob demanda: docker compose run --rm tools smoke --url http://ragnar-mcp:8080/mcp --replica-host db-replica
+  tools:
+    <<: *app
+    profiles: ["tools"]
+    entrypoint: ["ragnar"]
+    env_file: .env   # tokens do MCP para smoke e carga
+    environment:
+      RAGNAR_DSN_WRITE: postgresql://ragnar_writer:${RAGNAR_WRITER_PASSWORD}@db-primary:5432/ragnar
+      RAGNAR_DSN_READ: postgresql://ragnar_reader:${RAGNAR_READER_PASSWORD}@db-replica:5432/ragnar
+      EMBED_URL: http://embedder:8000/v1
+
+volumes:
+  primary-data:

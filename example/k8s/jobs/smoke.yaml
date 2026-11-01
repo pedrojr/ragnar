@@ -1,0 +1,27 @@
+# Verificação ponta a ponta dentro do cluster: MCP via Service e barreiras de escrita.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ragnar-smoke
+  namespace: ragnar
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: smoke
+          image: ragnar-app:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["ragnar", "smoke", "--url", "http://ragnar-mcp:8080/mcp", "--repo", "yak", "--replica-host", "ragnar-db-ro"]
+          env:
+            - name: RAGNAR_WRITER_PASSWORD
+              valueFrom: { secretKeyRef: { name: ragnar-writer, key: password } }
+            - name: RAGNAR_READER_PASSWORD
+              valueFrom: { secretKeyRef: { name: ragnar-reader, key: password } }
+            - name: RAGNAR_DSN_WRITE
+              value: host=ragnar-db-rw port=5432 dbname=ragnar user=ragnar_writer password=$(RAGNAR_WRITER_PASSWORD)
+            - name: RAGNAR_DSN_READ
+              value: host=ragnar-db-ro port=5432 dbname=ragnar user=ragnar_reader password=$(RAGNAR_READER_PASSWORD)
+          envFrom:
+            - secretRef: { name: ragnar-mcp-tokens }

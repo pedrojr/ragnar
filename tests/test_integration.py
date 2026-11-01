@@ -1,8 +1,8 @@
-"""Testes com Postgres + pgvector real. Pulados sem RAG_TEST_ADMIN_DSN.
+"""Testes com Postgres + pgvector real. Pulados sem RAGNAR_TEST_ADMIN_DSN.
 
 Com o Compose no ar:
-  RAG_TEST_ADMIN_DSN="postgresql://postgres:$POSTGRES_PASSWORD@127.0.0.1:15432/postgres" uv run pytest -m integration
-Cria e apaga o banco rag_test; não toca no banco rag.
+  RAGNAR_TEST_ADMIN_DSN="postgresql://postgres:$POSTGRES_PASSWORD@127.0.0.1:15432/postgres" uv run pytest -m integration
+Cria e apaga o banco ragnar_test; não toca no banco ragnar.
 """
 
 from __future__ import annotations
@@ -18,28 +18,28 @@ import psycopg
 import pytest
 from psycopg.conninfo import make_conninfo
 
-from raglib.acl import hash_token
-from raglib.embedder import FakeEmbedder
-from raglib.indexer import index
-from raglib.migrate import migrate
-from raglib.search import find_symbol, list_repos, search
+from ragnar.acl import hash_token
+from ragnar.embedder import FakeEmbedder
+from ragnar.indexer import index
+from ragnar.migrate import migrate
+from ragnar.search import find_symbol, list_repos, search
 
 from .test_unit import _git, make_repo
 
-ADMIN = os.environ.get("RAG_TEST_ADMIN_DSN")
-pytestmark = [pytest.mark.integration, pytest.mark.skipif(not ADMIN, reason="RAG_TEST_ADMIN_DSN não definido")]
+ADMIN = os.environ.get("RAGNAR_TEST_ADMIN_DSN")
+pytestmark = [pytest.mark.integration, pytest.mark.skipif(not ADMIN, reason="RAGNAR_TEST_ADMIN_DSN não definido")]
 
 
 @pytest.fixture(scope="module")
 def dsn():
     with psycopg.connect(ADMIN, autocommit=True) as c:
-        c.execute("DROP DATABASE IF EXISTS rag_test WITH (FORCE)")
-        c.execute("CREATE DATABASE rag_test")
-    test_dsn = make_conninfo(ADMIN, dbname="rag_test")
+        c.execute("DROP DATABASE IF EXISTS ragnar_test WITH (FORCE)")
+        c.execute("CREATE DATABASE ragnar_test")
+    test_dsn = make_conninfo(ADMIN, dbname="ragnar_test")
     migrate(test_dsn)
     yield test_dsn
     with psycopg.connect(ADMIN, autocommit=True) as c:
-        c.execute("DROP DATABASE IF EXISTS rag_test WITH (FORCE)")
+        c.execute("DROP DATABASE IF EXISTS ragnar_test WITH (FORCE)")
 
 
 def test_full_incremental_and_unchanged(dsn, tmp_path):
@@ -75,7 +75,7 @@ def _free_port() -> int:
 def test_mcp_over_http(dsn, tmp_path, monkeypatch):
     import uvicorn
 
-    from raglib.ops import mcp_client
+    from ragnar.ops import mcp_client
 
     index(str(make_repo(tmp_path)), "demo", dsn, FakeEmbedder(768), scan=False, full=True)
     acl = tmp_path / "acl.json"
@@ -83,11 +83,11 @@ def test_mcp_over_http(dsn, tmp_path, monkeypatch):
         {"name": "t", "token_sha256": hash_token("tok"), "repos": ["demo"]},
         {"name": "r", "token_sha256": hash_token("restrito"), "repos": ["outro"]},
     ]}))
-    monkeypatch.setenv("RAG_DSN_READ", dsn)
-    monkeypatch.setenv("RAG_ACL_FILE", str(acl))
+    monkeypatch.setenv("RAGNAR_DSN_READ", dsn)
+    monkeypatch.setenv("RAGNAR_ACL_FILE", str(acl))
     monkeypatch.setenv("EMBED_PROVIDER", "fake")
     port = _free_port()
-    server = uvicorn.Server(uvicorn.Config("raglib.mcp_server:build_app", factory=True, port=port, log_level="error"))
+    server = uvicorn.Server(uvicorn.Config("ragnar.mcp_server:build_app", factory=True, port=port, log_level="error"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     while not server.started:

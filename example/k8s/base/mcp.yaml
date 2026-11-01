@@ -1,0 +1,77 @@
+# Servidor MCP somente leitura. Lê só de ragnar-db-ro com ragnar_reader; não recebe a senha de escrita.
+# Sem sessão MCP: qualquer pod atende qualquer requisição. Escala por CPU.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragnar-mcp
+  namespace: ragnar
+  labels: { app: ragnar-mcp }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: ragnar-mcp }
+  template:
+    metadata:
+      labels: { app: ragnar-mcp }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      containers:
+        - name: mcp
+          image: ragnar-app:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["ragnar", "mcp"]
+          env:
+            - name: RAGNAR_READER_PASSWORD
+              valueFrom: { secretKeyRef: { name: ragnar-reader, key: password } }
+            - name: RAGNAR_DSN_READ
+              value: host=ragnar-db-ro port=5432 dbname=ragnar user=ragnar_reader password=$(RAGNAR_READER_PASSWORD)
+            - { name: RAGNAR_ACL_FILE, value: /run/ragnar/acl.json }
+            - { name: EMBED_URL, value: "http://ragnar-embedder:8000/v1" }
+            - { name: RAGNAR_POOL_MAX, value: "8" }
+            - { name: RAGNAR_POOL_MAX_LIFETIME, value: "120" }   # renova conexões: réplica nova recebe carga
+          envFrom:
+            - configMapRef: { name: ragnar-embed }
+          ports: [{ containerPort: 8080, name: http }]
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - { name: acl, mountPath: /run/ragnar, readOnly: true }
+      volumes:
+        - name: acl
+          secret: { secretName: ragnar-acl }
+---
+# LoadBalancer no Docker Desktop publica em localhost:8080 (o mesmo endereço do Compose).
+apiVersion: v1
+kind: Service
+metadata:
+  name: ragnar-mcp
+  namespace: ragnar
+spec:
+  type: LoadBalancer
+  selector: { app: ragnar-mcp }
+  ports: [{ port: 8080, targetPort: http, name: http }]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ragnar-mcp
+  namespace: ragnar
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: ragnar-mcp }
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+  behavior:
+    scaleDown: { stabilizationWindowSeconds: 120 }

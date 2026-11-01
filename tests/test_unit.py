@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from raglib import chunker
-from raglib.acl import Acl, hash_token
-from raglib.cli import main
-from raglib.config import RagError
-from raglib.embedder import FakeEmbedder, to_pgvector
-from raglib.indexer import changed_files, list_files, read_blobs
-from raglib.mcp_server import render_hits
-from raglib.search import like_prefix, tsquery
+from ragnar import chunker
+from ragnar.acl import Acl, hash_token
+from ragnar.cli import main
+from ragnar.config import RagError
+from ragnar.embedder import FakeEmbedder, to_pgvector
+from ragnar.indexer import changed_files, list_files, read_blobs
+from ragnar.mcp_server import render_hits
+from ragnar.search import like_prefix, tsquery
 
 GO = b"""package widget
 
@@ -171,8 +171,8 @@ def test_init_env_creates_files(tmp_path):
     main(["init-env", "--dir", str(tmp_path)])
     env = dict(line.split("=", 1) for line in (tmp_path / ".env").read_text().splitlines() if "=" in line)
     acl = Acl.from_file(tmp_path / "acl.json")
-    assert acl.client_for(f"Bearer {env['RAG_MCP_TOKEN']}").name == "dev-local"
-    assert acl.client_for(f"Bearer {env['RAG_MCP_TOKEN_RESTRICTED']}").resolve(None) == ["sem-acesso"]
+    assert acl.client_for(f"Bearer {env['RAGNAR_MCP_TOKEN']}").name == "dev-local"
+    assert acl.client_for(f"Bearer {env['RAGNAR_MCP_TOKEN_RESTRICTED']}").resolve(None) == ["sem-acesso"]
 
 
 def test_extract_symbols_finds_every_declaration():

@@ -3,9 +3,11 @@
 .pytest_cache
 .env
 acl.json
+example
+docs
+skills
+hooks
+bin
+.github
 tests
-k8s
-scripts
-plugin
-eval
 *.md

@@ -1,0 +1,21 @@
+# Aplica as migrações no primário. scripts/up.sh recria este Job a cada subida.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ragnar-migrate
+  namespace: ragnar
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: ragnar-app:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["ragnar", "migrate"]
+          env:
+            - name: RAGNAR_WRITER_PASSWORD
+              valueFrom: { secretKeyRef: { name: ragnar-writer, key: password } }
+            - name: RAGNAR_DSN_WRITE
+              value: host=ragnar-db-rw port=5432 dbname=ragnar user=ragnar_writer password=$(RAGNAR_WRITER_PASSWORD)

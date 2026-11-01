@@ -1,0 +1,17 @@
+# Recursos do exemplo. Operadores (CNPG, KEDA, metrics-server) e Secrets: scripts/up.sh.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - prometheus.yaml
+  - db-cluster.yaml
+  - db-scaledobject.yaml
+  - embedder.yaml
+  - mcp.yaml
+  - indexer-cronjob.yaml
+configMapGenerator:
+  - name: ragnar-embed
+    namespace: ragnar
+    envs: [embed.env]
+generatorOptions:
+  disableNameSuffixHash: true

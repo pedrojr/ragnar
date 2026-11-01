@@ -1,0 +1,20 @@
+# Carga de buscas via MCP, dentro do cluster (passa pelo Service: distribui entre os pods).
+# Ajuste concorrência, taxa e duração em args. Acompanhe: kubectl -n ragnar get hpa,scaledobject,cluster -w
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ragnar-load
+  namespace: ragnar
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: load
+          image: ragnar-app:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["ragnar", "load", "--url", "http://ragnar-mcp:8080/mcp"]
+          args: ["--concurrency", "16", "--rate", "40", "--duration", "420"]
+          envFrom:
+            - secretRef: { name: ragnar-mcp-tokens }

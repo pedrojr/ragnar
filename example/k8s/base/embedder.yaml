@@ -1,0 +1,58 @@
+# Embedder em Python (fastembed/ONNX, CPU). Sem estado; modelo embutido na imagem. Escala por CPU.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragnar-embedder
+  namespace: ragnar
+  labels: { app: ragnar-embedder }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: ragnar-embedder }
+  template:
+    metadata:
+      labels: { app: ragnar-embedder }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: /metrics
+    spec:
+      containers:
+        - name: embedder
+          image: ragnar-embedder:0.1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: EMBED_THREADS, value: "4" }
+          envFrom:
+            - configMapRef: { name: ragnar-embed }
+          ports: [{ containerPort: 8000, name: http }]
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "1", memory: 1Gi }
+            limits: { cpu: "4", memory: 2560Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ragnar-embedder
+  namespace: ragnar
+spec:
+  selector: { app: ragnar-embedder }
+  ports: [{ port: 8000, targetPort: http, name: http }]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ragnar-embedder
+  namespace: ragnar
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: ragnar-embedder }
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+  behavior:
+    scaleDown: { stabilizationWindowSeconds: 120 }

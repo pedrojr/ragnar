@@ -1,0 +1,33 @@
+# Postgres gerenciado pelo CloudNativePG: 1 primário (escrita) + réplicas (leitura).
+# Serviços criados pelo operador: ragnar-db-rw (primário), ragnar-db-ro (só réplicas), ragnar-db-r (qualquer).
+# O KEDA (db-scaledobject.yaml) altera spec.instances conforme o volume de buscas.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: ragnar-db
+  namespace: ragnar
+spec:
+  instances: 2                      # 1 primário + 1 réplica
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.10-standard-trixie   # standard traz pgvector
+  postgresql:
+    parameters:
+      shared_buffers: "128MB"
+      hot_standby_feedback: "on"    # evita cancelar busca na réplica após VACUUM da reindexação
+      max_standby_streaming_delay: "30s"
+  bootstrap:
+    initdb:
+      database: ragnar
+      owner: ragnar_writer
+      secret:
+        name: ragnar-writer            # senha do .env, a mesma que o indexador usa
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector
+      postInitApplicationSQLRefs:
+        secretRefs:
+          - name: ragnar-db-init-sql   # cria ragnar_reader com default_transaction_read_only = on
+            key: init.sql
+  storage:
+    size: 2Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }

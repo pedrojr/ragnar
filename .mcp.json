@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ragnar": {
+      "type": "http",
+      "url": "${RAGNAR_MCP_URL:-http://127.0.0.1:8080/mcp}",
+      "headers": { "Authorization": "Bearer ${RAGNAR_MCP_TOKEN}" }
+    }
+  }
+}
