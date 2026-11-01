@@ -13,7 +13,8 @@ import os
 import re
 import sys
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import psycopg
 from mcp.server import MCPServer

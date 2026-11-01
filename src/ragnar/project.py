@@ -163,5 +163,6 @@ def doctor(root: Path, indexed_commit: str | None = None) -> list[Check]:
 
     dirty = _git(root, "status", "--porcelain")
     if dirty:
-        checks.append(Check("ok", "working tree", f"{len(dirty.splitlines())} local change(s) are not in the index: read those files directly"))
+        count = len(dirty.splitlines())
+        checks.append(Check("ok", "working tree", f"{count} local change(s) are not in the index: read those files directly"))
     return checks

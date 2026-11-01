@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import importlib
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache
 from pathlib import PurePosixPath
-from typing import Callable
 
 from tree_sitter import Language as TSLanguage
 from tree_sitter import Node
@@ -234,7 +234,7 @@ def language_for(path: str) -> Language | None:
     return BY_EXTENSION.get(PurePosixPath(path).suffix.lower())
 
 
-@lru_cache(maxsize=None)
+@cache
 def _load(module: str, function: str) -> TSLanguage:
     return TSLanguage(getattr(importlib.import_module(module), function)())
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from ragnar.evaluation import build_golden, format_report, grep_baseline, mrr, paired_ci, recall_at
 
 from .test_unit import _git, make_repo

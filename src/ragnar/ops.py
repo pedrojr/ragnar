@@ -55,7 +55,8 @@ async def _smoke(url: str, token: str, restricted: str | None, repo: str,
         names = {t.name for t in (await client.list_tools()).tools}
         check("tools exposed", names == TOOLS, ", ".join(sorted(names)))
         repos = _text(await client.call_tool("list_repos", {}))
-        check(f"list_repos shows {repo}", repos.startswith(f"{repo}:") or f"\n{repo}:" in repos, repos.splitlines()[0] if repos else "")
+        listed = repos.startswith(f"{repo}:") or f"\n{repo}:" in repos
+        check(f"list_repos shows {repo}", listed, repos.splitlines()[0] if repos else "")
         t0 = time.perf_counter()
         res = await client.call_tool("search_code", {"query": DEFAULT_QUERIES[0], "repo": repo, "k": 5})
         body = _text(res)

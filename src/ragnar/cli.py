@@ -266,7 +266,8 @@ def main(argv: list[str] | None = None) -> None:
     with_overrides(s)
     s.set_defaults(fn=cmd_search)
 
-    evaluation = sub.add_parser("eval", help="measures retrieval against the git history").add_subparsers(dest="eval_cmd", required=True)
+    evaluation = sub.add_parser("eval", help="measures retrieval against the git history")
+    evaluation = evaluation.add_subparsers(dest="eval_cmd", required=True)
     s = evaluation.add_parser("golden", help="builds questions from the commits after a snapshot")
     s.add_argument("repo", help="local repository path")
     s.add_argument("snapshot", help="commit the snapshot index was built from")

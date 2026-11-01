@@ -19,10 +19,10 @@ import pytest
 from psycopg.conninfo import make_conninfo
 
 from ragnar.acl import hash_token
+from ragnar.config import load_settings
 from ragnar.embedder import FakeEmbedder
 from ragnar.indexer import index
 from ragnar.migrate import migrate
-from ragnar.config import load_settings
 from ragnar.search import Pipeline, find_symbol, list_repos
 
 from .test_unit import _git, make_repo
