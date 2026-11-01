@@ -1,0 +1,36 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Remove secrets from any output.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Ragnar version
+      description: Output of `ragnar --version`
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: Infrastructure
+      options: [Docker Compose, Kubernetes, Other]
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and operating system
+      placeholder: Claude Code 2.1 on Windows 11
