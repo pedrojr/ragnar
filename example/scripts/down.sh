@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Remove o exemplo do Kubernetes. Com --all, remove também os operadores (CNPG, KEDA, metrics-server).
+# Removes the example from Kubernetes. With --all, also removes the operators (CNPG, KEDA, metrics-server).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 kubectl delete -k k8s/base --ignore-not-found --wait=false

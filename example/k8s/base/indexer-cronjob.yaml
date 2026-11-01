@@ -1,38 +1,52 @@
-# Modelo de indexação dentro do cluster, para repositórios com URL git (ex.: GitLab).
-# Suspenso: troque URL e nome, crie o acesso ao git (deploy token) e remova o suspend.
-# No CI, a cada merge na main: kubectl -n ragnar create job --from=cronjob/ragnar-indexer-exemplo idx-$(date +%s)
-# O exemplo local indexa pelo host: scripts/index.sh.
+# Index worker inside the cluster: follows the branches listed in repos.toml.
+# scripts/up.sh creates the ragnar-repos ConfigMap from that file.
+# To react to a merge at once, run from CI: kubectl -n ragnar create job --from=cronjob/ragnar-indexer idx-$(date +%s)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ragnar-indexer-cache
+  namespace: ragnar
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: { storage: 5Gi }
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: ragnar-indexer-exemplo
+  name: ragnar-indexer
   namespace: ragnar
 spec:
-  suspend: true
-  schedule: "*/30 * * * *"
-  concurrencyPolicy: Forbid          # um escritor por repositório (o indexador também usa advisory lock)
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid          # one writer per repository (the indexer also takes an advisory lock)
   jobTemplate:
     spec:
       backoffLimit: 1
       template:
         spec:
           restartPolicy: Never
+          securityContext: { fsGroup: 10001 }
           containers:
             - name: indexer
               image: ragnar-app:0.1.0
               imagePullPolicy: IfNotPresent
-              command: ["ragnar", "index", "https://gitlab.example.com/grupo/repo.git", "repo"]
+              command: ["ragnar", "sync", "--config", "/etc/ragnar/repos.toml"]
               env:
                 - name: RAGNAR_WRITER_PASSWORD
                   valueFrom: { secretKeyRef: { name: ragnar-writer, key: password } }
                 - name: RAGNAR_DSN_WRITE
                   value: host=ragnar-db-rw port=5432 dbname=ragnar user=ragnar_writer password=$(RAGNAR_WRITER_PASSWORD)
+                - name: RAGNAR_GIT_TOKEN
+                  valueFrom: { secretKeyRef: { name: ragnar-git, key: RAGNAR_GIT_TOKEN, optional: true } }
                 - { name: RAGNAR__EMBEDDING__URL, value: "http://ragnar-embedder:8000/v1" }
                 - { name: HOME, value: /cache }
               envFrom:
                 - configMapRef: { name: ragnar-embed }
               volumeMounts:
                 - { name: cache, mountPath: /cache }
+                - { name: repos, mountPath: /etc/ragnar, readOnly: true }
           volumes:
             - name: cache
-              emptyDir: {}
+              persistentVolumeClaim: { claimName: ragnar-indexer-cache }
+            - name: repos
+              configMap: { name: ragnar-repos }

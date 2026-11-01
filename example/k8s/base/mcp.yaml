@@ -1,5 +1,5 @@
-# Servidor MCP somente leitura. Lê só de ragnar-db-ro com ragnar_reader; não recebe a senha de escrita.
-# Sem sessão MCP: qualquer pod atende qualquer requisição. Escala por CPU.
+# Read-only MCP server. Reads only from ragnar-db-ro as ragnar_reader; never receives the write password.
+# No MCP session: any pod answers any request. Scales on CPU.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,7 +31,7 @@ spec:
             - { name: RAGNAR_ACL_FILE, value: /run/ragnar/acl.json }
             - { name: RAGNAR__EMBEDDING__URL, value: "http://ragnar-embedder:8000/v1" }
             - { name: RAGNAR_POOL_MAX, value: "8" }
-            - { name: RAGNAR_POOL_MAX_LIFETIME, value: "120" }   # renova conexões: réplica nova recebe carga
+            - { name: RAGNAR_POOL_MAX_LIFETIME, value: "120" }   # renews connections, so a new replica receives load
           envFrom:
             - configMapRef: { name: ragnar-embed }
           ports: [{ containerPort: 8080, name: http }]
@@ -50,7 +50,7 @@ spec:
         - name: acl
           secret: { secretName: ragnar-acl }
 ---
-# LoadBalancer no Docker Desktop publica em localhost:8080 (o mesmo endereço do Compose).
+# LoadBalancer on Docker Desktop publishes on localhost:8080 (the same address as Compose).
 apiVersion: v1
 kind: Service
 metadata:

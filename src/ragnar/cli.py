@@ -114,8 +114,8 @@ def cmd_sync(args) -> None:
     repos = load_repos(args.config)
     if args.repo:
         repos = [r for r in repos if r.name == args.repo]
-    if not repos and not args.watch:
-        raise RagnarError(f"no repository to sync in {args.config}")
+    if not repos:
+        print(f"no repository to sync in {args.config}", file=sys.stderr)
     emb = from_settings(settings)
     if args.watch:
         watch(repos, write_dsn(), emb, settings, args.interval)

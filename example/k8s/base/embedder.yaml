@@ -1,4 +1,4 @@
-# Embedder em Python (fastembed/ONNX, CPU). Sem estado; modelo embutido na imagem. Escala por CPU.
+# Python embedder (fastembed/ONNX, CPU). Stateless; the model is baked into the image. Scales on CPU.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,7 +22,7 @@ spec:
           image: ragnar-embedder:0.1.0
           imagePullPolicy: IfNotPresent
           env:
-            - { name: EMBED_THREADS, value: "4" }
+            - { name: RAGNAR_EMBED_THREADS, value: "4" }
           envFrom:
             - configMapRef: { name: ragnar-embed }
           ports: [{ containerPort: 8000, name: http }]

@@ -1,0 +1,33 @@
+# Optional: index on every push instead of waiting for the worker's next pass.
+# Copy to .github/workflows/ragnar-index.yml in your project.
+#
+# Requires a runner that reaches the primary and the embedder (a self-hosted runner, a VPN, or
+# an external embedding provider). Without that path, rely on the worker: it needs no inbound network.
+#
+# Repository settings:
+#   secret   RAGNAR_DSN_WRITE     postgresql://ragnar_writer:...@host:5432/ragnar
+#   variable RAGNAR_EMBEDDING_URL http://embedder.internal:8000/v1
+name: ragnar-index
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    concurrency: ragnar-index   # one writer at a time
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - uses: gitleaks/gitleaks-action@v2
+      - name: Index the pushed commit
+        env:
+          RAGNAR_DSN_WRITE: ${{ secrets.RAGNAR_DSN_WRITE }}
+          RAGNAR__EMBEDDING__URL: ${{ vars.RAGNAR_EMBEDDING_URL }}
+        run: uvx --from git+https://github.com/pedrojr/ragnar ragnar index . "${{ github.event.repository.name }}" --ref "${{ github.sha }}"

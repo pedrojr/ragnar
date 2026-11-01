@@ -1,1 +1,1 @@
-"""Migrações SQL aplicadas por ragnar.migrate."""
+"""SQL migrations applied by ragnar.migrate."""

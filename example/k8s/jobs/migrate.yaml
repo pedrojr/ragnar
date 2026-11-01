@@ -1,4 +1,4 @@
-# Aplica as migrações no primário. scripts/up.sh recria este Job a cada subida.
+# Applies the migrations on the primary. scripts/up.sh recreates this Job on every run.
 apiVersion: batch/v1
 kind: Job
 metadata:

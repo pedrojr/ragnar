@@ -1,5 +1,5 @@
-# Réplicas de leitura por volume de acesso: buscas/s medidas no MCP, via Prometheus.
-# CPU não serve aqui: o seletor do Cluster inclui o primário e a média mistura escrita e leitura.
+# Read replicas by access volume: searches/s measured at the MCP server, through Prometheus.
+# CPU does not work here: the Cluster selector includes the primary, so the average mixes writes and reads.
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -10,15 +10,15 @@ spec:
     apiVersion: postgresql.cnpg.io/v1
     kind: Cluster
     name: ragnar-db
-  minReplicaCount: 2                # instâncias totais: 1 primário + 1 réplica
-  maxReplicaCount: 4                # 1 primário + 3 réplicas
+  minReplicaCount: 2                # total instances: 1 primary + 1 replica
+  maxReplicaCount: 4                # 1 primary + 3 replicas
   pollingInterval: 15
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
         scaleUp:
           stabilizationWindowSeconds: 30
-          policies: [{ type: Pods, value: 1, periodSeconds: 60 }]      # réplica nova clona o primário: uma por vez
+          policies: [{ type: Pods, value: 1, periodSeconds: 60 }]      # a new replica clones the primary: one at a time
         scaleDown:
           stabilizationWindowSeconds: 300
           policies: [{ type: Pods, value: 1, periodSeconds: 120 }]
@@ -26,7 +26,7 @@ spec:
     - type: prometheus
       metadata:
         serverAddress: http://prometheus.monitoring.svc:9090
-        # buscas/s + 10: a parcela extra reserva a "instância" do primário, que não atende leitura.
-        # Resultado: 1 réplica a cada 10 buscas/s. Ajuste o threshold à capacidade medida por réplica.
+        # searches/s + 10: the extra share reserves the primary's "instance", which serves no reads.
+        # Result: 1 replica per 10 searches/s. Fit the threshold to the capacity measured per replica.
         query: (sum(rate(ragnar_search_total{tool="search_code"}[1m])) or vector(0)) + 10
         threshold: "10"

@@ -219,5 +219,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Local runtime files with secrets
+# Local runtime files of the example infrastructure
 acl.json
+example/repos.toml

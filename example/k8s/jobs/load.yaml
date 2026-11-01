@@ -1,5 +1,5 @@
-# Carga de buscas via MCP, dentro do cluster (passa pelo Service: distribui entre os pods).
-# Ajuste concorrência, taxa e duração em args. Acompanhe: kubectl -n ragnar get hpa,scaledobject,cluster -w
+# Search load through MCP, inside the cluster (goes through the Service, so it spreads across pods).
+# Tune concurrency, rate and duration in args. Watch: kubectl -n ragnar get hpa,scaledobject,cluster -w
 apiVersion: batch/v1
 kind: Job
 metadata:

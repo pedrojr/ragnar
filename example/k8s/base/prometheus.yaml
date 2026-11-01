@@ -1,5 +1,5 @@
-# Prometheus mínimo: coleta só os pods do namespace ragnar com a anotação prometheus.io/scrape.
-# Fonte da métrica de volume (ragnar_search_total) usada pelo KEDA.
+# Minimal Prometheus: scrapes only the pods in the ragnar namespace with the prometheus.io/scrape annotation.
+# Source of the volume metric (ragnar_search_total) used by KEDA.
 apiVersion: v1
 kind: Namespace
 metadata:

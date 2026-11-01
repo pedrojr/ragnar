@@ -1,0 +1,21 @@
+# Optional: index on every push instead of waiting for the worker's next pass.
+# Merge into your project's .gitlab-ci.yml.
+#
+# Requires a runner that reaches the primary and the embedder. Without that path, rely on the
+# worker: it needs no inbound network.
+#
+# CI/CD variables:
+#   RAGNAR_DSN_WRITE (masked)  postgresql://ragnar_writer:...@host:5432/ragnar
+#   RAGNAR__EMBEDDING__URL     http://embedder.internal:8000/v1
+ragnar-index:
+  image: ghcr.io/astral-sh/uv:0.11.28-python3.12-bookworm
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  resource_group: ragnar-index   # one writer at a time
+  variables:
+    GIT_DEPTH: "0"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz -C /usr/local/bin gitleaks
+  script:
+    - uvx --from git+https://github.com/pedrojr/ragnar ragnar index . "$CI_PROJECT_NAME" --ref "$CI_COMMIT_SHA"

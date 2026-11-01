@@ -1,5 +1,5 @@
 #!/bin/bash
-# Réplica descartável do Compose: clona o primário a cada subida e roda em hot standby.
+# Disposable Compose replica: clones the primary on every start and runs as a hot standby.
 set -euo pipefail
 export PGPASSWORD="$REPLICATION_PASSWORD"
 until pg_isready -q -h db-primary -U replicator -d postgres; do sleep 1; done

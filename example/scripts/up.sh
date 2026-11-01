@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Sobe o exemplo no Kubernetes do Docker Desktop com um comando. Idempotente: pode rodar de novo.
-# Pré-requisitos: Docker Desktop com Kubernetes ligado, kubectl, uv. Sem Helm.
+# Brings the example up on Docker Desktop Kubernetes with one command. Idempotent: safe to run again.
+# Requires Docker Desktop with Kubernetes on, kubectl and uv. No Helm.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -12,16 +12,16 @@ CONTEXT="${K8S_CONTEXT:-docker-desktop}"
 step() { printf '\n== %s\n' "$*"; }
 retry() { for i in $(seq 1 30); do "$@" && return 0; sleep 5; done; return 1; }
 
-[ "$(kubectl config current-context)" = "$CONTEXT" ] || { echo "contexto atual não é $CONTEXT (use K8S_CONTEXT=...)" >&2; exit 1; }
+[ "$(kubectl config current-context)" = "$CONTEXT" ] || { echo "current context is not $CONTEXT (use K8S_CONTEXT=...)" >&2; exit 1; }
 if docker compose ps -q ragnar-mcp 2>/dev/null | grep -q .; then
-  echo "o Compose está no ar e ocupa a porta 8080: rode 'docker compose down' antes" >&2; exit 1
+  echo "Compose is running and holds port 8080: run 'docker compose down' first" >&2; exit 1
 fi
-[ -f .env ] || uv run ragnar init-env
+[ -f .env ] || uv run --project .. ragnar init-env
 set -a; . ./.env; set +a
 
-step "operadores: metrics-server $METRICS_SERVER_VERSION, CloudNativePG $CNPG_VERSION, KEDA $KEDA_VERSION"
+step "operators: metrics-server $METRICS_SERVER_VERSION, CloudNativePG $CNPG_VERSION, KEDA $KEDA_VERSION"
 kubectl apply -f "https://github.com/kubernetes-sigs/metrics-server/releases/download/v${METRICS_SERVER_VERSION}/components.yaml" >/dev/null
-# kubelet do Docker Desktop usa certificado autoassinado
+# the Docker Desktop kubelet uses a self-signed certificate
 kubectl -n kube-system get deploy metrics-server -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -q kubelet-insecure-tls \
   || kubectl -n kube-system patch deploy metrics-server --type=json \
        -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]' >/dev/null
@@ -35,11 +35,11 @@ kubectl -n keda rollout status deploy/keda-metrics-apiserver --timeout=300s
 kubectl -n keda rollout status deploy/keda-admission --timeout=300s
 kubectl -n kube-system rollout status deploy/metrics-server --timeout=300s
 
-step "imagens (o Kubernetes do Docker Desktop enxerga as imagens locais)"
-docker build -q --target app -t ragnar-app:0.1.0 -f example/docker/Dockerfile .. >/dev/null
-docker build -q --target embedder -t ragnar-embedder:0.1.0 -f example/docker/Dockerfile .. >/dev/null
+step "images (Docker Desktop Kubernetes sees local images)"
+docker build -q --target app -t ragnar-app:0.1.0 -f docker/Dockerfile .. >/dev/null
+docker build -q --target embedder -t ragnar-embedder:0.1.0 -f docker/Dockerfile .. >/dev/null
 
-step "namespace e segredos (a partir do .env)"
+step "namespace and secrets (from .env)"
 kubectl apply -f k8s/base/namespace.yaml >/dev/null
 apply_secret() { kubectl -n ragnar create secret "$@" --dry-run=client -o yaml | kubectl apply -f - >/dev/null; }
 apply_secret generic ragnar-writer --type=kubernetes.io/basic-auth \
@@ -49,29 +49,31 @@ apply_secret generic ragnar-reader --type=kubernetes.io/basic-auth \
 apply_secret generic ragnar-db-init-sql --from-literal=init.sql="CREATE ROLE ragnar_reader LOGIN PASSWORD '${RAGNAR_READER_PASSWORD}';
 ALTER ROLE ragnar_reader SET default_transaction_read_only = on;"
 apply_secret generic ragnar-acl --from-file=acl.json=acl.json
+apply_secret generic ragnar-git --from-literal=RAGNAR_GIT_TOKEN="${RAGNAR_GIT_TOKEN:-}"
+kubectl -n ragnar create configmap ragnar-repos --from-file=repos.toml=repos.toml --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 apply_secret generic ragnar-mcp-tokens \
   --from-literal=RAGNAR_MCP_TOKEN="$RAGNAR_MCP_TOKEN" --from-literal=RAGNAR_MCP_TOKEN_RESTRICTED="$RAGNAR_MCP_TOKEN_RESTRICTED"
 
-step "recursos do exemplo (kubectl apply -k k8s/base)"
-retry kubectl apply -k k8s/base >/dev/null   # webhooks dos operadores podem levar alguns segundos
+step "example resources (kubectl apply -k k8s/base)"
+retry kubectl apply -k k8s/base >/dev/null   # operator webhooks may take a few seconds
 kubectl -n ragnar wait --for=condition=Ready cluster/ragnar-db --timeout=600s
 
-step "migrações no primário"
+step "migrations on the primary"
 kubectl -n ragnar delete job ragnar-migrate --ignore-not-found >/dev/null
 kubectl apply -f k8s/jobs/migrate.yaml >/dev/null
 kubectl -n ragnar wait --for=condition=complete job/ragnar-migrate --timeout=300s >/dev/null
 kubectl -n ragnar logs job/ragnar-migrate
 
-step "aguardando embedder e MCP"
+step "waiting for the embedder and the MCP server"
 kubectl -n ragnar rollout status deploy/ragnar-embedder --timeout=600s
-kubectl -n ragnar rollout restart deploy/ragnar-mcp >/dev/null   # relê a ACL se ela mudou
+kubectl -n ragnar rollout restart deploy/ragnar-mcp >/dev/null   # reloads the ACL if it changed
 kubectl -n ragnar rollout status deploy/ragnar-mcp --timeout=300s
 
 cat <<MSG
 
-Pronto. MCP em http://127.0.0.1:8080/mcp (Service LoadBalancer do Docker Desktop).
-  Indexar:      ./scripts/index.sh /path/to/repo myapp --target k8s
-  Verificar:    ./scripts/smoke.sh --target k8s
-  Carga:        kubectl apply -f k8s/jobs/load.yaml
-  Acompanhar:   kubectl -n ragnar get hpa,scaledobject,cluster -w
+Ready. MCP at http://127.0.0.1:8080/mcp (Docker Desktop LoadBalancer Service).
+  Index now:    ./scripts/index.sh /path/to/myapp myapp --target k8s
+  Check:        ./scripts/smoke.sh myapp --target k8s
+  Load:         kubectl apply -f k8s/jobs/load.yaml
+  Watch:        kubectl -n ragnar get hpa,scaledobject,cluster -w
 MSG

@@ -1,0 +1,23 @@
+# Server-side settings for the MCP server and the index worker. Every option: docs/configuration.md.
+# Repositories can tune only their own [index] section, through the ragnar.toml they commit.
+# After a change: docker compose restart ragnar-mcp indexer
+
+[project]
+preset = "balanced"       # economy | balanced | precise
+
+[retrieval]
+# mode = "hybrid"         # hybrid | vector | lexical
+# max_context_tokens = 4000
+
+# Optional reranker, through any /rerank endpoint:
+# [rerank]
+# provider = "http"
+# url = "http://reranker:8000/rerank"
+# model = "jinaai/jina-reranker-v2-base-multilingual"
+
+# Optional chat model, through any OpenAI-compatible endpoint, for query expansion and contextual retrieval:
+# [llm]
+# url = "http://ollama:11434/v1"
+# model = "qwen3:8b"
+# [query]
+# strategy = "multi_query"  # none | multi_query | hyde
