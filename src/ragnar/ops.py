@@ -1,4 +1,4 @@
-"""Verificação ponta a ponta (smoke) e gerador de carga, ambos como clientes MCP reais."""
+"""End-to-end verification (smoke) and load generator, both real MCP clients."""
 
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 TOOLS = {"search_code", "find_symbol", "list_repos"}
 DEFAULT_QUERIES = [
-    "como montar um formulário declarativo", "validação de CPF e CNPJ", "trocar o tema em tempo de execução",
-    "barra de status do Shell", "ação usada em botão menu e atalho", "tabela que recebe o tipo do domínio",
-    "diálogo de confirmação", "navegação lateral", "campo de dinheiro com máscara", "carregar fontes e ícones",
-    "func New", "Theme", "Action", "testes de formulário", "busca em lista",
+    "how is the main entry point wired", "where is input validated", "error handling for failed requests",
+    "database connection setup", "configuration loading", "authentication and permissions",
+    "retry logic", "logging setup", "tests for the main flow", "public API routes",
+    "func New", "Config", "Service", "handle error", "parse",
 ]
 
 
@@ -45,30 +45,30 @@ async def _smoke(url: str, token: str, restricted: str | None, repo: str,
     def check(name: str, passed: bool, detail: str = "") -> None:
         nonlocal ok
         ok &= passed
-        print(f"[{'ok' if passed else 'FALHOU'}] {name}" + (f": {detail}" if detail else ""))
+        print(f"[{'ok' if passed else 'FAILED'}] {name}" + (f": {detail}" if detail else ""))
 
     async with httpx.AsyncClient(timeout=10) as http:
         r = await http.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
-        check("sem token recebe 401", r.status_code == 401, f"status {r.status_code}")
+        check("no token gets 401", r.status_code == 401, f"status {r.status_code}")
 
     async with mcp_client(url, token) as client:
         names = {t.name for t in (await client.list_tools()).tools}
-        check("ferramentas expostas", names == TOOLS, ", ".join(sorted(names)))
+        check("tools exposed", names == TOOLS, ", ".join(sorted(names)))
         repos = _text(await client.call_tool("list_repos", {}))
-        check(f"list_repos mostra {repo}", repos.startswith(f"{repo}:") or f"\n{repo}:" in repos, repos.splitlines()[0] if repos else "")
+        check(f"list_repos shows {repo}", repos.startswith(f"{repo}:") or f"\n{repo}:" in repos, repos.splitlines()[0] if repos else "")
         t0 = time.perf_counter()
         res = await client.call_tool("search_code", {"query": DEFAULT_QUERIES[0], "repo": repo, "k": 5})
         body = _text(res)
         first = next((line for line in body.splitlines() if line.startswith("<chunk")), "")
-        check("search_code devolve trechos com path:linha", not res.is_error and 'path="' in first,
+        check("search_code returns snippets with path:line", not res.is_error and 'path="' in first,
               f"{(time.perf_counter() - t0) * 1000:.0f} ms, {first[:110]}")
         res = await client.call_tool("find_symbol", {"name": "New", "repo": repo, "k": 3})
-        check("find_symbol responde", not res.is_error, _text(res).splitlines()[0][:110] if _text(res) else "")
+        check("find_symbol answers", not res.is_error, _text(res).splitlines()[0][:110] if _text(res) else "")
 
     if restricted:
         async with mcp_client(url, restricted) as client:
             res = await client.call_tool("search_code", {"query": "x", "repo": repo})
-            check(f"token restrito não lê {repo}", res.is_error, _text(res)[:110])
+            check(f"restricted token cannot read {repo}", res.is_error, _text(res)[:110])
 
     if write_dsn and read_dsn:
         primary_host = conninfo_to_dict(write_dsn)["host"]
@@ -83,19 +83,19 @@ async def _smoke(url: str, token: str, restricted: str | None, repo: str,
                 seen = row is not None and abs(float(row[0]) - marker) < 0.001
                 if not seen:
                     time.sleep(0.05)
-        check("escrita no primário chega à réplica", seen, f"{(time.perf_counter() - t0) * 1000:.0f} ms")
+        check("write on the primary reaches the replica", seen, f"{(time.perf_counter() - t0) * 1000:.0f} ms")
 
         def must_fail(name: str, dsn: str) -> None:
             try:
                 with psycopg.connect(dsn) as c:
                     c.execute("INSERT INTO replication_probe (id, written_at) VALUES (2, now())")
-                check(name, False, "INSERT aceito")
+                check(name, False, "INSERT accepted")
             except (psycopg.errors.InsufficientPrivilege, psycopg.errors.ReadOnlySqlTransaction) as exc:
                 check(name, True, str(exc).splitlines()[0])
 
-        must_fail("ragnar_reader não grava nem no primário", make_conninfo(read_dsn, host=primary_host))
+        must_fail("ragnar_reader cannot write, even on the primary", make_conninfo(read_dsn, host=primary_host))
         if replica_host:
-            must_fail("réplica recusa escrita até do ragnar_writer", make_conninfo(write_dsn, host=replica_host))
+            must_fail("replica refuses writes, even from ragnar_writer", make_conninfo(write_dsn, host=replica_host))
     return ok
 
 
@@ -108,7 +108,7 @@ async def _load(url: str, token: str, concurrency: int, duration: float, queries
     latencies: list[float] = []
     errors = 0
     stop = time.monotonic() + duration
-    interval = concurrency / rate if rate > 0 else 0.0  # pausa por cliente para atingir a taxa total
+    interval = concurrency / rate if rate > 0 else 0.0  # per-client pause to reach the total rate
 
     async def worker(n: int) -> None:
         nonlocal errors
@@ -134,13 +134,13 @@ async def _load(url: str, token: str, concurrency: int, duration: float, queries
             now, t_now = len(latencies), time.monotonic()
             window = sorted(latencies[last:now]) or [0.0]
             p95 = window[int(0.95 * (len(window) - 1))]
-            print(f"{time.strftime('%H:%M:%S')}  {(now - last) / (t_now - t_last):6.1f} buscas/s  "
-                  f"p50 {statistics.median(window) * 1000:6.0f} ms  p95 {p95 * 1000:6.0f} ms  erros {errors}", flush=True)
+            print(f"{time.strftime('%H:%M:%S')}  {(now - last) / (t_now - t_last):6.1f} searches/s  "
+                  f"p50 {statistics.median(window) * 1000:6.0f} ms  p95 {p95 * 1000:6.0f} ms  errors {errors}", flush=True)
             last, t_last = now, t_now
 
     await asyncio.gather(report(), *(worker(i) for i in range(concurrency)))
     total = sorted(latencies) or [0.0]
-    print(f"total {len(latencies)} buscas em {duration:.0f}s, erros {errors}, "
+    print(f"total {len(latencies)} searches in {duration:.0f}s, errors {errors}, "
           f"p95 {total[int(0.95 * (len(total) - 1))] * 1000:.0f} ms")
 
 
