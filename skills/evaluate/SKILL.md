@@ -40,7 +40,7 @@ Implementa a seção 8.1 do guia `rag-codigo-guia.md`: cada commit vira uma perg
    ```bash
    set -a; . ./.env; set +a
    export RAGNAR_DSN_READ="postgresql://ragnar_reader:${RAGNAR_READER_PASSWORD}@127.0.0.1:15432/ragnar"
-   export EMBED_URL=http://127.0.0.1:8001/v1
+   export RAGNAR__EMBEDDING__URL=http://127.0.0.1:8001/v1
    uv run python eval/eval_retrieval.py <repo> "$SNAP" <nome>-snap eval/golden.jsonl
    ```
    No k8s, abra antes os túneis: `kubectl -n ragnar port-forward svc/ragnar-db-ro 15432:5432` e `svc/ragnar-embedder 8001:8000`.

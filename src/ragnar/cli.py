@@ -9,7 +9,7 @@ import secrets
 import sys
 from pathlib import Path
 
-from .config import RagError, read_dsn, write_dsn
+from .config import RagnarError, read_dsn, write_dsn
 
 
 def cmd_init_env(args) -> None:
@@ -28,8 +28,8 @@ def cmd_init_env(args) -> None:
         "RAGNAR_READER_PASSWORD": secrets.token_hex(16),
         "RAGNAR_MCP_TOKEN": token,
         "RAGNAR_MCP_TOKEN_RESTRICTED": restricted,
-        "EMBED_MODEL": "jinaai/jina-embeddings-v2-base-code",
-        "EMBED_DIM": "768",
+        "RAGNAR__EMBEDDING__MODEL": "jinaai/jina-embeddings-v2-base-code",
+        "RAGNAR__EMBEDDING__DIM": "768",
     }
     env_file.write_text("# Gerado por `ragnar init-env`. Nunca commitar.\n"
                         + "".join(f"{k}={v}\n" for k, v in values.items()), encoding="utf-8")
@@ -58,12 +58,12 @@ def cmd_migrate(_args) -> None:
 
 
 def cmd_index(args) -> None:
-    from .embedder import from_env
+    from .embedder import from_settings
     from .indexer import index
 
     if args.no_secret_scan:
         print("AVISO: varredura de segredos desligada", file=sys.stderr)
-    r = index(args.source, args.repo, write_dsn(), from_env(), ref=args.ref, full=args.full,
+    r = index(args.source, args.repo, write_dsn(), from_settings(), ref=args.ref, full=args.full,
               scan=not args.no_secret_scan)
     print(f"{r.repo}: {r.mode} em {r.commit_sha[:12]}: {r.files} arquivos, {r.chunks} chunks gravados, "
           f"{r.deleted_chunks} removidos, {r.seconds}s")
@@ -72,12 +72,12 @@ def cmd_index(args) -> None:
 def cmd_search(args) -> None:
     import psycopg
 
-    from .embedder import from_env
+    from .embedder import from_settings
     from .mcp_server import render_hits
     from .search import search
 
     with psycopg.connect(read_dsn()) as conn:
-        hits, timing = search(conn, from_env(), [args.repo], args.query, args.k, args.path_prefix)
+        hits, timing = search(conn, from_settings(), [args.repo], args.query, args.k, args.path_prefix)
     print(render_hits(hits))
     print(f"embed {timing['embed'] * 1000:.0f} ms, sql {timing['sql'] * 1000:.0f} ms", file=sys.stderr)
 
@@ -173,7 +173,7 @@ def main(argv: list[str] | None = None) -> None:
     args = p.parse_args(argv)
     try:
         args.fn(args)
-    except RagError as exc:
+    except RagnarError as exc:
         print(f"erro: {exc}", file=sys.stderr)
         sys.exit(2)
 

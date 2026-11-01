@@ -15,7 +15,7 @@ from statistics import mean
 import psycopg
 
 from ragnar.config import read_dsn
-from ragnar.embedder import from_env
+from ragnar.embedder import from_settings
 from ragnar.search import search
 
 REPO_DIR, SNAP, INDEX_NAME, GOLDEN = sys.argv[1:5]
@@ -54,7 +54,7 @@ def paired_ci(a, b, n=5000, seed=7):
     return mean(d), means[int(0.025 * n)], means[int(0.975 * n)]
 
 
-EMB = from_env()
+EMB = from_settings()
 CONN = psycopg.connect(read_dsn())
 golden = [json.loads(line) for line in open(GOLDEN, encoding="utf-8") if line.strip()]
 if not golden:

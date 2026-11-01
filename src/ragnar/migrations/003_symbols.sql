@@ -1,4 +1,4 @@
--- Definições extraídas da AST: find_symbol acha funções mesmo quando dividem chunk com outras.
+-- Definitions extracted from the AST: find_symbol finds functions even when they share a chunk.
 CREATE TABLE code_symbol (
   id          bigserial PRIMARY KEY,
   repo        text NOT NULL,

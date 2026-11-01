@@ -1,5 +1,5 @@
--- Schema da seção 5.2 do guia. A dimensão do vetor acompanha o modelo (EMBED_DIM).
--- Trocar de modelo com outra dimensão = nova migração + reindexação completa.
+-- The vector dimension follows the model (embedding.dim).
+-- Changing to a model with another dimension: `ragnar migrate --resize-embeddings`, then reindex.
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE code_chunk (
@@ -12,10 +12,10 @@ CREATE TABLE code_chunk (
   start_line   int  NOT NULL,
   end_line     int  NOT NULL,
   commit_sha   text NOT NULL,
-  content      text NOT NULL,                  -- cabeçalho + trecho
-  search_text  text NOT NULL,                  -- content + identificadores separados
+  content      text NOT NULL,                  -- header + snippet
+  search_text  text NOT NULL,                  -- content + split identifiers
   tsv          tsvector GENERATED ALWAYS AS (to_tsvector('simple', search_text)) STORED,
-  embedding    vector({{EMBED_DIM}}) NOT NULL   -- trocado por migrate.py (EMBED_DIM)
+  embedding    vector({{EMBED_DIM}}) NOT NULL  -- replaced by migrate.py
 );
 
 CREATE INDEX code_chunk_embedding_idx ON code_chunk USING hnsw (embedding vector_cosine_ops);
@@ -30,7 +30,7 @@ CREATE TABLE index_state (
   indexed_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- Uma linha gravada no primário e lida nas réplicas: mede o atraso da replicação.
+-- One row written on the primary and read on the replicas: measures replication lag.
 CREATE TABLE replication_probe (
   id         int PRIMARY KEY,
   written_at timestamptz NOT NULL

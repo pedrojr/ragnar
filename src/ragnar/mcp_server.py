@@ -26,8 +26,8 @@ from starlette.responses import JSONResponse, PlainTextResponse, Response
 
 from . import __version__
 from .acl import Acl, Client
-from .config import RagError, env, read_dsn
-from .embedder import from_env
+from .config import RagnarError, env, read_dsn
+from .embedder import from_settings
 from .search import find_symbol as db_find_symbol
 from .search import list_repos as db_list_repos
 from .search import search
@@ -95,7 +95,7 @@ class BearerAuth:
 
 
 def build_server(pool: ConnectionPool, acl: Acl) -> MCPServer:
-    emb = from_env()
+    emb = from_settings()
     server = MCPServer(
         name="ragnar",
         title="RAG de código",
@@ -121,7 +121,7 @@ def build_server(pool: ConnectionPool, acl: Acl) -> MCPServer:
                     return fn(conn)
             except (psycopg.errors.SerializationFailure, psycopg.OperationalError) as exc:
                 if attempt == 2:
-                    raise RagError(f"banco de leitura indisponível: {exc}") from None
+                    raise RagnarError(f"banco de leitura indisponível: {exc}") from None
 
     def repos_for(client: Client, requested: str | None) -> list[str]:
         repos = client.resolve(requested)
@@ -134,7 +134,7 @@ def build_server(pool: ConnectionPool, acl: Acl) -> MCPServer:
         client = client_of(ctx)
         try:
             text, info = fn(client)
-        except RagError as exc:
+        except RagnarError as exc:
             ERRORS.labels(tool).inc()
             raise ToolError(str(exc)) from None
         SEARCHES.labels(tool).inc()
@@ -154,7 +154,7 @@ def build_server(pool: ConnectionPool, acl: Acl) -> MCPServer:
 
         def go(client: Client) -> tuple[str, dict]:
             if kind is not None and kind not in KINDS:
-                raise RagError(f"kind inválido: {kind} (use code, test ou doc)")
+                raise RagnarError(f"kind inválido: {kind} (use code, test ou doc)")
             repos = repos_for(client, repo)
             hits, timing = read(lambda c: search(c, emb, repos, query, max(1, min(k, 20)), path_prefix, kind))
             for phase, seconds in timing.items():

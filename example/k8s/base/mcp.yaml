@@ -29,7 +29,7 @@ spec:
             - name: RAGNAR_DSN_READ
               value: host=ragnar-db-ro port=5432 dbname=ragnar user=ragnar_reader password=$(RAGNAR_READER_PASSWORD)
             - { name: RAGNAR_ACL_FILE, value: /run/ragnar/acl.json }
-            - { name: EMBED_URL, value: "http://ragnar-embedder:8000/v1" }
+            - { name: RAGNAR__EMBEDDING__URL, value: "http://ragnar-embedder:8000/v1" }
             - { name: RAGNAR_POOL_MAX, value: "8" }
             - { name: RAGNAR_POOL_MAX_LIFETIME, value: "120" }   # renova conexões: réplica nova recebe carga
           envFrom:

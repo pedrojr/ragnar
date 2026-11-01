@@ -47,7 +47,7 @@ services:
     image: ragnar-embedder:0.1.0
     build: { context: .., dockerfile: example/docker/Dockerfile, target: embedder }
     environment:
-      EMBED_THREADS: "4"
+      RAGNAR_EMBED_THREADS: "4"
     mem_limit: 3g   # estouro mata só o container, não a VM do Docker
     ports: ["127.0.0.1:8001:8000"]   # só para o indexador no host
     healthcheck:
@@ -72,7 +72,7 @@ services:
       # host=db-replica: o DNS do Docker distribui entre as réplicas (aproximado, suficiente para dev)
       RAGNAR_DSN_READ: postgresql://ragnar_reader:${RAGNAR_READER_PASSWORD}@db-replica:5432/ragnar
       RAGNAR_ACL_FILE: /run/ragnar/acl.json
-      EMBED_URL: http://embedder:8000/v1
+      RAGNAR__EMBEDDING__URL: http://embedder:8000/v1
     volumes:
       - ./acl.json:/run/ragnar/acl.json:ro
     ports: ["127.0.0.1:8080:8080"]
@@ -90,7 +90,7 @@ services:
     environment:
       RAGNAR_DSN_WRITE: postgresql://ragnar_writer:${RAGNAR_WRITER_PASSWORD}@db-primary:5432/ragnar
       RAGNAR_DSN_READ: postgresql://ragnar_reader:${RAGNAR_READER_PASSWORD}@db-replica:5432/ragnar
-      EMBED_URL: http://embedder:8000/v1
+      RAGNAR__EMBEDDING__URL: http://embedder:8000/v1
 
 volumes:
   primary-data:

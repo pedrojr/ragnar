@@ -1,31 +1,34 @@
-"""Cliente de embeddings: qualquer endpoint compatível com /v1/embeddings.
+"""Embedding client: any endpoint compatible with /v1/embeddings.
 
-Serve para o embedder deste exemplo (ragnar.embed_server), Ollama, vLLM, LiteLLM
-ou provedor externo. FakeEmbedder gera vetores determinísticos para testes.
+Works with the bundled embedder (ragnar.embed_server), Ollama, vLLM, LiteLLM, or an
+external provider. FakeEmbedder produces deterministic vectors for tests.
 """
 
 from __future__ import annotations
 
 import hashlib
 import math
+import os
 import re
 from functools import lru_cache
 
 import httpx
 
-from .config import EmbedConfig, RagError, embed_config
+from .config import Embedding, RagnarError, Settings, load_settings
 
 
 def to_pgvector(vector: list[float]) -> str:
-    """Formato de texto do pgvector: '[0.1,0.2,...]'."""
+    """pgvector text format: '[0.1,0.2,...]'."""
     return "[" + ",".join(f"{x:.7g}" for x in vector) + "]"
 
 
 class Embedder:
-    def __init__(self, cfg: EmbedConfig, batch: int = 16, timeout: float = 300):
-        self.model, self.dim, self.batch = cfg.model, cfg.dim, batch
+    def __init__(self, cfg: Embedding, timeout: float = 300):
+        self.model, self.dim, self.batch = cfg.model, cfg.dim, cfg.batch
         self.doc_prefix, self.query_prefix = cfg.doc_prefix, cfg.query_prefix
-        headers = {"Authorization": f"Bearer {cfg.api_key}"} if cfg.api_key else {}
+        self.send_dimensions = cfg.send_dimensions
+        api_key = os.environ.get(cfg.api_key_env, "")
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self._client = httpx.Client(base_url=cfg.url.rstrip("/"), headers=headers, timeout=timeout)
         self.embed_query = lru_cache(maxsize=1024)(self._embed_query)
 
@@ -42,28 +45,31 @@ class Embedder:
         self._client.get("/models").raise_for_status()
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
+        body: dict = {"model": self.model, "input": texts}
+        if self.send_dimensions:
+            body["dimensions"] = self.dim
         last: Exception | None = None
-        for _ in range(2):  # uma nova tentativa em falha de rede ou 5xx
+        for _ in range(2):  # one retry on a network failure or a 5xx
             try:
-                r = self._client.post("/embeddings", json={"model": self.model, "input": texts})
+                r = self._client.post("/embeddings", json=body)
                 if r.status_code >= 500:
-                    last = RagError(f"embedder respondeu {r.status_code}")
+                    last = RagnarError(f"embedder answered {r.status_code}")
                     continue
                 r.raise_for_status()
                 data = sorted(r.json()["data"], key=lambda d: d["index"])
                 vectors = [d["embedding"] for d in data]
                 if any(len(v) != self.dim for v in vectors):
-                    raise RagError(
-                        f"modelo {self.model} devolveu dimensão {len(vectors[0])}, esperado {self.dim} (EMBED_DIM)"
+                    raise RagnarError(
+                        f"model {self.model} returned dimension {len(vectors[0])}, expected {self.dim} (embedding.dim)"
                     )
                 return vectors
             except httpx.TransportError as exc:
                 last = exc
-        raise RagError(f"embedder indisponível em {self._client.base_url}: {last}")
+        raise RagnarError(f"embedder unavailable at {self._client.base_url}: {last}")
 
 
 class FakeEmbedder:
-    """Hash das palavras em `dim` posições, normalizado. Textos com palavras em comum ficam próximos."""
+    """Hashes words into `dim` positions and normalizes. Texts that share words end up close."""
 
     def __init__(self, dim: int = 768):
         self.model, self.dim = "fake-hash", dim
@@ -74,7 +80,7 @@ class FakeEmbedder:
             h = int.from_bytes(hashlib.blake2b(word.encode(), digest_size=8).digest(), "big")
             v[h % self.dim] += 1.0 if (h >> 32) & 1 else -1.0
         norm = math.sqrt(sum(x * x for x in v))
-        if norm == 0:  # vetor nulo dá distância de cosseno indefinida no pgvector
+        if norm == 0:  # a null vector has an undefined cosine distance in pgvector
             v[0], norm = 1.0, 1.0
         return [x / norm for x in v]
 
@@ -88,10 +94,6 @@ class FakeEmbedder:
         return None
 
 
-def from_env() -> Embedder | FakeEmbedder:
-    cfg = embed_config()
-    if cfg.provider == "fake":
-        return FakeEmbedder(cfg.dim)
-    if cfg.provider != "http":
-        raise RagError(f"EMBED_PROVIDER inválido: {cfg.provider} (use http ou fake)")
-    return Embedder(cfg)
+def from_settings(settings: Settings | None = None) -> Embedder | FakeEmbedder:
+    cfg = (settings or load_settings()).embedding
+    return FakeEmbedder(cfg.dim) if cfg.provider == "fake" else Embedder(cfg)

@@ -31,5 +31,5 @@ if [ "$target" = k8s ]; then
 fi
 
 export RAGNAR_DSN_WRITE="postgresql://ragnar_writer:${RAGNAR_WRITER_PASSWORD}@127.0.0.1:15432/ragnar"
-export EMBED_URL="http://127.0.0.1:8001/v1"
+export RAGNAR__EMBEDDING__URL="http://127.0.0.1:8001/v1"
 uv run ragnar index "${args[@]}"

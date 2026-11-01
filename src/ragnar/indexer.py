@@ -21,7 +21,7 @@ from pathlib import Path
 import psycopg
 
 from .chunker import Chunk, Symbol, chunk_file, eligible, extract_symbols
-from .config import RagError
+from .config import RagnarError
 from .embedder import Embedder, FakeEmbedder, to_pgvector
 
 COLUMNS = (
@@ -35,7 +35,7 @@ CACHE_DIR = Path.home() / ".cache" / "ragnar" / "repos"
 def git(repo_dir: Path, *args: str, input: bytes | None = None) -> bytes:
     r = subprocess.run(["git", "-C", str(repo_dir), *args], input=input, capture_output=True)
     if r.returncode != 0:
-        raise RagError(f"git {' '.join(args)}: {r.stderr.decode(errors='replace').strip()}")
+        raise RagnarError(f"git {' '.join(args)}: {r.stderr.decode(errors='replace').strip()}")
     return r.stdout
 
 
@@ -51,7 +51,7 @@ def resolve_source(source: str, name: str) -> Path:
         mirror.parent.mkdir(parents=True, exist_ok=True)
         r = subprocess.run(["git", "clone", "--mirror", source, str(mirror)], capture_output=True)
         if r.returncode != 0:
-            raise RagError(f"git clone {source}: {r.stderr.decode(errors='replace').strip()}")
+            raise RagnarError(f"git clone {source}: {r.stderr.decode(errors='replace').strip()}")
     return mirror
 
 
@@ -63,7 +63,7 @@ def changed_files(repo_dir: Path, old: str, new: str) -> list[str] | None:
     """Arquivos alterados entre os commits; None se o commit antigo sumiu (force push)."""
     try:
         git(repo_dir, "cat-file", "-e", f"{old}^{{commit}}")
-    except RagError:
+    except RagnarError:
         return None
     out = git(repo_dir, "diff", "--name-only", "-z", "--no-renames", old, new).decode()
     return [p for p in out.split("\0") if p]
@@ -107,15 +107,15 @@ def secret_scan(files: dict[str, bytes]) -> None:
                    "dir", "/scan/src", "--no-banner", "--redact",
                    "--report-format", "json", "--report-path", "/scan/report.json"]
         else:
-            raise RagError("gitleaks não encontrado (nem docker para rodar a imagem). Instale ou use --no-secret-scan.")
+            raise RagnarError("gitleaks não encontrado (nem docker para rodar a imagem). Instale ou use --no-secret-scan.")
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode == 0:
             return
         findings = json.loads(report.read_text(encoding="utf-8") or "[]") if report.exists() else []
         if not findings:
-            raise RagError(f"gitleaks falhou (código {r.returncode}): {r.stderr.strip()[-500:]}")
+            raise RagnarError(f"gitleaks falhou (código {r.returncode}): {r.stderr.strip()[-500:]}")
         where = sorted({f"{_relative(f['File'], root)}:{f['StartLine']} ({f['RuleID']})" for f in findings})
-        raise RagError("segredo encontrado; indexação cancelada. Rotacione a credencial e ajuste a denylist:\n  "
+        raise RagnarError("segredo encontrado; indexação cancelada. Rotacione a credencial e ajuste a denylist:\n  "
                        + "\n  ".join(where))
 
 
@@ -181,7 +181,7 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, ref: s
         conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (repo,))
         now = conn.execute("SELECT commit_sha FROM index_state WHERE repo = %s", (repo,)).fetchone()
         if (now[0] if now else None) != (state[0] if state else None):
-            raise RagError(f"outro indexador gravou {repo} durante esta execução; rode de novo")
+            raise RagnarError(f"outro indexador gravou {repo} durante esta execução; rode de novo")
         scope, args = ("repo = %s", (repo,)) if mode == "full" else ("repo = %s AND path = ANY(%s)", (repo, paths))
         deleted = conn.execute(f"DELETE FROM code_chunk WHERE {scope}", args).rowcount
         conn.execute(f"DELETE FROM code_symbol WHERE {scope}", args)

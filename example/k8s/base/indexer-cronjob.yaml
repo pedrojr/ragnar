@@ -27,7 +27,7 @@ spec:
                   valueFrom: { secretKeyRef: { name: ragnar-writer, key: password } }
                 - name: RAGNAR_DSN_WRITE
                   value: host=ragnar-db-rw port=5432 dbname=ragnar user=ragnar_writer password=$(RAGNAR_WRITER_PASSWORD)
-                - { name: EMBED_URL, value: "http://ragnar-embedder:8000/v1" }
+                - { name: RAGNAR__EMBEDDING__URL, value: "http://ragnar-embedder:8000/v1" }
                 - { name: HOME, value: /cache }
               envFrom:
                 - configMapRef: { name: ragnar-embed }

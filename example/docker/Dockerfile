@@ -34,7 +34,7 @@ CMD ["ragnar", "mcp"]
 FROM python:3.12-slim AS embedder
 COPY --from=build-embed /app/.venv /app/.venv
 ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 \
-    FASTEMBED_CACHE_PATH=/models EMBED_MODEL=jinaai/jina-embeddings-v2-base-code HF_HUB_OFFLINE=0
+    FASTEMBED_CACHE_PATH=/models RAGNAR__EMBEDDING__MODEL=jinaai/jina-embeddings-v2-base-code HF_HUB_OFFLINE=0
 RUN ragnar embed-preload && useradd --uid 10001 ragnar && chmod -R a+rX /models
 ENV HF_HUB_OFFLINE=1
 USER 10001

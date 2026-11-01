@@ -1,7 +1,7 @@
-"""Token por cliente e repositórios permitidos (regra 1 da seção 9 do guia).
+"""Per-client tokens and the repositories each one may read.
 
-Arquivo JSON: {"clients": [{"name": "...", "token_sha256": "...", "repos": ["yak"]}]}.
-"*" em repos libera todos. O servidor guarda só o hash do token.
+JSON file: {"clients": [{"name": "...", "token_sha256": "...", "repos": ["myapp"]}]}.
+"*" in repos allows every repository. The server stores only the token hash.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import secrets
 from dataclasses import dataclass
 from pathlib import Path
 
-from .config import RagError
+from .config import RagnarError
 
 
 def hash_token(token: str) -> str:
@@ -33,10 +33,10 @@ class Client:
         return "*" in self.repos
 
     def resolve(self, requested: str | None) -> list[str] | None:
-        """Repos que a consulta pode ver. None = todos. Filtro do cliente só restringe, nunca amplia."""
+        """Repositories the query may see. None = all. A client filter narrows, it never widens."""
         if requested:
             if not self.all_repos and requested not in self.repos:
-                raise RagError(f"sem permissão para o repositório {requested!r}")
+                raise RagnarError(f"no permission for repository {requested!r}")
             return [requested]
         return None if self.all_repos else list(self.repos)
 
@@ -55,7 +55,7 @@ class Acl:
         try:
             return cls.from_json(Path(path).read_text(encoding="utf-8"))
         except (OSError, ValueError, KeyError) as exc:
-            raise RagError(f"ACL inválida em {path}: {exc}") from None
+            raise RagnarError(f"invalid ACL at {path}: {exc}") from None
 
     def client_for(self, authorization: str | None) -> Client | None:
         if not authorization or not authorization.lower().startswith("bearer "):

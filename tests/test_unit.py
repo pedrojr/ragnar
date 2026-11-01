@@ -11,7 +11,7 @@ import pytest
 from ragnar import chunker
 from ragnar.acl import Acl, hash_token
 from ragnar.cli import main
-from ragnar.config import RagError
+from ragnar.config import RagnarError
 from ragnar.embedder import FakeEmbedder, to_pgvector
 from ragnar.indexer import changed_files, list_files, read_blobs
 from ragnar.mcp_server import render_hits
@@ -122,7 +122,7 @@ def test_acl_resolution():
     assert acl.client_for(None) is None and acl.client_for("Bearer nope") is None
     a = acl.client_for("Bearer t1")
     assert a.resolve(None) == ["yak"] and a.resolve("yak") == ["yak"]
-    with pytest.raises(RagError):
+    with pytest.raises(RagnarError):
         a.resolve("outro")
     assert acl.client_for("bearer t2").resolve(None) is None
 
