@@ -1,12 +1,12 @@
 {
-  "name": "ragnar-local",
-  "owner": { "name": "Pedro Jr" },
-  "description": "Marketplace local do exemplo de RAG de código.",
+  "name": "ragnar",
+  "owner": { "name": "Pedro Júnior" },
+  "description": "Ragnar: code RAG for AI agents.",
   "plugins": [
     {
       "name": "ragnar",
-      "source": "./plugin/ragnar",
-      "description": "Busca no índice RAG de código (MCP somente leitura) e skills para indexar e avaliar."
+      "source": "./",
+      "description": "Build, tune and maintain a code RAG, and search it through a read-only MCP server on your own infrastructure."
     }
   ]
 }

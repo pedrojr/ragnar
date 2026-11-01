@@ -2,8 +2,8 @@
   "mcpServers": {
     "ragnar": {
       "type": "http",
-      "url": "${RAGNAR_MCP_URL:-http://127.0.0.1:8080/mcp}",
-      "headers": { "Authorization": "Bearer ${RAGNAR_MCP_TOKEN}" }
+      "url": "${user_config.mcp_url}",
+      "headers": { "Authorization": "Bearer ${user_config.mcp_token}" }
     }
   }
 }

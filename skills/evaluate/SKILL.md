@@ -1,53 +1,48 @@
 ---
 name: evaluate
-description: Mede se o RAG de código ajuda, comparando a busca híbrida com o baseline sem RAG (git grep) num golden set tirado do histórico do git. Calcula Recall@10, MRR e o intervalo de confiança pareado, e aplica a regra de decisão definida antes de rodar. Use para "avaliar o RAG", "o RAG está ajudando?", "comparar com e sem RAG", "medir Recall", "/rag-avaliar", ou antes de trocar modelo, chunker ou parâmetros.
-compatibility: Requer o exemplo do RAG (RAGNAR_HOME), uv, git e o banco do RAG acessível (compose no ar ou port-forward do k8s).
-metadata:
-  kit: ragnar
-  version: "0.1.0"
+description: Measures whether the Ragnar index helps. Compares the retrieval pipeline with a grep baseline on a golden set built from the git history, and reports Recall@10, MRR, context tokens and a paired confidence interval. Use for "evaluate the RAG", "is the index helping?", "avaliar o RAG", "measure recall", or before changing the model, the chunking or the retrieval settings.
 ---
 
-# Avaliar o RAG (com e sem)
+# Evaluate the index
 
-Implementa a seção 8.1 do guia `rag-codigo-guia.md`: cada commit vira uma pergunta, e os arquivos que ele alterou são a resposta esperada.
+Each commit becomes a question: its message is the query, and the files it changed are the expected answer.
 
-## Entradas
+## Inputs
 
-- Repositório (caminho local) e nome no índice. Se faltar, pergunte.
-- Data de corte T (padrão: 60 dias atrás). Perguntas vêm só de commits depois de T.
-- Regra de decisão, **definida antes de rodar**. Padrão: adotar se o ganho de Recall@10 tiver IC95% inteiro acima de zero.
+- Local repository path, and the branch.
+- Cutoff date T. Default: 60 days ago. Questions come only from commits after T.
+- Decision rule, **set before running**. Default: adopt only if the Recall@10 gain has a 95% confidence interval entirely above zero.
 
-## Regras
+## Rules
 
-1. **Sem vazamento.** Indexe um snapshot do repositório em T, com outro nome (`<nome>-snap`). Nunca avalie no índice atual: a resposta já estaria nele.
-2. **Mesmas perguntas para os dois sistemas.** Comparação pareada.
-3. **Amostra pequena não decide.** Com menos de 30 perguntas, reporte os números como indicativos. Sugira completar com perguntas escritas por pessoas do time, no formato de `eval/golden.jsonl`.
-4. **Não altere o índice de produção.** O snapshot usa nome próprio; apague-o no fim se o usuário quiser.
+1. **No leakage.** Index a snapshot of the repository at T under another name (`<name>-snap`). Never evaluate on the live index: the answer is already in it.
+2. **Same questions for every system.** The comparison is paired.
+3. **A small sample decides nothing.** With fewer than 30 questions, report the numbers as indicative. Suggest adding questions written by the team, in the format of `.ragnar/eval/golden.jsonl`.
+4. **Leave production alone.** The snapshot has its own name. Offer to remove it at the end.
 
-## Passo a passo
+## Steps
 
-1. Snapshot em T e índice dele:
+The commands need access to the primary, the replicas and the embedder. Run the first step through the infrastructure scripts, and set `RAGNAR_DSN_READ` for the others (ask the user for the DSN; with the example Compose on one machine, it is the `ragnar_reader` role on `127.0.0.1:15432`).
+
+1. Snapshot at T, and its index:
    ```bash
-   cd "$RAGNAR_HOME"
-   SNAP=$(git -C <repo> rev-list -1 --before="<T>" main)
-   ./scripts/index.sh <repo> <nome>-snap --ref "$SNAP"            # acrescente --target k8s no cluster
+   SNAP=$(git -C <repo> rev-list -1 --before="<T>" <branch>)
+   cd "$RAGNAR_HOME/example" && ./scripts/index.sh <repo> <name>-snap --ref "$SNAP"
    ```
-2. Golden set a partir dos commits depois do snapshot:
+2. Golden set from the commits after the snapshot:
    ```bash
-   uv run python eval/build_golden.py <repo> "$SNAP" > eval/golden.jsonl
+   ragnar eval golden <repo> "$SNAP" --branch <branch>
    ```
-3. Comparação (leitura com `ragnar_reader`):
+3. Comparison:
    ```bash
-   set -a; . ./.env; set +a
-   export RAGNAR_DSN_READ="postgresql://ragnar_reader:${RAGNAR_READER_PASSWORD}@127.0.0.1:15432/ragnar"
-   export RAGNAR__EMBEDDING__URL=http://127.0.0.1:8001/v1
-   uv run python eval/eval_retrieval.py <repo> "$SNAP" <nome>-snap eval/golden.jsonl
+   ragnar eval run <repo> "$SNAP" <name>-snap --out .ragnar/eval/report.json
    ```
-   No k8s, abra antes os túneis: `kubectl -n ragnar port-forward svc/ragnar-db-ro 15432:5432` e `svc/ragnar-embedder 8001:8000`.
-4. Relate em tabela: perguntas, Recall@10 e MRR de cada sistema, ganho com IC95%, e a decisão pela regra.
+4. Report a table: questions, Recall@10, MRR and tokens per system, the gain with its interval, and the decision under the rule.
 
-## Leitura do resultado
+## Reading the result
 
-- IC95% contém zero: sem evidência de ganho. Não adote só por isso; veja se o golden set é pequeno.
-- Use como portão ao mudar chunker, modelo ou parâmetros: o Recall@10 não pode cair mais de 2 pontos.
-- Recuperação boa não garante tarefa resolvida. O teste que decide adoção é o de tarefas (seção 8.3 do guia).
+- An interval that contains zero is no evidence of gain. Check whether the golden set is small before drawing conclusions.
+- The token column is a comparison of orders of magnitude. For grep, it estimates reading the top files in full, the cost grep leaves to the agent. For Ragnar, it is the context actually returned.
+- Recall measures retrieval, not whether the task got done. Good retrieval does not guarantee a good answer.
+
+Use the `tune` skill to compare settings.

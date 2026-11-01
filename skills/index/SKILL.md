@@ -1,63 +1,66 @@
 ---
 name: index
-description: Coloca um repositório no índice RAG de código ou atualiza o índice existente. Roda a varredura de segredos, a indexação (base inicial ou incremento desde o último commit indexado), libera o acesso por token e confere o resultado com list_repos. Use para "indexar o repositório X", "atualizar o índice do RAG", "dar acesso ao RAG para o time Y", "/rag-indexar".
-compatibility: Requer o exemplo do RAG (variável RAGNAR_HOME apontando para a pasta exemplo), uv, git e Docker. Para o alvo k8s, kubectl com o contexto docker-desktop.
-metadata:
-  kit: ragnar
-  version: "0.1.0"
+description: Builds the first index of a repository or refreshes it on demand, and gives a team access through a token. Runs the secret scan, the initial build or the increment, and confirms the result with list_repos. Use for "index this repository", "train the RAG", "treinar a base", "update the index", "reindex", "give team X access".
 ---
 
-# Indexar repositório no RAG
+# Index a repository
 
-## Entradas
+The index worker keeps a repository current once it is listed in `repos.toml`. Use this skill for the first build, or to refresh without waiting for the worker.
 
-- Caminho local ou URL git do repositório. Se faltar, pergunte.
-- Nome no índice (padrão: nome da pasta, em minúsculas).
-- Alvo: `compose` ou `k8s`. Descubra com `docker compose -f "$RAGNAR_HOME/compose.yaml" ps -q ragnar-mcp` (saída não vazia = compose) ou `kubectl -n ragnar get deploy ragnar-mcp`. Os dois no ar ao mesmo tempo não funcionam: os dois usam a porta 8080.
-- `RAGNAR_HOME` definido. Se faltar, pergunte onde está a pasta `exemplo`.
+## Inputs
 
-## Regras
+- Local path or git URL of the repository, and its name in the index. The name defaults to `project.name` in `ragnar.toml`.
+- Target: `compose` or `k8s`. Find it with `docker compose -f "$RAGNAR_HOME/example/compose.yaml" ps -q ragnar-mcp` (output means Compose) or `kubectl -n ragnar get deploy ragnar-mcp`.
+- `RAGNAR_HOME`: the folder of a Ragnar clone. If it is not set, ask the user where the infrastructure lives.
 
-1. **Só a branch `main`.** O indexador lê o commit da branch, nunca o diretório de trabalho. Mudança não commitada não entra.
-2. **Segredo encontrado = pare.** Mostre os arquivos e linhas que o gitleaks apontou. Peça para rotacionar a credencial e remover do repositório. Nunca use `--no-secret-scan` para contornar.
-3. **Índice é código-fonte.** Só libere um repositório para um token de quem já pode ler o repositório.
-4. **Troca de modelo de embedding = reindexação completa** (`--full`). Dimensão diferente de 768 exige banco novo.
-5. **Confirme antes** de reindexar com `--full` um repositório grande: em CPU, a base inicial leva cerca de 1 segundo por chunk.
+If the user has no infrastructure yet, use the `infra` skill first.
 
-## Passo a passo
+## Rules
 
-1. Confira o repositório:
+1. **Only committed code.** The indexer reads the branch commit, never the working tree.
+2. **A secret stops the run.** Show the files and lines gitleaks reported. Ask the user to rotate the credential and remove it from the repository. Never use `--no-secret-scan` to get past a finding.
+3. **The index is source code.** Grant a token access to a repository only if its owner can already read that repository.
+4. **Confirm before `--full` on a large repository.** On CPU, the bundled embedder takes about one second per chunk.
+
+## Steps
+
+1. Check the repository:
    ```bash
-   git -C <caminho> rev-parse --verify main
-   git -C <caminho> ls-files | wc -l
+   git -C <path> rev-parse --verify <branch>
+   git -C <path> ls-files | wc -l
    ```
-2. Indexe (primeira vez cria a base; depois só o que mudou):
+2. Index. The first run builds everything; later runs handle only what changed:
    ```bash
-   cd "$RAGNAR_HOME"
-   ./scripts/index.sh <caminho-ou-url> <nome>                 # compose
-   ./scripts/index.sh <caminho-ou-url> <nome> --target k8s    # kubernetes
+   cd "$RAGNAR_HOME/example"
+   ./scripts/index.sh <path-or-url> <name> --ref <branch>                 # Compose
+   ./scripts/index.sh <path-or-url> <name> --ref <branch> --target k8s    # Kubernetes
    ```
-   Saída esperada na última linha: `<nome>: full|incremental|unchanged em <sha>: N arquivos, M chunks gravados, ...`.
-3. Libere o acesso, se for um time novo:
+   The last line reads `<name>: full|incremental|unchanged at <sha>: N files, M chunks written, ...`.
+3. Keep it current. Add the repository to `$RAGNAR_HOME/example/repos.toml`, then run `docker compose restart indexer`. On Kubernetes, run `./scripts/up.sh`, which reloads the file.
+4. Grant access for a new team:
    ```bash
-   uv run ragnar token --name <time> --repos <nome>[,<outro>]
+   ragnar token --name <team> --repos <name>[,<other>]
    ```
-   Entregue o token ao time por canal seguro. Acrescente a linha JSON impressa em `"clients"` de `$RAGNAR_HOME/acl.json`. Recarregue:
-   - compose: `docker compose restart ragnar-mcp`
-   - k8s: `./scripts/up.sh` (recria o Secret `ragnar-acl` e reinicia o MCP)
-4. Confira pelo MCP: chame a ferramenta `list_repos`. O repositório aparece com o commit indexado e a contagem de chunks.
-5. Teste uma busca com `search_code` usando um termo de negócio do repositório.
+   Tell the user to pass the token over a secure channel. Add the printed JSON line to `clients` in `$RAGNAR_HOME/example/acl.json`. Reload with `docker compose restart ragnar-mcp`, or `./scripts/up.sh` on Kubernetes.
+5. Confirm with `list_repos`: the repository appears with its commit and chunk count.
+6. Try `search_code` with a business term from the repository.
 
-## Incremento contínuo
+## When a full reindex happens
 
-- Rode o mesmo comando do passo 2 depois de cada merge na `main`.
-- No cluster, para repositórios com URL: copie `k8s/base/indexer-cronjob.yaml`, ajuste URL e nome, tire o `suspend`. No CI: `kubectl -n ragnar create job --from=cronjob/<nome> idx-$(date +%s)`.
+Ragnar reindexes everything by itself when the embedding model or a chunking setting changes. A model with another dimension also needs:
 
-## Problemas comuns
+```bash
+ragnar migrate --resize-embeddings   # CLEARS the whole index
+```
 
-| Sintoma | Causa | Ação |
+Confirm with the user first: every repository must be indexed again.
+
+## Common problems
+
+| Symptom | Cause | Action |
 | --- | --- | --- |
-| `embedder indisponível` | Embedder fora do ar ou sem memória | `docker compose ps embedder` ou `kubectl -n ragnar get pods`; veja os logs |
-| `outro indexador gravou ...` | Duas indexações do mesmo repositório ao mesmo tempo | Rode de novo; a segunda vê o estado novo |
-| `segredo encontrado` | gitleaks achou credencial | Regra 2 |
-| `porta 15432 não abriu` | port-forward falhou (k8s) | `kubectl -n ragnar get cluster ragnar-db` deve estar `Cluster in healthy state` |
+| `embedder unavailable` | Embedder down or out of memory | `docker compose ps embedder`, or `kubectl -n ragnar get pods`; read the logs |
+| `another indexer wrote ...` | Two runs on the same repository | Run again; the second run sees the new state |
+| `secret found` | gitleaks found a credential | Rule 2 |
+| `port 15432 did not open` | port-forward failed (k8s) | `kubectl -n ragnar get cluster ragnar-db` must report a healthy state |
+| `returned dimension N, expected M` | Model and `embedding.dim` disagree | Fix `embedding.dim`, then see the section above |
