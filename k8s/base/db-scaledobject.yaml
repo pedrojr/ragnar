@@ -1,0 +1,32 @@
+# Réplicas de leitura por volume de acesso: buscas/s medidas no MCP, via Prometheus.
+# CPU não serve aqui: o seletor do Cluster inclui o primário e a média mistura escrita e leitura.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: rag-db-read
+  namespace: rag
+spec:
+  scaleTargetRef:
+    apiVersion: postgresql.cnpg.io/v1
+    kind: Cluster
+    name: rag-db
+  minReplicaCount: 2                # instâncias totais: 1 primário + 1 réplica
+  maxReplicaCount: 4                # 1 primário + 3 réplicas
+  pollingInterval: 15
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies: [{ type: Pods, value: 1, periodSeconds: 60 }]      # réplica nova clona o primário: uma por vez
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies: [{ type: Pods, value: 1, periodSeconds: 120 }]
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        # buscas/s + 10: a parcela extra reserva a "instância" do primário, que não atende leitura.
+        # Resultado: 1 réplica a cada 10 buscas/s. Ajuste o threshold à capacidade medida por réplica.
+        query: (sum(rate(rag_search_total{tool="search_code"}[1m])) or vector(0)) + 10
+        threshold: "10"

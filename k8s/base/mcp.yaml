@@ -1,0 +1,77 @@
+# Servidor MCP somente leitura. Lê só de rag-db-ro com rag_reader; não recebe a senha de escrita.
+# Sem sessão MCP: qualquer pod atende qualquer requisição. Escala por CPU.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-mcp
+  namespace: rag
+  labels: { app: rag-mcp }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: rag-mcp }
+  template:
+    metadata:
+      labels: { app: rag-mcp }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      containers:
+        - name: mcp
+          image: rag-app:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["rag", "mcp"]
+          env:
+            - name: RAG_READER_PASSWORD
+              valueFrom: { secretKeyRef: { name: rag-reader, key: password } }
+            - name: RAG_DSN_READ
+              value: host=rag-db-ro port=5432 dbname=rag user=rag_reader password=$(RAG_READER_PASSWORD)
+            - { name: RAG_ACL_FILE, value: /run/rag/acl.json }
+            - { name: EMBED_URL, value: "http://rag-embedder:8000/v1" }
+            - { name: RAG_POOL_MAX, value: "8" }
+            - { name: RAG_POOL_MAX_LIFETIME, value: "120" }   # renova conexões: réplica nova recebe carga
+          envFrom:
+            - configMapRef: { name: rag-embed }
+          ports: [{ containerPort: 8080, name: http }]
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - { name: acl, mountPath: /run/rag, readOnly: true }
+      volumes:
+        - name: acl
+          secret: { secretName: rag-acl }
+---
+# LoadBalancer no Docker Desktop publica em localhost:8080 (o mesmo endereço do Compose).
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-mcp
+  namespace: rag
+spec:
+  type: LoadBalancer
+  selector: { app: rag-mcp }
+  ports: [{ port: 8080, targetPort: http, name: http }]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: rag-mcp
+  namespace: rag
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: rag-mcp }
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+  behavior:
+    scaleDown: { stabilizationWindowSeconds: 120 }

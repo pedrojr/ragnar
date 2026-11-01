@@ -1,0 +1,20 @@
+# Carga de buscas via MCP, dentro do cluster (passa pelo Service: distribui entre os pods).
+# Ajuste concorrência, taxa e duração em args. Acompanhe: kubectl -n rag get hpa,scaledobject,cluster -w
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rag-load
+  namespace: rag
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: load
+          image: rag-app:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["rag", "load", "--url", "http://rag-mcp:8080/mcp"]
+          args: ["--concurrency", "16", "--rate", "40", "--duration", "420"]
+          envFrom:
+            - secretRef: { name: rag-mcp-tokens }

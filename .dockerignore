@@ -1,0 +1,11 @@
+.venv
+**/__pycache__
+.pytest_cache
+.env
+acl.json
+tests
+k8s
+scripts
+plugin
+eval
+*.md

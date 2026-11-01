@@ -1,0 +1,12 @@
+{
+  "name": "rag-local",
+  "owner": { "name": "Pedro Jr" },
+  "description": "Marketplace local do exemplo de RAG de código.",
+  "plugins": [
+    {
+      "name": "code-rag",
+      "source": "./plugin/code-rag",
+      "description": "Busca no índice RAG de código (MCP somente leitura) e skills para indexar e avaliar."
+    }
+  ]
+}

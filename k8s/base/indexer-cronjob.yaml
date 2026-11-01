@@ -1,0 +1,38 @@
+# Modelo de indexação dentro do cluster, para repositórios com URL git (ex.: GitLab).
+# Suspenso: troque URL e nome, crie o acesso ao git (deploy token) e remova o suspend.
+# No CI, a cada merge na main: kubectl -n rag create job --from=cronjob/rag-indexer-exemplo idx-$(date +%s)
+# O exemplo local indexa pelo host: scripts/index.sh.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rag-indexer-exemplo
+  namespace: rag
+spec:
+  suspend: true
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid          # um escritor por repositório (o indexador também usa advisory lock)
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: indexer
+              image: rag-app:0.1.0
+              imagePullPolicy: IfNotPresent
+              command: ["rag", "index", "https://gitlab.example.com/grupo/repo.git", "repo"]
+              env:
+                - name: RAG_WRITER_PASSWORD
+                  valueFrom: { secretKeyRef: { name: rag-writer, key: password } }
+                - name: RAG_DSN_WRITE
+                  value: host=rag-db-rw port=5432 dbname=rag user=rag_writer password=$(RAG_WRITER_PASSWORD)
+                - { name: EMBED_URL, value: "http://rag-embedder:8000/v1" }
+                - { name: HOME, value: /cache }
+              envFrom:
+                - configMapRef: { name: rag-embed }
+              volumeMounts:
+                - { name: cache, mountPath: /cache }
+          volumes:
+            - name: cache
+              emptyDir: {}

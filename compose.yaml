@@ -1,0 +1,96 @@
+# Ambiente de desenvolvimento: 1 primário (escrita) + N réplicas (leitura), embedder, MCP.
+#   uv run rag init-env                 # cria .env e acl.json
+#   docker compose up -d --build --scale db-replica=2
+#   ./scripts/index.sh /path/to/repo myapp
+# Sem escala automática aqui: escala manual com --scale. Escala automática: Kubernetes (k8s/).
+name: rag-exemplo
+
+x-app: &app
+  image: rag-app:0.1.0   # construída pelo serviço rag-mcp
+  # sem env_file aqui: cada serviço recebe só a credencial que usa (o MCP nunca vê a senha de escrita)
+
+services:
+  db-primary:
+    image: pgvector/pgvector:0.8.7-pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?rode "uv run rag init-env" antes}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+      RAG_WRITER_PASSWORD: ${RAG_WRITER_PASSWORD}
+      RAG_READER_PASSWORD: ${RAG_READER_PASSWORD}
+    command: ["postgres", "-c", "wal_keep_size=256MB"]
+    ports: ["127.0.0.1:15432:5432"]   # só para o indexador no host (5432 costuma ter Postgres local); o MCP não usa
+    volumes:
+      - primary-data:/var/lib/postgresql/data
+      - ./docker/postgres/10-roles.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "rag"]
+      interval: 2s
+      retries: 30
+
+  db-replica:
+    image: pgvector/pgvector:0.8.7-pg17
+    user: postgres
+    environment:
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+    entrypoint: ["bash", "/scripts/replica-entrypoint.sh"]
+    volumes:
+      - ./docker/postgres/replica-entrypoint.sh:/scripts/replica-entrypoint.sh:ro
+    depends_on:
+      db-primary: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 2s
+      retries: 60
+
+  embedder:
+    image: rag-embedder:0.1.0
+    build: { context: ., dockerfile: docker/Dockerfile, target: embedder }
+    environment:
+      EMBED_THREADS: "4"
+    mem_limit: 3g   # estouro mata só o container, não a VM do Docker
+    ports: ["127.0.0.1:8001:8000"]   # só para o indexador no host
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 5s
+      retries: 60
+
+  migrate:
+    <<: *app
+    command: ["rag", "migrate"]
+    environment:
+      RAG_DSN_WRITE: postgresql://rag_writer:${RAG_WRITER_PASSWORD}@db-primary:5432/rag
+    depends_on:
+      db-primary: { condition: service_healthy }
+    restart: "no"
+
+  rag-mcp:
+    <<: *app
+    build: { context: ., dockerfile: docker/Dockerfile, target: app }
+    command: ["rag", "mcp"]
+    environment:
+      # host=db-replica: o DNS do Docker distribui entre as réplicas (aproximado, suficiente para dev)
+      RAG_DSN_READ: postgresql://rag_reader:${RAG_READER_PASSWORD}@db-replica:5432/rag
+      RAG_ACL_FILE: /run/rag/acl.json
+      EMBED_URL: http://embedder:8000/v1
+    volumes:
+      - ./acl.json:/run/rag/acl.json:ro
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      db-replica: { condition: service_healthy }
+      embedder: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  # Ferramentas sob demanda: docker compose run --rm tools smoke --url http://rag-mcp:8080/mcp --replica-host db-replica
+  tools:
+    <<: *app
+    profiles: ["tools"]
+    entrypoint: ["rag"]
+    env_file: .env   # tokens do MCP para smoke e carga
+    environment:
+      RAG_DSN_WRITE: postgresql://rag_writer:${RAG_WRITER_PASSWORD}@db-primary:5432/rag
+      RAG_DSN_READ: postgresql://rag_reader:${RAG_READER_PASSWORD}@db-replica:5432/rag
+      EMBED_URL: http://embedder:8000/v1
+
+volumes:
+  primary-data:
