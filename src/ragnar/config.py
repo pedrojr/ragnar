@@ -89,6 +89,7 @@ class Retrieval:
     vector_weight: float = 1.0
     lexical_weight: float = 1.0
     symbol_weight: float = 1.0  # exact symbol names in the query; 0 turns it off
+    file_weight: float = 1.0  # files holding the query words across chunks; 0 turns it off
     ef_search: int = 100
     max_chunks_per_file: int = 3  # 0 turns it off
     diversity: float = 0.0  # 0 = pure relevance, 1 = pure novelty (MMR)

@@ -46,6 +46,8 @@ CHARS_PER_TOKEN = 4  # rough on purpose: the budget only needs the order of magn
 RANK_WEIGHTS = [0.1, 0.2, 0.4, 1.0]  # D (body) to A (path and symbol)
 RANK_NORMALIZATION = 1  # divides by 1 + log(length): a long chunk does not win by repetition
 MAX_TERMS = 12
+MIN_STEM = 4
+FILE_CANDIDATES = 20  # files considered by the whole-file list
 COMMON_SHARE = 0.25  # a term in more chunks than this share ranks results, but does not select them
 STOPWORDS = frozenset("""
 a about after all also an and any are as at be been but by can could did do does each either every find for from get got had has
@@ -67,10 +69,18 @@ def like_prefix(prefix: str) -> str:
     return re.sub(r"([\\%_])", r"\\\1", prefix) + "%"
 
 
+def stem(term: str) -> str:
+    """Light stemming as a tsquery prefix: 'escaped' also matches escape, escapes and escapeString."""
+    for suffix in ("ing", "ed", "es", "s"):
+        if term.endswith(suffix) and len(term) - len(suffix) >= MIN_STEM:
+            return f"{term.removesuffix(suffix)}:*"
+    return f"{term}:*" if len(term) >= MIN_STEM + 1 else term
+
+
 def query_terms(query: str) -> list[str]:
-    """Lexical terms of a query. Stopwords go, unless the query is nothing else."""
+    """Lexical terms of a query, as tsquery operands. Stopwords go, unless the query is nothing else."""
     terms = list(dict.fromkeys(re.findall(r"[^\W_]{2,}", split_identifiers(query).lower())))
-    return ([t for t in terms if t not in STOPWORDS] or terms)[:MAX_TERMS]
+    return [stem(t) for t in ([t for t in terms if t not in STOPWORDS] or terms)[:MAX_TERMS]]
 
 
 def term_weights(counts: dict[str, int], total: int) -> dict[str, float]:
@@ -184,6 +194,7 @@ class Pipeline:
     chat: Chat | None = None
     reranker: Reranker | None = None
     timing: dict[str, float] = field(default_factory=dict)
+    file_ids: list[int] = field(default_factory=list)
 
     def _lists(self, conn: psycopg.Connection, text: str, base: dict) -> list[tuple[float, list[int]]]:
         cfg = self.settings.retrieval
@@ -212,15 +223,41 @@ class Pipeline:
                            f"{RANK_NORMALIZATION})" for i in range(len(scored)))
         sql = (f"SELECT id FROM code_chunk WHERE {FILTERS} AND tsv @@ to_tsquery('simple', %(selective)s) "
                f"ORDER BY {score} DESC LIMIT %(limit)s")
-        rows = conn.execute(sql, {**base, **params, "ranks": RANK_WEIGHTS,
-                                  "selective": " | ".join(selective_terms(counts, total))}).fetchall()
+        selective = selective_terms(counts, total)
+        rows = conn.execute(sql, {**base, **params, "ranks": RANK_WEIGHTS, "selective": " | ".join(selective)}).fetchall()
+        files = self._file_list(conn, base, selective, weights, score, params) if self.settings.retrieval.file_weight else []
+        self.file_ids += files
         return [r[0] for r in rows]
+
+    def _file_list(self, conn: psycopg.Connection, base: dict, selective: list[str], weights: dict[str, float],
+                   score: str, params: dict) -> list[int]:
+        """Best chunk of the files that hold the most query weight, spread over any of their chunks.
+
+        A chunk rarely holds every word of a question, and a 20 000 line unit is exactly where the
+        words sit far apart. This is what makes grep strong on large files.
+        """
+        held: dict[tuple[str, str], float] = {}
+        for term in selective:
+            for key in conn.execute(f"SELECT DISTINCT repo, path FROM code_chunk WHERE {FILTERS} "
+                                    "AND tsv @@ to_tsquery('simple', %(term)s)", {**base, "term": term}):
+                held[key] = held.get(key, 0.0) + weights[term]
+        top = sorted(held, key=lambda key: (-held[key], key))[:FILE_CANDIDATES]
+        if not top:
+            return []
+        rows = conn.execute(
+            f"""SELECT DISTINCT ON (repo, path) repo, path, id FROM code_chunk
+                WHERE {FILTERS} AND path = ANY(%(paths)s) AND tsv @@ to_tsquery('simple', %(any)s)
+                ORDER BY repo, path, {score} DESC""",
+            {**base, **params, "ranks": RANK_WEIGHTS, "paths": [p for _, p in top], "any": " | ".join(selective)},
+        ).fetchall()
+        best = {(repo, path): chunk for repo, path, chunk in rows}
+        return [best[key] for key in top if key in best]
 
     def search(self, conn: psycopg.Connection, repos: list[str], query: str, k: int | None = None,
                path_prefix: str = "", kind: str | None = None) -> tuple[list[dict], dict[str, float]]:
         """Returns (hits, seconds per phase)."""
         s, cfg = self.settings, self.settings.retrieval
-        self.timing = {}
+        self.timing, self.file_ids = {}, []
         k = k or cfg.default_k
         t0 = time.perf_counter()
         extras = expand_query(self.chat, s.query.strategy, s.query.variants, query) \
@@ -233,6 +270,8 @@ class Pipeline:
         ranked: list[tuple[float, list[int]]] = []
         for text in (query, *extras):
             ranked += self._lists(conn, text, base)
+        if self.file_ids:
+            ranked.append((cfg.file_weight, self.file_ids))
         if cfg.symbol_weight and (names := identifier_names(query)):
             rows = conn.execute(SYMBOL_SQL, {**base, "names": names}).fetchall()
             ranked.append((cfg.symbol_weight, [r[0] for r in rows]))

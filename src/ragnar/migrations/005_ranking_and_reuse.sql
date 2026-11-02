@@ -11,5 +11,8 @@ ALTER TABLE code_chunk ADD COLUMN tsv tsvector GENERATED ALWAYS AS (
 CREATE INDEX code_chunk_tsv_idx ON code_chunk USING gin (tsv);
 CREATE INDEX code_chunk_hash_idx ON code_chunk (repo, content_hash);
 
+-- Matches ragnar.indexer.content_hash for an empty embedding.doc_prefix, so upgraded indexes reuse their vectors.
+UPDATE code_chunk SET content_hash = substr(encode(sha256(convert_to(content, 'UTF8')), 'hex'), 1, 32);
+
 -- Run statistics, for the reports: what a run left out and why.
 ALTER TABLE index_state ADD COLUMN skipped jsonb NOT NULL DEFAULT '{}';

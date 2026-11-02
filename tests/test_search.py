@@ -20,6 +20,7 @@ from ragnar.search import (
     select_diverse,
     selective_terms,
     split_qualified,
+    stem,
     term_weights,
 )
 
@@ -74,10 +75,15 @@ def test_identifier_names_take_short_queries_as_names():
 
 
 def test_query_terms_drop_stopwords_but_never_everything():
-    assert query_terms("how is the circuit opened") == ["circuit", "opened"]
-    assert query_terms("como a senha é salva") == ["senha", "salva"]
+    assert query_terms("how is the circuit opened") == ["circuit:*", "open:*"]
+    assert query_terms("como a senha é salva") == ["senha:*", "salva:*"]
     assert query_terms("how is it") == ["how", "is", "it"]
-    assert query_terms("getUserById") == ["getuserbyid", "user", "id"]
+    assert query_terms("getUserById") == ["getuserbyid:*", "user", "id"]
+
+
+def test_stem_keeps_short_words_exact():
+    assert [stem(t) for t in ("escaped", "caching", "rates", "id", "user", "class")] == [
+        "escap:*", "cach:*", "rate:*", "id", "user", "clas:*"]
 
 
 def test_rare_terms_weigh_more_and_absent_terms_drop():
@@ -89,6 +95,7 @@ def test_common_terms_do_not_select_candidates():
     assert selective_terms({"rare": 2, "common": 900}, 1000) == ["rare"]
     assert selective_terms({"a": 800, "b": 900, "c": 950}, 1000) == ["a", "b"]
     assert selective_terms({"a": 0}, 1000) == []
+    assert selective_terms({"rare:*": 2}, 1000) == ["rare:*"]
 
 
 def test_tests_lose_positions_but_stay_available():

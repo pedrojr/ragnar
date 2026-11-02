@@ -34,6 +34,9 @@ CHARS_PER_TOKEN = 4
 GREP_MAX_LINES = 250  # an agent's grep output is capped; Claude Code's default head_limit is 250
 GREP_READS = 5  # files opened before giving up
 READ_MAX_LINES = 2000  # the default page of a file read
+READ_MAX_LINE_CHARS = 2000  # longer lines are cut by file reads
+GREP_MAX_LINE_CHARS = 500  # and a grep line is a hint, not a page of minified data
+GREP_ARM_VERSION = 2
 STOPWORDS = set("""a an and are as at be but by can do does for from has have how i if in into is it its of on or that the
 their them there these this to under use used using was were what when where which who why will with would you your
 """.split())
@@ -135,7 +138,8 @@ def cmd_index(args: argparse.Namespace) -> None:
 def load_questions(entry: dict) -> list[dict]:
     name = entry["name"]
     out = []
-    for source, path in (("curated", QUESTIONS / "curated" / f"{name}.jsonl"), ("history", QUESTIONS / "history" / f"{name}.jsonl")):
+    for source in ("curated", "history"):
+        path = QUESTIONS / source / f"{name}.jsonl"
         if not path.exists():
             continue
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -159,8 +163,9 @@ def validate(entry: dict, questions: list[dict]) -> list[str]:
                 problems.append(f"{q['id']}: {path} is not in the snapshot")
             elif excluded(entry, path):
                 problems.append(f"{q['id']}: {path} is excluded from the index")
-            elif q.get("evidence") and not any(re.search(q["evidence"], git(entry["name"], "show", f"{entry['snapshot']}:{p}", check=False))
-                                               for p in q["relevant"]):
+            elif q.get("evidence") and not any(
+                    re.search(q["evidence"], git(entry["name"], "show", f"{entry['snapshot']}:{p}", check=False))
+                    for p in q["relevant"]):
                 problems.append(f"{q['id']}: evidence not found: {q['evidence']}")
                 break
     return problems
@@ -172,7 +177,7 @@ def grep_terms(query: str) -> list[str]:
 
 
 def grep_arm(entry: dict, q: dict) -> dict:
-    """Without Ragnar: one `git grep -n` per term, files ranked by distinct terms, then the top files read in order.
+    """Without Ragnar: one `git grep -n` per term, files ranked by distinct terms, then the top files read in turn.
 
     The cost stops at the first read that shows the answer. That is the best case for grep:
     a real agent cannot always tell it found the answer and keeps reading.
@@ -184,7 +189,7 @@ def grep_arm(entry: dict, q: dict) -> dict:
     for term in grep_terms(q.get("grep_query", q["query"])):
         out = git(name, "grep", "-n", "-I", "-i", "-w", "-e", term, snapshot, check=False)
         lines = [ln.split(":", 1)[1] for ln in out.splitlines() if ":" in ln]
-        lines = [ln for ln in lines if not excluded(entry, ln.split(":", 1)[0])]
+        lines = [ln[:GREP_MAX_LINE_CHARS] for ln in lines if not excluded(entry, ln.split(":", 1)[0])]
         output_tokens += tokens("\n".join(lines[:GREP_MAX_LINES]))
         for path in {ln.split(":", 1)[0] for ln in lines}:
             score[path] = score.get(path, 0) + 1
@@ -192,7 +197,8 @@ def grep_arm(entry: dict, q: dict) -> dict:
     relevant = set(q.get("relevant", []))
     cost, solved = output_tokens, False
     for path in ranked[:GREP_READS]:
-        text = "\n".join(git(name, "show", f"{snapshot}:{path}", check=False).splitlines()[:READ_MAX_LINES])
+        lines = git(name, "show", f"{snapshot}:{path}", check=False).splitlines()[:READ_MAX_LINES]
+        text = "\n".join(line[:READ_MAX_LINE_CHARS] for line in lines)
         cost += tokens(text)
         if path in relevant and (not q.get("evidence") or re.search(q["evidence"], text)):
             solved = True
@@ -201,18 +207,27 @@ def grep_arm(entry: dict, q: dict) -> dict:
 
 
 def ragnar_arm(pipeline, conn, entry: dict, q: dict) -> dict:
+    from ragnar import search as ragnar_search
     from ragnar.mcp_server import render_hits
     from ragnar.search import find_symbol
 
     t0 = time.perf_counter()
     name = entry["name"]
+    relevant = set(q.get("relevant", []))
+    find_references = getattr(ragnar_search, "find_references", None)  # older trees run through here too
+    if q.get("reference") and find_references:
+        rows = find_references(conn, [name], q["reference"], 30)
+        conn.rollback()
+        text = "\n".join(f'{r["path"]}:{r["line"]} {r["symbol"]} {r["text"]}' for r in rows)
+        ranked = list(dict.fromkeys(r["path"] for r in rows))
+        return {"ranked": ranked, "solved": bool(relevant & set(ranked)), "tokens": tokens(text),
+                "ms": (time.perf_counter() - t0) * 1000, "chunks": len(rows)}
     hits, _ = pipeline.search(conn, [name], q["query"])
     conn.rollback()
     text = render_hits(hits)
     cost = tokens(text)
     ranked = list(dict.fromkeys(h["path"] for h in hits))
-    relevant = set(q.get("relevant", []))
-    bodies = [h["content"] for h in hits if h["path"] in relevant]
+    bodies = [h["content"] for h in hits if h["path"] in relevant and not h.get("compact")]
     solved = bool(bodies) and (not q.get("evidence") or any(re.search(q["evidence"], b) for b in bodies))
     if q.get("symbol"):
         rows = find_symbol(conn, [name], q["symbol"], 20)
@@ -251,7 +266,8 @@ def cmd_evaluate(args: argparse.Namespace) -> None:
             settings = _settings(entry, [f"embedding.url={json.dumps(EMBEDDER)}", *args.set])
             pipeline = Pipeline(settings, from_settings(settings))
             for q in questions:
-                key = hashlib.sha256(json.dumps([q["id"], q.get("grep_query", q["query"]), q.get("evidence")]).encode()).hexdigest()
+                key = hashlib.sha256(json.dumps([GREP_ARM_VERSION, q["id"], q.get("grep_query", q["query"]),
+                                                 q.get("evidence")]).encode()).hexdigest()
                 if key not in grep_cache:
                     grep_cache[key] = grep_arm(entry, q)
                 rows.append({k: q.get(k) for k in ("id", "repo", "source", "category", "split", "query", "relevant", "evidence")}

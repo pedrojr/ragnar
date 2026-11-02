@@ -4,7 +4,7 @@
 {"id":"c04","category":"symbol","query":"find proxyLoopIteration","symbol":"proxyLoopIteration","relevant":["modules/caddyhttp/reverseproxy/reverseproxy.go"],"evidence":"func \\(h \\*Handler\\) proxyLoopIteration"}
 {"id":"c05","category":"concept","query":"how are HTTP to HTTPS redirects set up automatically","relevant":["modules/caddyhttp/autohttps.go"],"evidence":"func \\(app \\*App\\) automaticHTTPSPhase1"}
 {"id":"c06","category":"config","query":"how does the admin endpoint validate the origin of a request","relevant":["admin.go"],"evidence":"func \\(h adminHandler\\) checkOrigin"}
-{"id":"c07","category":"callers","query":"who increments the upstream failure count for passive health checks","relevant":["modules/caddyhttp/reverseproxy/reverseproxy.go"],"evidence":"countFailure"}
+{"id":"c07","category":"callers","query":"who increments the upstream failure count for passive health checks","relevant":["modules/caddyhttp/reverseproxy/reverseproxy.go"],"evidence":"countFailure","reference":"countFailure"}
 {"id":"c08","category":"ptbr","query":"como o Caddyfile é quebrado em tokens antes de virar configuração","grep_query":"caddyfile lexer tokens","relevant":["caddyconfig/caddyfile/lexer.go"],"evidence":"func \\(l \\*lexer\\) next"}
 {"id":"c09","category":"ptbr","query":"como as senhas de basic auth são comparadas com hash","grep_query":"basic auth password hash compare","relevant":["modules/caddyhttp/caddyauth/basicauth.go"],"evidence":"HashModule|Compare"}
 {"id":"c10","category":"concept","query":"how is the argon2id password hash encoded and decoded","relevant":["modules/caddyhttp/caddyauth/argon2id.go"],"evidence":"func DecodeHash"}

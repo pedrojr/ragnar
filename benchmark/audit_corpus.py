@@ -14,7 +14,7 @@ from statistics import median
 
 from tree_sitter import Parser
 
-from ragnar.chunker import Chunker, nws, normalize_source
+from ragnar.chunker import Chunker, normalize_source, nws
 from ragnar.config import load_settings
 from ragnar.indexer import git, list_files, read_blobs
 from ragnar.languages import BY_EXTENSION, FORM_EXTENSIONS, grammar_for, is_denied, is_generated, language_for

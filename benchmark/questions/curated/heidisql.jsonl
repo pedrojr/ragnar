@@ -2,7 +2,7 @@
 {"id":"c02","category":"symbol","query":"where is TQueryThread declared","symbol":"TQueryThread","relevant":["source/apphelpers.pas"],"evidence":"TQueryThread = class"}
 {"id":"c03","category":"concept","query":"what runs when the user executes the SQL typed in the query editor","relevant":["source/main.pas"],"evidence":"TMainForm\\.actExecuteQueryExecute"}
 {"id":"c04","category":"form","query":"which action on the main form is wired to the execute query handler","relevant":["source/main.dfm"],"evidence":"OnExecute\\s*=\\s*actExecuteQueryExecute"}
-{"id":"c05","category":"callers","query":"who calls GeneratePassword","relevant":["source/change_password.pas","source/usermanager.pas"],"evidence":"GeneratePassword\\("}
+{"id":"c05","category":"callers","query":"who calls GeneratePassword","relevant":["source/change_password.pas","source/usermanager.pas"],"evidence":"GeneratePassword\\(","reference":"GeneratePassword"}
 {"id":"c06","category":"flow","query":"how is the SSH tunnel process started when opening a connection","relevant":["source/dbconnection.pas"],"evidence":"TSecureShellCmd\\.|FSecureShellCmd"}
 {"id":"c07","category":"config","query":"how does the keep alive setting ping the server to hold the connection open","relevant":["source/dbconnection.pas"],"evidence":"KeepAliveTimerEvent"}
 {"id":"c08","category":"ptbr","query":"como a grade de dados é exportada para CSV ou HTML","grep_query":"export grid data csv html","relevant":["source/exportgrid.pas"],"evidence":"TfrmExportGrid"}
