@@ -187,7 +187,6 @@ def build(args: argparse.Namespace) -> str:
     pairs = answerable(holdout)
     gain = ci([r["grep"]["rr"] for r in pairs], [r["ragnar"]["rr"] for r in pairs]) if pairs else (0, 0, 0)
     solved_gain = ci([float(r["grep"]["solved"]) for r in pairs], [float(r["ragnar"]["solved"]) for r in pairs]) if pairs else (0, 0, 0)
-    ratio = grep["tokens"] / max(1, ragnar["tokens"])
 
     lang_groups, lang_lines = comparison(holdout, lambda r: r["language"], LANGUAGE_NAMES, languages)
     repo_groups, repo_lines = comparison(holdout, lambda r: r["repo"], None, [e["name"] for e in entries])
