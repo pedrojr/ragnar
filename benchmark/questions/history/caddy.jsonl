@@ -1,0 +1,124 @@
+{"id": "9d2cb35c75", "query": "caddyauth: check basic_auth username uniqueness after placeholder expansion", "relevant": ["modules/caddyhttp/caddyauth/basicauth.go"]}
+{"id": "6bfeb4f825", "query": "caddyauth: support third-party hash modules", "relevant": ["modules/caddyhttp/caddyauth/basicauth.go", "modules/caddyhttp/caddyauth/caddyfile.go", "modules/caddyhttp/caddyauth/command.go"]}
+{"id": "9e5d4d42b1", "query": "reverseproxy: test WebSocket upgrades over Unix sockets", "relevant": ["caddytest/integration/reverseproxy_test.go"]}
+{"id": "61e9b223da", "query": "core: reject overlong ports in ParseNetworkAddress", "relevant": ["listeners.go", "listeners_test.go"]}
+{"id": "a72377a10d", "query": "encode: ignore request no-transform, vary identity responses on Accept-Encoding", "relevant": ["modules/caddyhttp/encode/encode.go", "modules/caddyhttp/encode/encode_conformance_test.go"]}
+{"id": "f1bc314fbc", "query": "reverseproxy: make the shared DNS discovery cache resolver-aware", "relevant": ["modules/caddyhttp/reverseproxy/upstreams.go", "modules/caddyhttp/reverseproxy/upstreams_test.go"]}
+{"id": "eb04ed52be", "query": "httpcaddyfile: preserve automation policy precedence when merging", "relevant": ["caddyconfig/httpcaddyfile/tlsapp.go"]}
+{"id": "a28f061462", "query": "caddyhttp: let handler read deadlines cap the idle read timeout", "relevant": ["modules/caddyhttp/server.go", "modules/caddyhttp/server_test.go"]}
+{"id": "857d5731f3", "query": "caddyhttp: optimise header access and fix encoding negotiation", "relevant": ["modules/caddyhttp/encode/encode.go", "modules/caddyhttp/encode/encode_conformance_test.go", "modules/caddyhttp/encode/encode_test.go", "modules/caddyhttp/reverseproxy/reverseproxy.go", "modules/caddyhttp/reverseproxy/streaming.go"]}
+{"id": "4fce7c8bbc", "query": "caddyhttp: document CEL raw strings for regexp patterns", "relevant": ["modules/caddyhttp/matchers.go"]}
+{"id": "32bba15459", "query": "fastcgi: keep the php_fastcgi directory redirect on the same origin", "relevant": ["modules/caddyhttp/app.go", "modules/caddyhttp/replacer.go", "modules/caddyhttp/reverseproxy/fastcgi/caddyfile.go"]}
+{"id": "fead9c3f24", "query": "caddytls: keep ACME issuer network proxy after RebuildCertMagic", "relevant": ["modules/caddytls/acmeissuer.go", "modules/caddytls/acmeissuer_test.go"]}
+{"id": "71c5812cfe", "query": "caddytls: validate curve and protocol names, compare protocol IDs", "relevant": ["modules/caddyhttp/reverseproxy/httptransport.go", "modules/caddyhttp/reverseproxy/httptransport_test.go", "modules/caddytls/connpolicy.go", "modules/caddytls/connpolicy_test.go"]}
+{"id": "b058e3f3f6", "query": "fastcgi: stop response bodies at the declared Content-Length", "relevant": ["modules/caddyhttp/reverseproxy/fastcgi/client.go"]}
+{"id": "258863f6f6", "query": "reverseproxy: strip hop-by-hop headers when copying response headers", "relevant": ["modules/caddyhttp/reverseproxy/copyresponse.go"]}
+{"id": "4e8de214bc", "query": "replacer: cache file lookups and cap them", "relevant": ["replacer.go", "replacer_test.go"]}
+{"id": "62bc606433", "query": "reverseproxy: close backend body and hijacked socket on upgrade setup failures", "relevant": ["modules/caddyhttp/reverseproxy/streaming.go", "modules/caddyhttp/reverseproxy/streaming_test.go"]}
+{"id": "8e237f1955", "query": "windows: serialise service status updates", "relevant": ["notify/notify_windows.go", "service_windows.go"]}
+{"id": "b1694e7a4c", "query": "caddyhttp: add CEL expression support to the tls matcher", "relevant": ["modules/caddyhttp/celmatcher_test.go", "modules/caddyhttp/matchers.go"]}
+{"id": "2b47a1849f", "query": "reverseproxy: emit OpenTelemetry client spans", "relevant": ["modules/caddyhttp/reverseproxy/reverseproxy.go"]}
+{"id": "f355b8687d", "query": "reverseproxy: retry dial errors wrapped by a forward proxy", "relevant": ["modules/caddyhttp/reverseproxy/retries_test.go", "modules/caddyhttp/reverseproxy/reverseproxy.go"]}
+{"id": "bfdbeb4a1b", "query": "reverseproxy: strip hop-by-hop headers from interim responses", "relevant": ["modules/caddyhttp/reverseproxy/headers_test.go", "modules/caddyhttp/reverseproxy/reverseproxy.go"]}
+{"id": "8ba327ef3f", "query": "templates: use the earliest front matter closing fence", "relevant": ["modules/caddyhttp/templates/frontmatter.go", "modules/caddyhttp/templates/tplcontext_test.go"]}
+{"id": "e91867d35c", "query": "reverseproxy: preserve request trailer values", "relevant": ["modules/caddyhttp/reverseproxy/reverseproxy.go"]}
+{"id": "612128e3b0", "query": "logging: Parse request URIs in the `query` filter like the server does", "relevant": ["modules/logging/filters.go", "modules/logging/filters_test.go"]}
+{"id": "872c864c20", "query": "caddytls: skip client cert verifiers when no certificate is presented", "relevant": ["modules/caddytls/connpolicy.go", "modules/caddytls/connpolicy_verifyconnection_test.go"]}
+{"id": "e3649f2536", "query": "logging: Reject out-of-range `ip_mask` CIDRs", "relevant": ["modules/logging/filters.go", "modules/logging/filters_test.go"]}
+{"id": "719db53e94", "query": "caddyfile: check heredoc markers without a regexp", "relevant": ["caddyconfig/caddyfile/formatter.go", "caddyconfig/caddyfile/lexer.go", "caddyconfig/caddyfile/lexer_test.go"]}
+{"id": "1619352f4e", "query": "ci: fix exhaustive linting", "relevant": ["context.go", "modules/caddyhttp/responsewriter.go", "service_windows.go"]}
+{"id": "0584875297", "query": "headers: evaluate conditional defaults independently", "relevant": ["caddytest/integration/caddyfile_test.go", "modules/caddyhttp/headers/caddyfile.go"]}
+{"id": "be5fba4ff2", "query": "caddyauth: handle CRLF and unterminated hash-password input", "relevant": ["modules/caddyhttp/caddyauth/command.go"]}
+{"id": "a6fc144e75", "query": "logging: use the default file mode for dir_mode from_file", "relevant": ["modules/logging/filewriter.go", "modules/logging/filewriter_test.go"]}
+{"id": "1f099b3b86", "query": "reverseproxy: honor health check redirect destinations", "relevant": ["modules/caddyhttp/reverseproxy/active_health_test.go", "modules/caddyhttp/reverseproxy/healthchecks.go"]}
+{"id": "860b4ce635", "query": "logging: include module logs from its parent namespace", "relevant": ["logging.go", "logging_test.go"]}
+{"id": "af7620dcc8", "query": "templates: preserve colons in humanize time layouts", "relevant": ["modules/caddyhttp/templates/tplcontext.go"]}
+{"id": "69f22e2442", "query": "fileserver: return an empty listing for offsets past the end", "relevant": ["modules/caddyhttp/fileserver/browsetplcontext.go", "modules/caddyhttp/fileserver/browsetplcontext_test.go"]}
+{"id": "1962b20401", "query": "fastcgi: Use 302 for a Location response without Status", "relevant": ["modules/caddyhttp/reverseproxy/fastcgi/client.go"]}
+{"id": "fc3d83400b", "query": "reverseproxy: Don't drop read errors with unlimited buffers", "relevant": ["caddytest/integration/reverseproxy_test.go", "modules/caddyhttp/reverseproxy/buffering_test.go", "modules/caddyhttp/reverseproxy/reverseproxy.go"]}
+{"id": "401582cccf", "query": "templates: avoid zero content length for bodyless responses", "relevant": ["modules/caddyhttp/templates/templates.go"]}
+{"id": "7328273d6f", "query": "caddyfile: avoid quadratic heredoc marker scanning", "relevant": ["caddyconfig/caddyfile/lexer.go", "caddyconfig/caddyfile/lexer_test.go"]}
+{"id": "6ae02b5ccb", "query": "httpcaddyfile: keep source order for vars with non-comparable matchers", "relevant": ["caddyconfig/httpcaddyfile/directives.go"]}
+{"id": "f2c20fb810", "query": "reverseproxy: deduplicate DNS SRV+A discovery into modules/internal/network", "relevant": ["modules/caddyhttp/reverseproxy/upstreams.go"]}
+{"id": "054c92b9fa", "query": "httpcaddyfile: keep handle_errors blocks in Caddyfile order", "relevant": ["caddyconfig/httpcaddyfile/httptype.go", "caddytest/integration/caddyfile_test.go"]}
+{"id": "25c6901e05", "query": "httpcaddyfile: isolate TLS policies across listeners", "relevant": ["caddyconfig/httpcaddyfile/httptype.go", "caddyconfig/httpcaddyfile/httptype_test.go"]}
+{"id": "d4165a4eb1", "query": "caddyhttp: Reject repeated expression matchers in a matcher set", "relevant": ["modules/caddyhttp/celmatcher.go", "modules/caddyhttp/celmatcher_test.go"]}
+{"id": "5538b947d2", "query": "caddyhttp: skip matchers for satisfied route groups", "relevant": ["modules/caddyhttp/routes.go"]}
+{"id": "d588d5c8f0", "query": "cmd: unbuffer default logger on startup failure", "relevant": ["cmd/commandfuncs.go", "cmd/commands_test.go", "logging.go", "logging_test.go"]}
+{"id": "7c7456353e", "query": "reverseproxy: Only retry responses for expressions that use response data", "relevant": ["modules/caddyhttp/celmatcher.go", "modules/caddyhttp/reverseproxy/retries_test.go", "modules/caddyhttp/reverseproxy/reverseproxy.go"]}
+{"id": "7910dd94ee", "query": "caddyhttp: ignore case when matching hosts in logger_names", "relevant": ["modules/caddyhttp/app.go", "modules/caddyhttp/logging.go"]}
+{"id": "093fd4b7ec", "query": "encode: Don't write an empty encoded stream for HEAD responses", "relevant": ["modules/caddyhttp/encode/encode.go", "modules/caddyhttp/encode/encode_conformance_test.go"]}
+{"id": "c8591a1e46", "query": "httpcaddyfile: keep a site block's TLS policy for ECH public names", "relevant": ["caddyconfig/httpcaddyfile/tlsapp.go"]}
+{"id": "519be12306", "query": "reverseproxy: Keep own headers after 1xx responses", "relevant": ["modules/caddyhttp/reverseproxy/headers_test.go", "modules/caddyhttp/reverseproxy/reverseproxy.go"]}
+{"id": "221ebc4503", "query": "fix: preserve FastCGI dial errors for retry", "relevant": ["modules/caddyhttp/reverseproxy/fastcgi/fastcgi.go", "modules/caddyhttp/reverseproxy/reverseproxy.go"]}
+{"id": "6727b2f3a9", "query": "templates: Delete file headers on any template error", "relevant": ["modules/caddyhttp/templates/templates.go", "modules/caddyhttp/templates/tplcontext.go"]}
+{"id": "d65583e6d2", "query": "fileserver: apply hide rules to browse entries and sidecars", "relevant": ["modules/caddyhttp/fileserver/browse.go", "modules/caddyhttp/fileserver/browsetplcontext.go", "modules/caddyhttp/fileserver/browsetplcontext_test.go", "modules/caddyhttp/fileserver/staticfiles.go"]}
+{"id": "8ae69fae1e", "query": "reverseproxy: Don't panic in weighted_round_robin with fewer weights than upstreams", "relevant": ["modules/caddyhttp/reverseproxy/selectionpolicies.go", "modules/caddyhttp/reverseproxy/selectionpolicies_test.go"]}
+{"id": "036895ed4b", "query": "reverseproxy: Pick the least loaded host in random_choose when all are busy", "relevant": ["modules/caddyhttp/reverseproxy/selectionpolicies.go", "modules/caddyhttp/reverseproxy/selectionpolicies_test.go"]}
+{"id": "c1acb2fcba", "query": "caddyfile: surface OS error when an import file is inaccessible", "relevant": ["caddyconfig/caddyfile/parse.go", "caddyconfig/caddyfile/parse_test.go"]}
+{"id": "700d60327d", "query": "caddytls: Send ECH retry configs when rejecting ECH", "relevant": ["modules/caddytls/connpolicy.go"]}
+{"id": "96eadf18f6", "query": "fileserver: stat symlink targets by decoded path in browse listings", "relevant": ["modules/caddyhttp/fileserver/browsetplcontext.go", "modules/caddyhttp/fileserver/browsetplcontext_test.go"]}
+{"id": "c65c248336", "query": "caddyhttp: document that negative idle timeouts disable them", "relevant": ["modules/caddyhttp/server.go", "modules/caddyhttp/server_test.go"]}
+{"id": "30d3bd2a89", "query": "caddyhttp: only bound HTTP/2 body reads in flight with the idle timeout", "relevant": ["modules/caddyhttp/server.go"]}
+{"id": "8507b63cf0", "query": "caddytls: add not matcher for TLS handshakes", "relevant": ["modules/caddytls/matchers.go", "modules/caddytls/matchers_test.go"]}
+{"id": "b9f7a1c248", "query": "core: add RFC 3339 time placeholder", "relevant": ["replacer.go", "replacer_test.go"]}
+{"id": "8ad83ebd43", "query": "reverseproxy: Keep streams attached when writer detachment fails", "relevant": ["modules/caddyhttp/reverseproxy/streaming.go", "modules/caddyhttp/reverseproxy/streaming_test.go"]}
+{"id": "1706dc8f72", "query": "caddytls: keep repeated matchers in nested matcher sets", "relevant": ["modules/caddytls/connpolicy.go", "modules/caddytls/connpolicy_test.go"]}
+{"id": "f7eeb1d65c", "query": "reverseproxy: log HTTP/3 client cancellations at debug level", "relevant": ["modules/caddyhttp/reverseproxy/client_disconnect_test.go", "modules/caddyhttp/reverseproxy/reverseproxy.go", "modules/caddyhttp/reverseproxy/streaming.go"]}
+{"id": "7ba5e147ac", "query": "fileserver: treat a path below a regular file as not found", "relevant": ["modules/caddyhttp/fileserver/staticfiles.go", "modules/caddyhttp/fileserver/staticfiles_test.go"]}
+{"id": "04fe161028", "query": "encode: fix ETag list matching", "relevant": ["modules/caddyhttp/encode/encode.go", "modules/caddyhttp/encode/encode_conformance_test.go"]}
+{"id": "8f549e6df1", "query": "timeouts: take precedence over server-wide and enclosing idle timeouts", "relevant": ["modules/caddyhttp/server.go"]}
+{"id": "c8341d5b69", "query": "core: Raise CAP_NET_BIND_SERVICE when binding privileged ports", "relevant": ["listeners.go"]}
+{"id": "72dd0fb067", "query": "timeouts: fix idle writer terminate h2 response writers between writes", "relevant": ["modules/caddyhttp/server.go"]}
+{"id": "ab7e6b6d81", "query": "caddyhttp: end request-body deadline ownership with handler", "relevant": ["modules/caddyhttp/server.go"]}
+{"id": "ac63faabb8", "query": "headers: Preserve separate Set-Cookie values", "relevant": ["modules/caddyhttp/headers/headers.go", "modules/caddyhttp/headers/headers_test.go"]}
+{"id": "55a95ad253", "query": "caddyhttp: keep absent optional placeholders empty", "relevant": ["modules/caddyhttp/replacer.go", "modules/caddyhttp/replacer_test.go", "modules/caddyhttp/staticresp_test.go"]}
+{"id": "f357e2b6bf", "query": "reverseproxy: stabilise half-close test", "relevant": ["modules/caddyhttp/reverseproxy/streaming_test.go"]}
+{"id": "d483d7816f", "query": "listeners: close unix socket immediately and unlink file on reload", "relevant": ["listen_unix.go"]}
+{"id": "b72bf7a1ef", "query": "caddyfile: keep an opening brace that ends the input", "relevant": ["caddyconfig/caddyfile/formatter.go", "caddyconfig/caddyfile/formatter_test.go"]}
+{"id": "4978c54f81", "query": "events: tell CertMagic which events are worth emitting", "relevant": ["modules/caddyevents/app.go", "modules/caddytls/automation.go", "modules/caddytls/tls.go"]}
+{"id": "0a137e2faf", "query": "caddyhttp: use errors.AsType for request body limit errors", "relevant": ["modules/caddyhttp/templates/tplcontext.go", "modules/caddyhttp/vars.go"]}
+{"id": "ff112bb230", "query": "caddyhttp: wait for servers from previous configs on exit", "relevant": ["modules/caddyhttp/app.go", "modules/caddyhttp/app_test.go"]}
+{"id": "5ee9a2d424", "query": "httpcaddyfile: new `tls_automate_names` global option", "relevant": ["caddyconfig/httpcaddyfile/options.go", "caddyconfig/httpcaddyfile/tlsapp.go"]}
+{"id": "256df3c8ad", "query": "map: reject malformed destination placeholders", "relevant": ["caddytest/integration/map_test.go", "modules/caddyhttp/map/map.go", "modules/caddyhttp/map/map_test.go"]}
+{"id": "ea1e94b899", "query": "map: Distinguish duplicate literal and regexp inputs", "relevant": ["modules/caddyhttp/map/map.go", "modules/caddyhttp/map/map_test.go"]}
+{"id": "69ec5dfedf", "query": "caddyauth: only replace known placeholders in basic auth credentials", "relevant": ["modules/caddyhttp/caddyauth/basicauth.go"]}
+{"id": "fbc88ae232", "query": "internal: fix `MaxSizeSubjectsListForLog` off-by-one when `maxToDisplay` is `0`", "relevant": ["internal/logs.go"]}
+{"id": "81a0b6d838", "query": "requestbody: replace only known placeholders in the set body", "relevant": ["modules/caddyhttp/requestbody/requestbody.go"]}
+{"id": "5493791423", "query": "caddyhttp: fix randString sameCase dictionary to match its docs", "relevant": ["modules/caddyhttp/errors.go"]}
+{"id": "89db4b75c3", "query": "reverseproxy: Fix partial response not flushed to clients", "relevant": ["caddytest/integration/reverseproxy_test.go", "modules/caddyhttp/reverseproxy/reverseproxy.go"]}
+{"id": "7ee4441f92", "query": "reverseproxy: Move websocket header normalization later", "relevant": ["caddytest/integration/reverseproxy_test.go", "modules/caddyhttp/reverseproxy/reverseproxy.go"]}
+{"id": "c798d4c238", "query": "fastcgi: explain the 411 a body without a length gets", "relevant": ["modules/caddyhttp/reverseproxy/buffering_test.go", "modules/caddyhttp/reverseproxy/fastcgi/client.go"]}
+{"id": "7e82a6b528", "query": "admin: fix warnings and status code in /load API", "relevant": ["admin.go", "caddyconfig/configadapters.go", "caddyconfig/load.go"]}
+{"id": "c18099a0af", "query": "reverse_proxy with versions 3 silently ignores tls_trust_pool and verifies against the system roots", "relevant": ["modules/caddyhttp/reverseproxy/httptransport.go", "modules/caddyhttp/reverseproxy/httptransport_test.go"]}
+{"id": "128b9e75e0", "query": "core: synchronize Stop with concurrent config reloads", "relevant": ["caddy.go"]}
+{"id": "c1645c544d", "query": "caddyfile: Expand imports inside named routes", "relevant": ["caddyconfig/caddyfile/parse.go"]}
+{"id": "9be8fb2794", "query": "reverseproxy: propagate TCP half-close on upgraded streams", "relevant": ["modules/caddyhttp/reverseproxy/streaming.go", "modules/caddyhttp/reverseproxy/streaming_test.go"]}
+{"id": "56e3a88efe", "query": "caddyhttp: only replace known placeholders in respond headers", "relevant": ["modules/caddyhttp/staticresp.go", "modules/caddyhttp/staticresp_test.go"]}
+{"id": "a75817f550", "query": "fix: require module path boundaries when matching packages", "relevant": ["cmd/packagesfuncs.go"]}
+{"id": "425a3381fd", "query": "acmeserver: say when the CA database is locked by another process", "relevant": ["modules/caddypki/acmeserver/acmeserver.go", "modules/caddypki/acmeserver/acmeserver_test.go"]}
+{"id": "56ae39bdcc", "query": "reverseproxy: replace only known placeholders in health check body", "relevant": ["modules/caddyhttp/reverseproxy/active_health_test.go", "modules/caddyhttp/reverseproxy/healthchecks.go"]}
+{"id": "769ed7e4a3", "query": "events: skip dispatch setup when nothing is subscribed", "relevant": ["modules/caddyevents/app.go"]}
+{"id": "c8f0667aee", "query": "caddyhttp: demote Alt-Svc ErrNoAltSvcPort to debug level", "relevant": ["modules/caddyhttp/server.go"]}
+{"id": "e05f57dc7a", "query": "listen: don't wedge a reloaded listener sharing a socket on Windows", "relevant": ["listen.go"]}
+{"id": "9dd286c5e4", "query": "httpcaddyfile: give each adaptation its own directive order", "relevant": ["caddyconfig/httpcaddyfile/builtins.go", "caddyconfig/httpcaddyfile/directives.go", "caddyconfig/httpcaddyfile/directives_test.go", "caddyconfig/httpcaddyfile/httptype.go", "caddyconfig/httpcaddyfile/options.go"]}
+{"id": "8626fa3703", "query": "caddytls: synchronize storage cleaner with TLS.Stop via context and WaitGroup", "relevant": ["modules/caddytls/ech.go", "modules/caddytls/tls.go"]}
+{"id": "f7d58438b0", "query": "admin: fix host allow-list comparison to be case-insensitive", "relevant": ["admin.go"]}
+{"id": "8e90c9a0e1", "query": "caddyhttp: surface write timeout errors in access log", "relevant": ["modules/caddyhttp/server.go", "modules/caddyhttp/server_test.go"]}
+{"id": "97a08d8251", "query": "fileserver: reject non-integer browse file_limit", "relevant": ["modules/caddyhttp/fileserver/caddyfile.go"]}
+{"id": "19be5d8c58", "query": "caddyhttp: remove unused QUICConfig from the HTTP/3 server", "relevant": ["modules/caddyhttp/server.go"]}
+{"id": "2cb7ebca45", "query": "caddyfile: fix importGraph self-loop and stale-edge bugs", "relevant": ["caddyconfig/caddyfile/importgraph.go"]}
+{"id": "af29f9ea91", "query": "admin: fix origin allow-list host comparison to be case-insensitive", "relevant": ["admin.go"]}
+{"id": "7cc98d4d3f", "query": "cmd: make splitModule strictly conform to Go module spec", "relevant": ["cmd/packagesfuncs.go"]}
+{"id": "9968758201", "query": "usagepool: avoid lock inversion after constructor failure", "relevant": ["usagepool.go"]}
+{"id": "62a72977e5", "query": "core: fix ParseNetworkAddress port-range span off-by-one", "relevant": ["listeners.go"]}
+{"id": "d0e93c23a1", "query": "cmd: upgrade automemlimit to v1.0.0", "relevant": ["cmd/main.go"]}
+{"id": "502691f518", "query": "admin: stabilise log redaction test", "relevant": ["admin_test.go"]}
+{"id": "7bf1b9057b", "query": "rewrite: fix strip_path_suffix ignoring percent-encoding", "relevant": ["modules/caddyhttp/rewrite/rewrite.go", "modules/caddyhttp/rewrite/rewrite_test.go"]}
+{"id": "3244ef4105", "query": "fileserver: reject short names in every path component", "relevant": ["modules/caddyhttp/fileserver/staticfiles.go", "modules/caddyhttp/fileserver/staticfiles_test.go"]}
+{"id": "d6637934e8", "query": "admin: normalize request path in remote admin access-control check (defense-in-depth)", "relevant": ["admin.go", "admin_test.go"]}
+{"id": "39af0aec31", "query": "rewrite: fix URI splitting when a query or fragment arrives via a placeholder", "relevant": ["modules/caddyhttp/rewrite/rewrite.go", "modules/caddyhttp/rewrite/rewrite_test.go"]}
+{"id": "8b62e3c60e", "query": "caddyfile: clarify ArgErr documentation", "relevant": ["caddyconfig/caddyfile/dispenser.go"]}
+{"id": "51db7f0313", "query": "pki: honor skip_install_trust for explicit tls internal issuers", "relevant": ["caddyconfig/httpcaddyfile/pkiapp.go", "caddyconfig/httpcaddyfile/pkiapp_test.go"]}
+{"id": "45ba3278b5", "query": "fastcgi: fix HTTPoxy vulnerability", "relevant": ["modules/caddyhttp/reverseproxy/fastcgi/fastcgi.go", "modules/caddyhttp/reverseproxy/fastcgi/fastcgi_test.go"]}
+{"id": "0bbda5c728", "query": "fix: close resources on error paths", "relevant": ["caddytest/caddytest.go", "cmd/packagesfuncs.go", "modules/caddyhttp/reverseproxy/httptransport.go", "modules/caddyhttp/reverseproxy/httptransport_test.go", "modules/logging/filewriter.go"]}

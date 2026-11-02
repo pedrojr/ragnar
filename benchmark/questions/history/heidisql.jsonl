@@ -1,0 +1,124 @@
+{"id": "48aaabb032", "query": "fix: remove GUI font size setting from preferences, do not set font size in InheritFont", "relevant": ["source/apphelpers.pas", "source/extra_controls.pas", "source/preferences.dfm", "source/preferences.pas"]}
+{"id": "6229c50dbe", "query": "fix: quote schema-qualified identifiers segment-wise on drag+drop into query editor. See issue #2645", "relevant": ["source/main.pas"]}
+{"id": "ef4c6da4fc", "query": "fix: restore scroll position in table editor after save", "relevant": ["source/table_editor.pas"]}
+{"id": "bf88c06bc1", "query": "fix: use pg_indexes_size for PostgreSQL index size", "relevant": ["source/dbconnection.pas"]}
+{"id": "2b4ec13c19", "query": "fix: access violation in session connect from toolbar dropdown, closes #2651", "relevant": ["source/main.pas"]}
+{"id": "3d7aef5e2d", "query": "fix: header height counts line breaks in shortened captions", "relevant": ["source/main.pas"]}
+{"id": "7353ebcf90", "query": "fix: crash in tree focus change without focused node", "relevant": ["source/main.pas"]}
+{"id": "f60b9a1b28", "query": "fix: crash on main tab change without active query memo", "relevant": ["source/main.pas"]}
+{"id": "bb7d8f5f8e", "query": "fix: crash instead of error dialog on FireDAC timeout on Interbase", "relevant": ["source/dbconnection.pas"]}
+{"id": "ac0109afda", "query": "fix: crash instead of error dialog on invalid ADO connection string", "relevant": ["source/dbconnection.pas"]}
+{"id": "a765044a1e", "query": "fix: ignore failing timezone and SQL mode reset after table tools export", "relevant": ["source/tabletools.pas"]}
+{"id": "5ea5461590", "query": "fix: crash in host list icons after disconnect", "relevant": ["source/main.pas"]}
+{"id": "95885c1dd6", "query": "fix: crash in grid cell paint event after disconnect", "relevant": ["source/main.pas"]}
+{"id": "16961d90a2", "query": "fix: crash in grid export dialog without active grid", "relevant": ["source/main.pas"]}
+{"id": "b7dedc08b5", "query": "fix: crash on empty database file name in SQLite session", "relevant": ["source/dbconnection.pas"]}
+{"id": "e9e95328fa", "query": "fix: list index out of bounds in GetDbObjects after object deletion", "relevant": ["source/dbconnection.pas"]}
+{"id": "9d22904a95", "query": "fix: value-less --cleartextenabled flag was ignored", "relevant": ["source/apphelpers.pas"]}
+{"id": "16ab0f51ea", "query": "fix: Tab in grid cell editors jumps into next editable cell, also on row wrap", "relevant": ["source/grideditlinks.pas"]}
+{"id": "06df3b233c", "query": "fix: access violation when pressing Tab in a grid cell editor", "relevant": ["source/extra_controls.pas", "source/grideditlinks.pas"]}
+{"id": "8c09c1ca65", "query": "feat: gray out session folder path in export output dropdown", "relevant": ["source/tabletools.pas"]}
+{"id": "5655ddbdf4", "query": "feat: new login manager for MS SQL Server, closes #17", "relevant": ["packages/Delphi12.3/heidisql.dpr", "source/dbstructures.mssql.pas", "source/dbstructures.pas", "source/main.pas"]}
+{"id": "2b42866faf", "query": "feat: new role manager UI for PostgreSQL, closes #80", "relevant": ["packages/Delphi12.3/heidisql.dpr", "source/dbstructures.pas", "source/dbstructures.postgresql.pas", "source/main.pas"]}
+{"id": "ba4312ca3e", "query": "fix: make \"apply filter\" and \"clear\" buttons visually distinguishable", "relevant": ["source/main.dfm"]}
+{"id": "694cc516da", "query": "fix: support InterBase BOOLEAN columns and its missing partial column load. See #2527", "relevant": ["source/dbconnection.pas", "source/dbstructures.interbase.pas"]}
+{"id": "2dfe821e51", "query": "fix: only offer matching Firebird or InterBase client libraries in sessions", "relevant": ["source/dbconnection.pas"]}
+{"id": "2b99be915f", "query": "fix: Interbase/Firebird column types, DEFAULT clause order and SUBSTRING. Closes #2527", "relevant": ["source/dbconnection.pas", "source/dbstructures.interbase.pas", "source/dbstructures.pas"]}
+{"id": "118d55a6bb", "query": "fix: pick Interbase column query by server version instead of probing. See #2361", "relevant": ["source/dbconnection.pas"]}
+{"id": "345ce4fc3e", "query": "fix: do not terminate last statement in Interbase create code. See #2591", "relevant": ["source/dbconnection.pas"]}
+{"id": "c65afa3bb0", "query": "feat: implement keys and create code for Interbase/Firebird. See #2361", "relevant": ["source/dbconnection.pas"]}
+{"id": "3db40b13da", "query": "fix: repair PostgreSQL create code for tables with separate indexes. See #2591", "relevant": ["source/dbconnection.pas"]}
+{"id": "873409cf0a", "query": "fix: emit plain CREATE DATABASE for non-MySQL servers in SQL export. See #2581", "relevant": ["source/tabletools.pas"]}
+{"id": "97ae22ed86", "query": "fix: repair tab sections with empty name in tabs.ini on restore. See #2637", "relevant": ["source/main.pas"]}
+{"id": "a3b8dd654c", "query": "Automatically extract port when pasting host:port into Hostname / IP field", "relevant": ["source/connections.dfm", "source/connections.pas"]}
+{"id": "0ec7e115e0", "query": "fix: indexes created with CREATE INDEX not shown on MS SQL", "relevant": ["source/dbconnection.pas"]}
+{"id": "19e3cbf701", "query": "enhance: hint at \"Send batch in one go\" for undeclared variables on MS SQL", "relevant": ["source/apphelpers.pas", "source/main.pas"]}
+{"id": "ba9df08403", "query": "fix: fetch MS SQL binary column values via TBlobField stream in GetColBinData", "relevant": ["source/dbconnection.pas"]}
+{"id": "e8979be4d4", "query": "fix: wrong hex prefix/postfix for PostgreSQL, insecure break after testing 1024 characters in IsHex", "relevant": ["source/dbconnection.pas"]}
+{"id": "e61ffdcecb", "query": "fix: hide LIKE quick filters in context menu of binary grid values, which would now be broken through quoted hex values", "relevant": ["source/main.pas"]}
+{"id": "68a291a044", "query": "fix: use correct hex prefix/postfix on MS SQL and PostgreSQL, allow odd length of hex body in MySQL", "relevant": ["source/dbconnection.pas"]}
+{"id": "53df50a9cb", "query": "fix: wrong IsHex result on non-MySQL connections, prevent escaping quotes in SQLite hex values x'aa...'", "relevant": ["source/dbconnection.pas"]}
+{"id": "2c48500783", "query": "fix: use connection specific hex prefix and postfix when editing binary values in grid", "relevant": ["source/bineditor.pas", "source/dbconnection.pas"]}
+{"id": "770f19cf73", "query": "fix: implement TSQLiteQuery.GetColBinData for byte-exact BLOB access", "relevant": ["source/dbconnection.pas"]}
+{"id": "5c54203fea", "query": "fix: read SQLite BLOB columns via sqlite3_column_blob instead of truncated text", "relevant": ["source/dbconnection.pas"]}
+{"id": "bd3ab460cd", "query": "fix: assign SQLite procedures sqlite3_column_blob and sqlite3_column_bytes to TSQLiteLib", "relevant": ["source/dbstructures.sqlite.pas"]}
+{"id": "4c196b9af2", "query": "fix: invalid JSON export from empty grid result", "relevant": ["source/exportgrid.pas"]}
+{"id": "bf0463bc57", "query": "fix: re-enable setting width of helpers box on query tabs", "relevant": ["source/main.pas"]}
+{"id": "0fec88732b", "query": "fix: default name for new constraint too long for MySQL", "relevant": ["source/table_editor.pas"]}
+{"id": "c123ccdb9e", "query": "fix: (backport of c976d17e69d3e398f614926656da2fa7c0a82fd8) keep database nodes expanded on tree refresh, and hide table tabs after dropping the object", "relevant": ["source/main.pas"]}
+{"id": "aa0f35039f", "query": "feat: Use fully qualified table name in \"Select Top x rows\" action when a click on it is combined with Shift", "relevant": ["source/main.pas"]}
+{"id": "25085163d0", "query": "fix: use newer/renumbered MYSQL_* constants with libmysql v8+", "relevant": ["source/dbstructures.mysql.pas"]}
+{"id": "ca238aa291", "query": "enhance: rephrase warning message displayed when a grid edit/delete did not affect any row", "relevant": ["source/dbconnection.pas"]}
+{"id": "59ea39a2b0", "query": "fix: sporadic crash in DBtreePaintText with columns", "relevant": ["source/main.pas"]}
+{"id": "cbdc78d0f7", "query": "fix: enable foreign key drop down on grid field in MS SQL mode", "relevant": ["source/dbconnection.pas"]}
+{"id": "57905b08e1", "query": "fix: remove column nodes from tree in table tools dialog", "relevant": ["source/main.pas"]}
+{"id": "bb5e724d4f", "query": "feat: create opt-in option for displaying columns in database tree", "relevant": ["source/apphelpers.pas", "source/main.dfm", "source/main.pas"]}
+{"id": "d15df71717", "query": "fix: handle MONEY column types as float", "relevant": ["source/dbconnection.pas"]}
+{"id": "152ab70df6", "query": "fix: invalid folder path for SQL export cannot be created if it contains a duplicated path delimiter", "relevant": ["source/tabletools.pas"]}
+{"id": "03c005a484", "query": "fix: crash when opening textfile import dialog, with 0 tables in database", "relevant": ["source/loaddata.pas"]}
+{"id": "fc222fb6b6", "query": "feat: show table columns in tree, as child nodes", "relevant": ["source/dbconnection.pas", "source/main.dfm", "source/main.pas", "source/table_editor.dfm", "source/table_editor.pas"]}
+{"id": "0014f1ba97", "query": "fix: prevent SQL error \"Property 'MS_Description' already exists\"", "relevant": ["source/dbstructures.mssql.pas", "source/dbstructures.pas", "source/table_editor.pas"]}
+{"id": "5441379bdc", "query": "fix: do not paint size bar in nodes of level 2, and do not show \"-\" text there neither", "relevant": ["source/table_editor.pas"]}
+{"id": "499ee4165e", "query": "feat: query size of all indexes in one query", "relevant": ["source/dbconnection.pas", "source/dbstructures.mysql.pas"]}
+{"id": "f1d0eb6a4c", "query": "feat: display size of each index and paint a color bar behind it", "relevant": ["source/dbconnection.pas", "source/dbstructures.mysql.pas", "source/dbstructures.pas", "source/table_editor.dfm", "source/table_editor.pas"]}
+{"id": "a4340662f5", "query": "fix: EXPLAIN <query> actions either disabled or non-working for PostgreSQL and SQLite", "relevant": ["source/dbstructures.postgresql.pas", "source/dbstructures.sqlite.pas", "source/main.pas"]}
+{"id": "1cbdf77f6f", "query": "fix: hanging in a loop over result nodes by right-click on query result", "relevant": ["source/main.pas"]}
+{"id": "2e290f1be1", "query": "refactor: prefer Delphi friendly SysUtils.PathDelim over hard-coded backslash", "relevant": ["source/apphelpers.pas", "source/main.pas", "source/tabletools.pas"]}
+{"id": "68785782ec", "query": "fix: use default library of connection when the one from a stored session contains an invalid path/file", "relevant": ["source/apphelpers.pas", "source/dbconnection.pas"]}
+{"id": "0aaa1f2177", "query": "fix: refresh session tree after import per More > Import settings file", "relevant": ["source/connections.dfm", "source/connections.pas", "source/main.pas"]}
+{"id": "179a484f96", "query": "fix: prepend database name to the trigger name at the correct position, when newer MariaDB versions use IF NOT EXISTS", "relevant": ["source/tabletools.pas"]}
+{"id": "37ca309043", "query": "feat: support some keywords like CURRENT_TIMESTAMP in SQLite default value drop-down", "relevant": ["source/dbconnection.pas", "source/grideditlinks.pas"]}
+{"id": "fae4c58718", "query": "fix: expect \"IF NOT EXISTS\" clause in trigger definition", "relevant": ["source/trigger_editor.pas"]}
+{"id": "7531d7abdd", "query": "fix: reveal procedures and function in MySQL which are stored with correct case in mysql.proc", "relevant": ["source/dbstructures.mysql.pas"]}
+{"id": "58ffeb9680", "query": "fix: crash in grid export with no focused column and usage of IfThen() which evaluates all arguments before the function is called", "relevant": ["source/exportgrid.pas"]}
+{"id": "ab7923d3d8", "query": "fix: reveal default text value of SQLite columns", "relevant": ["source/dbconnection.pas"]}
+{"id": "606f538819", "query": "fix: do not use INVISIBLE keyword on MariaDB", "relevant": ["source/dbstructures.mysql.pas"]}
+{"id": "80938b7426", "query": "feat: label the new tab like the selected table, in the \"Select top x rows\" action", "relevant": ["source/main.pas"]}
+{"id": "eb92156e97", "query": "fix: unhide hint on lblPasswordHint", "relevant": ["source/usermanager.dfm"]}
+{"id": "9330ce29ef", "query": "fix: set new authentication plugin only if the user changed it, and then hint the user this will reset the password", "relevant": ["source/usermanager.dfm", "source/usermanager.pas"]}
+{"id": "ef74ab5ea4", "query": "fix: error dialog due to unsupported SHOW GLOBAL VARIABLES query on MySQL 3.x servers", "relevant": ["source/dbstructures.mysql.pas", "source/main.pas"]}
+{"id": "dbc868a8eb", "query": "fix: a checkbox does not seem to have Focused on macOS during a mouse-click", "relevant": ["source/column_selection.pas", "source/const.inc"]}
+{"id": "eedc259dcb", "query": "fix: work around mysql bug for \"hidden\" routines in UPPERCASE databases", "relevant": ["source/dbstructures.mysql.pas"]}
+{"id": "c934d72dac", "query": "feat: create checkbox in advanced session setting for new ForceUnicode setting", "relevant": ["source/connections.dfm", "source/connections.pas"]}
+{"id": "b858cd65c0", "query": "feat: create opt-out setting \"ForceUnicode\", for sessions which shall not force Unicode communication", "relevant": ["source/apphelpers.pas", "source/dbconnection.pas"]}
+{"id": "a6fa05561b", "query": "feat: enable connection port visible in a column of the session tree", "relevant": ["source/connections.dfm", "source/connections.pas"]}
+{"id": "6a0e2382b2", "query": "fix: prefer SHOW KEYS over SHOW INDEXES, which are synonyms, while very old servers only accept the one with KEYS", "relevant": ["source/dbconnection.pas"]}
+{"id": "04a949264c", "query": "fix: prevent grid queries from doing \"WHERE intcol::text = 1\", due to \"1\" being incompatible to the text value on the left", "relevant": ["source/dbconnection.pas"]}
+{"id": "c94b860728", "query": "enhance: do not copy default type and value from previous column when adding columns to a table", "relevant": ["source/table_editor.pas"]}
+{"id": "2151b4016e", "query": "fix: automatic reconnect when firing query on a disconnected SQL server connection", "relevant": ["source/dbconnection.pas"]}
+{"id": "ec6f7ec632", "query": "feat: support authentication plugin selection in user manager, and fix complaint about invalid password length on user plugins which have no fixed password length", "relevant": ["source/dbstructures.mysql.pas", "source/dbstructures.pas", "source/usermanager.dfm", "source/usermanager.pas"]}
+{"id": "369354dfef", "query": "fix: SUBSTRING() on array typed VARCHARs throw \"function substr(...) does not exist\"", "relevant": ["source/dbconnection.pas"]}
+{"id": "62caaf9361", "query": "fix: MS SQL throws \"Cannot drop database xyz, because it is currently in use\" when user is about to drop the current database", "relevant": ["source/main.pas"]}
+{"id": "09c6afa0e1", "query": "feat: grid export option for exporting the focused grid column only", "relevant": ["source/apphelpers.pas", "source/exportgrid.dfm", "source/exportgrid.pas"]}
+{"id": "118e9d9851", "query": "feat: bypass automatic foreign key lookup in data grid editing through new menu item", "relevant": ["source/main.dfm", "source/main.pas"]}
+{"id": "50325eac9a", "query": "fix: space missing in CREATE TABLE code of PG table with SERIAL column", "relevant": ["source/dbconnection.pas"]}
+{"id": "3b9215a68f", "query": "fix: formatting CSS rules ignored by Libre Office Writer when pasting, probably due to specified fragment pointing to the HTML only portion", "relevant": ["source/main.pas"]}
+{"id": "bdea4941f4", "query": "fix: quick filter prompts on numbers break WHERE clause through local formatting", "relevant": ["source/main.pas"]}
+{"id": "da5e781cdc", "query": "feat: add a separate menu item \"copy formatted text\", using the old code for copying SynEdit-highlighted text as HTML", "relevant": ["source/main.dfm", "source/main.pas"]}
+{"id": "fd058163b3", "query": "fix: restore displayed session name in message dialog caption, was removed in commit:63028518f8b0d5869383d3bc0c42f188851797ed", "relevant": ["source/apphelpers.pas", "source/dbconnection.pas"]}
+{"id": "e1db0a6c9d", "query": "feat: filter edit box for shortcuts in preferences", "relevant": ["source/extra_controls.pas", "source/preferences.dfm", "source/preferences.pas"]}
+{"id": "27c38954b7", "query": "enhance: suppress dialog for saving modified SQL on app close, when tabs get auto-restored", "relevant": ["source/main.pas"]}
+{"id": "c2938d88f6", "query": "fix: turn exception in ParseViewStructure into a log message", "relevant": ["source/dbconnection.pas"]}
+{"id": "657ac7d45a", "query": "enhance: remove FLUSH PRIVILEGES from the user managers FormShow handler. If a click on a non-flushed user in the tree produces an exception, that is caught and shown as a normal error message.", "relevant": ["source/usermanager.pas"]}
+{"id": "b4fe825bd8", "query": "fix: data grid filter cut with several double-dash comments on one line", "relevant": ["source/apphelpers.pas"]}
+{"id": "ea9c4d03ba", "query": "fix: mouse click in edited row calls save action although focus did not change", "relevant": ["source/main.pas"]}
+{"id": "699fde0ccb", "query": "feat: rename snippet per right-click on query helpers tree", "relevant": ["source/const.inc", "source/main.dfm", "source/main.pas"]}
+{"id": "597da7d835", "query": "fix: explicitly set client encoding on PG connection", "relevant": ["source/dbconnection.pas"]}
+{"id": "9fc551d56b", "query": "fix: MSSQL foreign key lookup to include table schema", "relevant": ["source/dbconnection.pas"]}
+{"id": "55c723fffe", "query": "feature: name columns in SELECT when exporting table with invisible columns", "relevant": ["source/dbconnection.pas", "source/tabletools.pas"]}
+{"id": "02dfeeb2ef", "query": "fix: wrong ENUM column type detection, due to less strict regex", "relevant": ["source/dbconnection.pas"]}
+{"id": "f1e4485198", "query": "fix: staying on current table by click on \"follow foreign key\" when the foreign table lives in a different database", "relevant": ["source/main.pas"]}
+{"id": "de9eeeb9b0", "query": "fix(ui): filter away vertical writing fonts with an @ prefix", "relevant": ["source/preferences.pas"]}
+{"id": "4bc90fb613", "query": "fix: query tab closed by mouse-down on X-button plus mouse-up somewhere else", "relevant": ["source/main.pas"]}
+{"id": "971d56b0fc", "query": "fix: do not auto-create c:\\users\\mike\\AppData\\Roaming\\HeidiSQL\\ in portable mode, through the default value of asLogFilePath", "relevant": ["source/apphelpers.pas", "source/main.pas"]}
+{"id": "35e43df4bd", "query": "fix: ineffective marking index as invisible or visible, must be done in a separate ALTER TABLE query", "relevant": ["source/dbconnection.pas", "source/dbstructures.mysql.pas", "source/dbstructures.pas", "source/table_editor.dfm", "source/table_editor.pas"]}
+{"id": "130c26e4a8", "query": "feat: support invisible indexes on MySQL 8.0+ and ignored indexes on MariaDB 10.6+", "relevant": ["source/dbconnection.pas", "source/table_editor.dfm", "source/table_editor.pas"]}
+{"id": "63028518f8", "query": "fix: some crashes found in uploaded crash reports", "relevant": ["source/apphelpers.pas", "source/main.pas"]}
+{"id": "4737689bc1", "query": "refactor: revert most of what I did for #2424", "relevant": ["source/connections.pas", "source/dbconnection.pas"]}
+{"id": "f5d054d645", "query": "fix: support backtick quoted user roles, and some other TValueListEditor related bug fixes", "relevant": ["source/dbconnection.pas", "source/usermanager.dfm", "source/usermanager.pas"]}
+{"id": "4974bab809", "query": "fix: pre-select nothing in BOOL grid cell editor on PostgreSQL", "relevant": ["source/dbconnection.pas", "source/main.pas"]}
+{"id": "be1bcf6d87", "query": "fix(ui): remove default \"add user\" event from add button, turn it into a pure dropdown button", "relevant": ["source/const.inc", "source/usermanager.dfm", "source/usermanager.pas"]}
+{"id": "419acd7e6a", "query": "feat: support assigning a default role to a user", "relevant": ["source/dbstructures.mysql.pas", "source/dbstructures.pas", "source/usermanager.dfm", "source/usermanager.pas"]}
+{"id": "1e13f13011", "query": "enhance: increase supported table size and row limit for quick filter menu showing distinct values", "relevant": ["source/main.pas"]}
+{"id": "86fe87680d", "query": "feat: translate strings, append number of items on tab captions", "relevant": ["source/usermanager.dfm", "source/usermanager.pas"]}
+{"id": "c0122a8aed", "query": "feat: support assigning roles to a user or role", "relevant": ["source/dbstructures.mysql.pas", "source/dbstructures.pas", "source/usermanager.dfm", "source/usermanager.pas"]}

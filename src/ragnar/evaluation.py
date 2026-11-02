@@ -20,10 +20,11 @@ import psycopg
 
 from .config import Settings, load_settings
 from .embedder import from_settings
-from .languages import BY_EXTENSION
+from .languages import BY_EXTENSION, FORM_EXTENSIONS
 from .llm import chat_from, reranker_from
 from .search import Pipeline, estimate_tokens
 
+COMMIT_MARK, BODY_END = "\x1ecommit\x1e", "\x1eend\x1e"
 SKIP_COMMIT = re.compile(r"^(merge|bump|chore|release|revert|format|wip)\b", re.I)
 STOPWORDS = {"the", "and", "for", "with", "fix", "add", "use", "feat", "para", "com", "que", "não", "uma", "dos", "das"}
 MIN_QUESTIONS = 30
@@ -38,11 +39,16 @@ def _git(repo: str, *args: str) -> str:
 def build_golden(repo: str, snapshot: str, branch: str = "main") -> list[dict]:
     """Questions from the commits between the snapshot and the branch."""
     existing = set(_git(repo, "ls-tree", "-r", "--name-only", snapshot).splitlines())
+    source = {*BY_EXTENSION, *FORM_EXTENSIONS}
     golden = []
-    for sha in _git(repo, "rev-list", "--no-merges", f"{snapshot}..{branch}").split():
-        message = _git(repo, "show", "-s", "--format=%s%n%n%b", sha).strip()
-        files = [f for f in _git(repo, "show", "--name-only", "--format=", sha).splitlines()
-                 if Path(f).suffix.lower() in BY_EXTENSION and f in existing]
+    # one process for the whole range; --no-renames also avoids reading blobs
+    log = _git(repo, "log", "--no-merges", "--no-renames", "--name-only", f"--format={COMMIT_MARK}%H%n%s%n%b%n{BODY_END}",
+               f"{snapshot}..{branch}")
+    for entry in log.split(COMMIT_MARK)[1:]:
+        head, _, names = entry.partition(BODY_END)
+        sha, _, message = head.partition("\n")
+        message = message.strip()
+        files = [f for f in names.splitlines() if f and Path(f).suffix.lower() in source and f in existing]
         if not SKIP_COMMIT.match(message) and len(message) >= 25 and 1 <= len(files) <= 5:
             golden.append({"id": sha[:10], "query": message, "relevant": files})
     return golden

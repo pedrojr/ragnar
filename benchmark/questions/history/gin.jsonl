@@ -1,0 +1,74 @@
+{"id": "ea9fab99e0", "query": "fix(tree): grow skippedNodes when pooled capacity is stale", "relevant": ["routes_test.go", "tree.go"]}
+{"id": "e8f24969d5", "query": "feat(routergroup): include HTTP QUERY method in Any", "relevant": ["routergroup.go", "routergroup_test.go", "routes_test.go"]}
+{"id": "43fe48e8a0", "query": "docs: fix SecureJSON default prefix and default-binding example output", "relevant": ["context.go"]}
+{"id": "1bd0ecf2d3", "query": "fix(context): load Keys under the mutex in Copy", "relevant": ["context.go", "context_test.go"]}
+{"id": "3b08cd7235", "query": "fix: reset skipped-nodes stack on getValue entry to prevent slice overflow panic [#4818]", "relevant": ["routes_test.go", "tree.go"]}
+{"id": "d8f2d588d7", "query": "fix(engine): add default ReadHeaderTimeout to http.Server in Run methods", "relevant": ["gin.go", "gin_test.go"]}
+{"id": "b1f77cf536", "query": "feat(gin): add support for the HTTP QUERY method (RFC 10008)", "relevant": ["ginS/gins.go", "routergroup.go", "routergroup_test.go", "routes_test.go"]}
+{"id": "5c6a15f8f9", "query": "fix(context): handle missing HTML renderer", "relevant": ["context.go", "context_test.go", "render/html.go", "render/render_test.go"]}
+{"id": "b52df1fe77", "query": "docs: document panic conditions in Handle, StaticFS, and Bind", "relevant": ["routergroup.go", "utils.go"]}
+{"id": "2a1a14ff37", "query": "feat(router): add QUERY method shortcut for RFC 10008", "relevant": ["gin_test.go", "routergroup.go"]}
+{"id": "dcaa4296d1", "query": "docs(path): fix malformed comment in cleanPath", "relevant": ["path.go"]}
+{"id": "34dac209ff", "query": "docs: fix `BindXML` comment referencing nonexistent `binding.BindXML`", "relevant": ["context.go"]}
+{"id": "d9307dbcbb", "query": "fix(context): skip chmod on pre-existing dirs in SaveUploadedFile", "relevant": ["context.go", "context_test.go"]}
+{"id": "da1e108614", "query": "test(context): use t.TempDir() for SaveUploadedFile permission test on WSL", "relevant": ["context_test.go"]}
+{"id": "074b669a95", "query": "test(response_writer): add tests for Flush() with and without http.Flusher", "relevant": ["response_writer_test.go"]}
+{"id": "4a3eb31fb1", "query": "fix(recovery): record recovered panics in c.Errors", "relevant": ["recovery.go", "recovery_test.go"]}
+{"id": "293ad7edeb", "query": "fix(context): Copy() copies Errors and Accepted fields", "relevant": ["context.go", "context_test.go"]}
+{"id": "d75fcd4c9a", "query": "fix(response): panic on Hijack/CloseNotify when wrapper unsupported", "relevant": ["response_writer.go", "response_writer_test.go"]}
+{"id": "88c4263538", "query": "docs(context): align inline comments in GetPostForm example", "relevant": ["context.go"]}
+{"id": "96ece6a141", "query": "feat(context): add Scheme() with proper reverse proxy support", "relevant": ["context.go", "context_test.go"]}
+{"id": "c79f5d466e", "query": "refactor: optimize error message concatenation in default_validator", "relevant": ["binding/default_validator.go"]}
+{"id": "d3ffc99852", "query": "test(engine): add regression tests for HandleContext with NoRoute", "relevant": ["gin_test.go"]}
+{"id": "6d880724cc", "query": "refactor(test): use the built-in max/min to simplify the code", "relevant": ["test_helpers.go"]}
+{"id": "052d1a79aa", "query": "feat(render): add PDF renderer and tests", "relevant": ["context.go", "context_test.go", "render/render.go", "render/render_test.go"]}
+{"id": "e292e5caa7", "query": "docs: document and finalize Gin v1.12.0 release", "relevant": ["version.go"]}
+{"id": "ae3f524974", "query": "ci: update Go version support to 1.25+ across CI and docs", "relevant": ["debug.go", "debug_test.go"]}
+{"id": "472d086af2", "query": "fix(tree): panic in findCaseInsensitivePathRec with RedirectFixedPath", "relevant": ["tree.go", "tree_test.go"]}
+{"id": "fb2583442c", "query": "test(context): use http.StatusContinue constant instead of magic number 100", "relevant": ["context.go", "context_test.go", "logger_test.go", "utils_test.go"]}
+{"id": "6f1d5fe3cd", "query": "test(render): add comprehensive error handling tests", "relevant": ["render/render_test.go"]}
+{"id": "5c00df8afa", "query": "fix(render): write content length in Data.Render", "relevant": ["render/data.go", "render/render_test.go"]}
+{"id": "216a4a7c28", "query": "test(render): add comprehensive tests for MsgPack render", "relevant": ["render/render_msgpack_test.go"]}
+{"id": "488f8c3ffa", "query": "refactor: replace magic numbers with named constants in bodyAllowedForStatus", "relevant": ["context.go"]}
+{"id": "8e07d37c63", "query": "fix: Correct typos, improve documentation clarity, and remove dead code", "relevant": ["context.go", "errors.go", "recovery_test.go", "routergroup.go"]}
+{"id": "cad29c5e3f", "query": "perf(tree): reduce allocations in findCaseInsensitivePath", "relevant": ["tree.go"]}
+{"id": "53410d2e07", "query": "feat(context): add GetError and GetErrorSlice methods for error retrieval", "relevant": ["context.go", "context_test.go"]}
+{"id": "192ac89eef", "query": "feat(binding): add support for encoding.UnmarshalText in uri/query binding", "relevant": ["binding/form_mapping.go", "binding/form_mapping_test.go"]}
+{"id": "3ab698dc51", "query": "refactor(recovery): smart error comparison", "relevant": ["recovery.go", "recovery_test.go"]}
+{"id": "9914178584", "query": "fix(context): ClientIP handling for multiple X-Forwarded-For header values", "relevant": ["context.go", "context_test.go"]}
+{"id": "915e4c90d2", "query": "refactor(context): replace hardcoded localhost IPs with constants", "relevant": ["context_test.go", "gin_test.go", "utils.go"]}
+{"id": "d1a15347b1", "query": "refactor(utils): move util functions to utils.go", "relevant": ["context.go", "tree.go", "utils.go", "utils_test.go"]}
+{"id": "64a6ed9a41", "query": "perf(recovery): optimize line reading in stack function", "relevant": ["recovery.go", "recovery_test.go"]}
+{"id": "19b877fa50", "query": "test(debug): improve the test coverage of debug.go to 100%", "relevant": ["debug.go", "debug_test.go"]}
+{"id": "2a794cd0b0", "query": "fix(debug): version mismatch", "relevant": ["debug.go"]}
+{"id": "b917b14ff9", "query": "fix(binding): empty value error", "relevant": ["binding/form_mapping.go", "binding/form_mapping_test.go"]}
+{"id": "f416d1e594", "query": "test(gin): resolve race conditions in integration tests", "relevant": ["gin_integration_test.go", "gin_test.go", "test_helpers.go"]}
+{"id": "583db590ec", "query": "test(bytesconv): add tests for empty/nil cases", "relevant": ["internal/bytesconv/bytesconv_test.go"]}
+{"id": "63dd3e60ca", "query": "fix(recover): suppress http.ErrAbortHandler in recover", "relevant": ["recovery.go", "recovery_test.go"]}
+{"id": "771dcc6476", "query": "feat(gin): add option to use escaped path", "relevant": ["gin.go", "gin_test.go"]}
+{"id": "440eb14ab8", "query": "perf(path): replace regex with custom functions in redirectTrailingSlash", "relevant": ["gin.go", "path.go", "path_test.go"]}
+{"id": "5fad976b37", "query": "fix(gin): literal colon routes not working with engine.Handler()", "relevant": ["gin.go", "gin_test.go"]}
+{"id": "93ff771e6d", "query": "ci(sec): improve type safety and server organization in HTTP middleware", "relevant": ["context.go", "gin.go", "tree.go"]}
+{"id": "58135f06cf", "query": "docs(context): add example comments for ShouldBind* methods", "relevant": ["context.go"]}
+{"id": "a85ef5ce4d", "query": "refactor: use b.Loop() to simplify the code and improve performance", "relevant": ["binding/default_validator_benchmark_test.go", "binding/form_mapping_benchmark_test.go", "path_test.go", "utils_test.go"]}
+{"id": "fb27ef26c2", "query": "ci(lint): refactor test assertions and linter configuration", "relevant": ["context_test.go", "gin_integration_test.go"]}
+{"id": "c3d5a28ed6", "query": "fix(gin): close os.File in RunFd to prevent resource leak", "relevant": ["gin.go"]}
+{"id": "acc55e049e", "query": "feat(context): add Protocol Buffers support to content negotiation", "relevant": ["context.go", "context_test.go"]}
+{"id": "2e22e50859", "query": "perf(tree): optimize path parsing using strings.Count", "relevant": ["tree.go"]}
+{"id": "c0048f645e", "query": "refactor(context): omit the return value names", "relevant": ["context.go"]}
+{"id": "38e7651192", "query": "feat(context): implemented Delete method", "relevant": ["context.go", "context_test.go"]}
+{"id": "c221133ee8", "query": "docs(context): fix some comments", "relevant": ["context.go", "logger_test.go"]}
+{"id": "c3d1092b3b", "query": "fix(binding): improve empty slice/array handling in form binding", "relevant": ["binding/form_mapping.go", "binding/form_mapping_test.go"]}
+{"id": "9968c4bf9d", "query": "refactor: use b.Loop() to simplify the code and improve performance", "relevant": ["internal/bytesconv/bytesconv_test.go"]}
+{"id": "4dec17afdf", "query": "feat(logger): color latency", "relevant": ["logger.go", "logger_test.go"]}
+{"id": "731374fb36", "query": "docs(context): fix wrong function name in comment", "relevant": ["context_test.go"]}
+{"id": "39858a0859", "query": "refactor(binding): use maps.Copy for cleaner map handling", "relevant": ["binding/form_mapping.go"]}
+{"id": "ed150e7254", "query": "test(benchmarks): fix the incorrect function name", "relevant": ["benchmarks_test.go"]}
+{"id": "234a6d4c00", "query": "fix(response): refine hijack behavior for response lifecycle", "relevant": ["response_writer.go", "response_writer_test.go"]}
+{"id": "414de60574", "query": "refactor(context): using maps.Clone", "relevant": ["context.go"]}
+{"id": "59e9d4a794", "query": "refactor(ginS): use sync.OnceValue to simplify engine function", "relevant": ["ginS/gins.go"]}
+{"id": "6ad6205e9c", "query": "docs(changelog): upgrade Gin to v1.11.0 and add release notes", "relevant": ["version.go"]}
+{"id": "da372fc778", "query": "build(deps): upgrade github.com/bytedance/sonic from v1.13.2 to v1.14.0", "relevant": ["context_test.go"]}
+{"id": "e198f6e859", "query": "refactor(render): remove headers parameter from writeHeader", "relevant": ["render/reader.go"]}
+{"id": "9b1e3533e2", "query": "refactor(tree): replace string(/) with \"/\" in node.insertChild", "relevant": ["tree.go"]}
+{"id": "f9bd00a6b7", "query": "perf(context): optimize getMapFromFormData performance", "relevant": ["context.go", "context_test.go"]}

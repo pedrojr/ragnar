@@ -1,0 +1,68 @@
+# Open source projects used by the benchmark. Commits are pinned so that every run reads the same code.
+# `snapshot` is the indexed commit: history questions come from the commits after it, so answers
+# cannot leak into the index. `exclude` drops third-party code and, in the two largest test suites,
+# tests: those files stop counting as expected answers too. Embedding on a CPU is the budget here.
+
+[[repo]]
+name = "heidisql"
+language = "delphi"
+url = "https://github.com/HeidiSQL/HeidiSQL.git"
+branch = "master"
+snapshot = "bd7e238b43"
+exclude = ["components/*", "extra/*", "out/*"]
+
+[[repo]]
+name = "dmvc"
+language = "delphi"
+url = "https://github.com/danieleteti/delphimvcframework.git"
+branch = "master"
+snapshot = "0c8568fe62"
+exclude = ["lib/*", "samples/*", "unittests/*", "tools/*", "ideexpert/*", ".agents/*", ".claude/*", "docs/*"]
+
+[[repo]]
+name = "jsoup"
+language = "java"
+url = "https://github.com/jhy/jsoup.git"
+branch = "master"
+snapshot = "0619806973"
+exclude = []
+
+[[repo]]
+name = "commons-lang"
+language = "java"
+url = "https://github.com/apache/commons-lang.git"
+branch = "master"
+snapshot = "d5cec8e6e2"
+exclude = ["src/test/*", "src/site/*"]
+
+[[repo]]
+name = "serilog"
+language = "csharp"
+url = "https://github.com/serilog/serilog.git"
+branch = "dev"
+snapshot = "19d8b1a0b9"
+exclude = []
+
+[[repo]]
+name = "polly"
+language = "csharp"
+url = "https://github.com/App-vNext/Polly.git"
+branch = "main"
+snapshot = "e5a8c40911"
+exclude = ["test/*", "samples/*", "benchmarks/*"]
+
+[[repo]]
+name = "caddy"
+language = "go"
+url = "https://github.com/caddyserver/caddy.git"
+branch = "master"
+snapshot = "789f60e337"
+exclude = ["*/testdata/*"]
+
+[[repo]]
+name = "gin"
+language = "go"
+url = "https://github.com/gin-gonic/gin.git"
+branch = "master"
+snapshot = "46150257b3"
+exclude = []

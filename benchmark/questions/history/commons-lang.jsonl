@@ -1,0 +1,62 @@
+{"id": "f004a9cb42", "query": "[LANG-1839] Fix recursive toString traversal cleanup", "relevant": ["src/main/java/org/apache/commons/lang3/builder/RecursiveToStringStyle.java", "src/main/java/org/apache/commons/lang3/builder/ReflectionToStringBuilder.java", "src/main/java/org/apache/commons/lang3/builder/ToStringBuilder.java", "src/main/java/org/apache/commons/lang3/builder/ToStringStyle.java"]}
+{"id": "00efc7500a", "query": "Fix Conversion hex method Javadoc", "relevant": ["src/main/java/org/apache/commons/lang3/Conversion.java"]}
+{"id": "f43042ba3e", "query": "[javadoc] Correct hexadecimal output examples in Conversion", "relevant": ["src/main/java/org/apache/commons/lang3/Conversion.java"]}
+{"id": "5ebe419f3b", "query": "Keep RandomStringUtils.random rejection cap from failing valid ranges", "relevant": ["src/main/java/org/apache/commons/lang3/RandomStringUtils.java"]}
+{"id": "7d325c2a5b", "query": "Keep RandomStringUtils.random rejection cap from failing valid ranges", "relevant": ["src/main/java/org/apache/commons/lang3/RandomStringUtils.java"]}
+{"id": "75086d398a", "query": "keep DateUtils.ceiling and round inside a DST overlap hour", "relevant": ["src/main/java/org/apache/commons/lang3/time/DateUtils.java"]}
+{"id": "e5f7f1b567", "query": "Add optional FIFO fairness to TimedSemaphore (LANG-1790)", "relevant": ["src/main/java/org/apache/commons/lang3/concurrent/TimedSemaphore.java"]}
+{"id": "8876abff15", "query": "Refactor ExceptionUtils to share throwable search logic", "relevant": ["src/main/java/org/apache/commons/lang3/exception/ExceptionUtils.java"]}
+{"id": "78c581d856", "query": "Deprecate ExceptionUtils.removeCommonFrames(), which is now used only. Root-cause stack trace generation compares StackTraceElement objects directly.", "relevant": ["src/main/java/org/apache/commons/lang3/exception/ExceptionUtils.java"]}
+{"id": "48532a6ed0", "query": "Clarify LocaleUtils ASCII validation following #1838", "relevant": ["src/main/java/org/apache/commons/lang3/LocaleUtils.java"]}
+{"id": "57bd7dd094", "query": "Keep LocaleUtils.toLocale to ASCII language and country codes", "relevant": ["src/main/java/org/apache/commons/lang3/LocaleUtils.java"]}
+{"id": "ac026ed6e8", "query": "Use structured stack frames for compact root cause traces", "relevant": ["src/main/java/org/apache/commons/lang3/exception/ExceptionUtils.java"]}
+{"id": "19a58f5075", "query": "Simplify ExceptionUtils.getRootCauseStackTraceList(Throwable)", "relevant": ["src/main/java/org/apache/commons/lang3/exception/ExceptionUtils.java"]}
+{"id": "0f76857f50", "query": "Clarify ExceptionUtils common-frame removal and strengthen regression coverage", "relevant": ["src/main/java/org/apache/commons/lang3/exception/ExceptionUtils.java"]}
+{"id": "4060e60f45", "query": "Stop ExceptionUtils.removeCommonFrames at the first differing frame", "relevant": ["src/main/java/org/apache/commons/lang3/exception/ExceptionUtils.java"]}
+{"id": "eadb17a23f", "query": "[javadoc] Correct StringUtils example methods and overloads", "relevant": ["src/main/java/org/apache/commons/lang3/StringUtils.java"]}
+{"id": "4b1d8cb83c", "query": "Keep StrSubstitutor from treating a value's trailing $ as an escape", "relevant": ["src/main/java/org/apache/commons/lang3/text/StrSubstitutor.java"]}
+{"id": "f4bdd4e1d2", "query": "Fix FastDateParser normalization of out-of-range ISO day-of-week values", "relevant": ["src/main/java/org/apache/commons/lang3/time/FastDateParser.java"]}
+{"id": "cb3a20eafa", "query": "keep StrSubstitutor from treating a value's trailing $ as an escape", "relevant": ["src/main/java/org/apache/commons/lang3/text/StrSubstitutor.java"]}
+{"id": "8d92fa6421", "query": "Reject leading whitespace in NumberUtils.createNumber", "relevant": ["src/main/java/org/apache/commons/lang3/math/NumberUtils.java"]}
+{"id": "4bfbfeabe5", "query": "Reject leading whitespace in NumberUtils.createNumber", "relevant": ["src/main/java/org/apache/commons/lang3/math/NumberUtils.java"]}
+{"id": "d215e7fec9", "query": "keep array encoding intact in ClassUtils.getAbbreviatedName", "relevant": ["src/main/java/org/apache/commons/lang3/ClassUtils.java"]}
+{"id": "d626464952", "query": "[LANG-1323] Align built type hashes with JDK reflection", "relevant": ["src/main/java/org/apache/commons/lang3/reflect/TypeUtils.java"]}
+{"id": "5dede14ab1", "query": "reject varargs candidates with too few arguments in MemberUtils", "relevant": ["src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java"]}
+{"id": "45c80d9955", "query": "Keep EventCountCircuitBreaker event count from wrapping on int overflow", "relevant": ["src/main/java/org/apache/commons/lang3/concurrent/EventCountCircuitBreaker.java"]}
+{"id": "9bf62e2059", "query": "keep EventCountCircuitBreaker event count from wrapping on int overflow", "relevant": ["src/main/java/org/apache/commons/lang3/concurrent/EventCountCircuitBreaker.java"]}
+{"id": "8b126aa9c3", "query": "Fix resource paths for unnamed packages", "relevant": ["src/main/java/org/apache/commons/lang3/ClassPathUtils.java"]}
+{"id": "af4b2a2ac0", "query": "Clarify ClassPathUtils unnamed-package behavior and expand tests", "relevant": ["src/main/java/org/apache/commons/lang3/ClassPathUtils.java"]}
+{"id": "e985f2eec4", "query": "[LANG-1838] Fix resource paths for unnamed packages", "relevant": ["src/main/java/org/apache/commons/lang3/ClassPathUtils.java"]}
+{"id": "9c86ffe308", "query": "Clarify StringUtils.normalizeSpace contract and preserve NBSP handling", "relevant": ["src/main/java/org/apache/commons/lang3/StringUtils.java"]}
+{"id": "d97a916ded", "query": "[LANG-441] DateUtils Javadoc does not fully define round() behavior", "relevant": ["src/main/java/org/apache/commons/lang3/time/DateUtils.java"]}
+{"id": "4276f1ff38", "query": "Prevent StringUtils padding from splitting surrogate pairs", "relevant": ["src/main/java/org/apache/commons/lang3/StringUtils.java"]}
+{"id": "d3975eccc4", "query": "Treat an unmatched quote as closed in ExtendedMessageFormat", "relevant": ["src/main/java/org/apache/commons/lang3/text/ExtendedMessageFormat.java"]}
+{"id": "5b3a81dcd5", "query": "Fix unmatched-quote handling in ExtendedMessageFormat", "relevant": ["src/main/java/org/apache/commons/lang3/text/ExtendedMessageFormat.java"]}
+{"id": "fea9a78536", "query": "[LANG-796] Clarify DateUtils calendar arithmetic and daylight saving time behavior", "relevant": ["src/main/java/org/apache/commons/lang3/time/DateUtils.java"]}
+{"id": "ed29e9e2d7", "query": "Expand JSON_STYLE CharSequence test coverage and documentation", "relevant": ["src/main/java/org/apache/commons/lang3/builder/ToStringStyle.java"]}
+{"id": "1c1a798220", "query": "Escape CharSequence values in ToStringStyle.JSON_STYLE", "relevant": ["src/main/java/org/apache/commons/lang3/builder/ToStringStyle.java"]}
+{"id": "8d428af792", "query": "Strengthen TypeUtils substitution tests and Javadoc", "relevant": ["src/main/java/org/apache/commons/lang3/reflect/TypeUtils.java"]}
+{"id": "110683aa67", "query": "Follow up: Fix TypeUtils.isAssignable rejecting Class<X> to Class<?> assignments", "relevant": ["src/main/java/org/apache/commons/lang3/reflect/TypeUtils.java"]}
+{"id": "99618eb840", "query": "Fix TypeUtils.isAssignable rejecting Class<X> to Class<?> assignments", "relevant": ["src/main/java/org/apache/commons/lang3/reflect/TypeUtils.java"]}
+{"id": "66f9309900", "query": "Use standalone month names for month-only patterns in FastDatePrinter", "relevant": ["src/main/java/org/apache/commons/lang3/time/FastDatePrinter.java"]}
+{"id": "6b98966dd7", "query": "Use standalone month names for month-only patterns in FastDatePrinter", "relevant": ["src/main/java/org/apache/commons/lang3/time/FastDatePrinter.java"]}
+{"id": "65f00d83ca", "query": "Keep RandomUtils's randomDouble() and randomFloat() below the exclusive upper bound", "relevant": ["src/main/java/org/apache/commons/lang3/RandomUtils.java"]}
+{"id": "98fb6efc58", "query": "Keep RandomUtils's randomDouble() and randomFloat() below the exclusive upper bound", "relevant": ["src/main/java/org/apache/commons/lang3/RandomUtils.java"]}
+{"id": "e871e5b305", "query": "Preserve enclosing context and member names in ClassUtils.getShortClassName(Class)", "relevant": ["src/main/java/org/apache/commons/lang3/ClassUtils.java"]}
+{"id": "86401ab86e", "query": "[javadoc] Correct CharUtils default-value conversion descriptions", "relevant": ["src/main/java/org/apache/commons/lang3/CharUtils.java"]}
+{"id": "64375a58ee", "query": "Expand AnnotationUtils nested annotation array hash tests", "relevant": ["src/main/java/org/apache/commons/lang3/AnnotationUtils.java"]}
+{"id": "89047990d0", "query": "Recurse into nested annotation arrays in AnnotationUtils.hashCode", "relevant": ["src/main/java/org/apache/commons/lang3/AnnotationUtils.java"]}
+{"id": "48bf95fb13", "query": "[LANG-1836] Make TypeUtils.containsTypeVariables and unrollVariables honour the owner type of a ParameterizedType", "relevant": ["src/main/java/org/apache/commons/lang3/reflect/TypeUtils.java"]}
+{"id": "e588cc629f", "query": "[LANG-1835] Ignore synthetic methods in AnnotationUtils", "relevant": ["src/main/java/org/apache/commons/lang3/AnnotationUtils.java"]}
+{"id": "9e0fd0787e", "query": "[LANG-1655] Recompose Hangul after stripping accents", "relevant": ["src/main/java/org/apache/commons/lang3/StringUtils.java"]}
+{"id": "c7f1a6d277", "query": "Take FastDatePrinter era names from the locale's calendar", "relevant": ["src/main/java/org/apache/commons/lang3/time/FastDatePrinter.java"]}
+{"id": "43154e016a", "query": "Default unbounded WildcardType upper bound to Object in TypeUtils", "relevant": ["src/main/java/org/apache/commons/lang3/reflect/TypeUtils.java"]}
+{"id": "75d71af80a", "query": "Include 0x7E (~) in RandomStringUtils nextGraph and nextPrint", "relevant": ["src/main/java/org/apache/commons/lang3/RandomStringUtils.java"]}
+{"id": "fa2470369b", "query": "Fix Range serialization compatibility and hash reconstruction", "relevant": ["src/main/java/org/apache/commons/lang3/Range.java"]}
+{"id": "8065c45316", "query": "Add JavaVersion.JAVA_28", "relevant": ["src/main/java/org/apache/commons/lang3/JavaVersion.java", "src/main/java/org/apache/commons/lang3/SystemUtils.java"]}
+{"id": "9a92df9fa3", "query": "Fix NumberUtils.createNumber() and isCreatable() for positive Long literals with explicit '+' sign", "relevant": ["src/main/java/org/apache/commons/lang3/math/NumberUtils.java"]}
+{"id": "963c337d77", "query": "Add equality and hash code support to ImmutableTimeZone", "relevant": ["src/main/java/org/apache/commons/lang3/time/ImmutableTimeZone.java"]}
+{"id": "8248377515", "query": "Fix ConstructorUtils.getMatchingAccessibleConstructor on non-public classes", "relevant": ["src/main/java/org/apache/commons/lang3/reflect/ConstructorUtils.java"]}
+{"id": "55dcbc4bb1", "query": "Fix mutable time zone keys in the FastDateFormat cache", "relevant": ["src/main/java/org/apache/commons/lang3/time/AbstractFormatCache.java"]}
+{"id": "117a9ea791", "query": "Clone the TimeZone in FastDatePrinter and FastDateParser", "relevant": ["src/main/java/org/apache/commons/lang3/time/FastDateFormat.java", "src/main/java/org/apache/commons/lang3/time/FastDateParser.java", "src/main/java/org/apache/commons/lang3/time/FastDatePrinter.java"]}
+{"id": "e992a498d7", "query": "LANG-1834 Fix Fraction reduction for Integer.MIN_VALUE", "relevant": ["src/main/java/org/apache/commons/lang3/math/Fraction.java"]}

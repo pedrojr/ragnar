@@ -1,0 +1,12 @@
+{"id":"c01","category":"flow","query":"how does a request reach the matched handler chain","relevant":["gin.go"],"evidence":"func \\(engine \\*Engine\\) handleHTTPRequest"}
+{"id":"c02","category":"concept","query":"how are routes stored and looked up with path parameters","relevant":["tree.go"],"evidence":"func \\(n \\*node\\) getValue"}
+{"id":"c03","category":"symbol","query":"find redirectFixedPath","symbol":"redirectFixedPath","relevant":["gin.go"],"evidence":"func redirectFixedPath"}
+{"id":"c04","category":"concept","query":"how does the panic recovery middleware avoid leaking sensitive headers in logs","relevant":["recovery.go"],"evidence":"func secureRequestDump"}
+{"id":"c05","category":"concept","query":"how is the real client IP found behind trusted proxies","relevant":["context.go"],"evidence":"func \\(c \\*Context\\) ClientIP"}
+{"id":"c06","category":"callers","query":"who calls serveError","relevant":["gin.go"],"evidence":"serveError\\("}
+{"id":"c07","category":"config","query":"how do I change the validator tag used for binding","relevant":["binding/default_validator.go"],"evidence":"SetTagName"}
+{"id":"c08","category":"ptbr","query":"como campos de formulário são mapeados para uma struct","grep_query":"form mapping struct fields","relevant":["binding/form_mapping.go"],"evidence":"func mapForm"}
+{"id":"c09","category":"ptbr","query":"como funciona a autenticação básica e a comparação das credenciais","grep_query":"basic auth credentials","relevant":["auth.go"],"evidence":"func BasicAuthForRealm"}
+{"id":"c10","category":"concept","query":"how are HTML templates rendered and reloaded in debug mode","relevant":["render/html.go"],"evidence":"HTMLDebug"}
+{"id":"c11","category":"concept","query":"how is a handler chain aborted so that the next handlers do not run","relevant":["context.go"],"evidence":"func \\(c \\*Context\\) Abort"}
+{"id":"c12","category":"negative","query":"where is the WebSocket upgrade handled","relevant":[]}

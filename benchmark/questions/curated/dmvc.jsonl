@@ -1,0 +1,12 @@
+{"id":"c01","category":"flow","query":"how does an incoming request get matched to a controller action","relevant":["sources/MVCFramework.Router.pas"],"evidence":"TMVCRouter\\.ExecuteRouting"}
+{"id":"c02","category":"symbol","query":"where is TMVCJWTBlackListMiddleware declared","symbol":"TMVCJWTBlackListMiddleware","relevant":["sources/MVCFramework.Middleware.JWT.pas"],"evidence":"TMVCJWTBlackListMiddleware = class"}
+{"id":"c03","category":"concept","query":"how does the token get its expiration checked with a tolerance for clock differences","relevant":["sources/MVCFramework.JWT.pas"],"evidence":"FLeewaySeconds \\* OneSecond"}
+{"id":"c04","category":"concept","query":"which rate limiting algorithms are available","relevant":["sources/MVCFramework.Middleware.RateLimit.pas"],"evidence":"rlsTokenBucket"}
+{"id":"c05","category":"concept","query":"when is a response body compressed and above which size","relevant":["sources/MVCFramework.Middleware.Compression.pas"],"evidence":"fCompressionThreshold"}
+{"id":"c06","category":"config","query":"in which order are env files and system environment variables resolved","relevant":["sources/MVCFramework.DotEnv.pas"],"evidence":"FileThenEnv"}
+{"id":"c07","category":"callers","query":"who runs the middlewares before the controller action","relevant":["sources/MVCFramework.pas"],"evidence":"ExecuteBeforeControllerActionMiddleware"}
+{"id":"c08","category":"ptbr","query":"como um registro é salvo no banco decidindo entre inserir ou atualizar","grep_query":"active record store insert update","relevant":["sources/MVCFramework.ActiveRecord.pas"],"evidence":"TMVCActiveRecord\\.Store"}
+{"id":"c09","category":"ptbr","query":"onde as consultas RQL viram SQL para PostgreSQL","grep_query":"RQL PostgreSQL compiler SQL","relevant":["sources/MVCFramework.RQL.AST2PostgreSQL.pas"],"evidence":"TRQLPostgreSQLCompiler"}
+{"id":"c10","category":"concept","query":"how does the framework answer with 304 when the client already has the resource","relevant":["sources/MVCFramework.pas"],"evidence":"StatusCode := 304"}
+{"id":"c11","category":"symbol","query":"find TMVCLRUCache","symbol":"TMVCLRUCache","relevant":["sources/MVCFramework.LRUCache.pas"],"evidence":"TMVCLRUCache<T: class> = class"}
+{"id":"c12","category":"negative","query":"where is the MongoDB change stream listener implemented","relevant":[]}

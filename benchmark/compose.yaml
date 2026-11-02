@@ -1,0 +1,22 @@
+# Single pgvector database for the benchmark. No replicas: latency here is not a production figure.
+# Port 15433 stays away from a local Postgres (5432) and from the reference stack in example/ (15432).
+name: ragnar-benchmark
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.7-pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: benchmark
+      POSTGRES_DB: ragnar
+    command: ["postgres", "-c", "shared_buffers=2GB", "-c", "maintenance_work_mem=1GB", "-c", "max_wal_size=4GB",
+              "-c", "synchronous_commit=off"]
+    ports: ["127.0.0.1:15433:5432"]
+    volumes: ["bench-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "ragnar"]
+      interval: 2s
+      retries: 30
+
+volumes:
+  bench-data:

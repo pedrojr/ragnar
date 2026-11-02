@@ -1,0 +1,20 @@
+{"id": "97acd91b52", "query": "Fix cleanup of discarded registry pipelines", "relevant": ["src/Polly.Core/Registry/RegistryPipelineComponentBuilder.cs", "src/Polly.Core/Registry/ResiliencePipelineRegistry.TResult.cs", "src/Polly.Core/Registry/ResiliencePipelineRegistry.cs", "src/Polly.Core/Utils/Pipeline/ReloadableComponent.cs"]}
+{"id": "e762964283", "query": "Improve pipeline execution performance", "relevant": ["src/Polly.Core/CircuitBreaker/Controller/CircuitStateController.cs", "src/Polly.Core/Utils/Pipeline/CompositeComponent.cs", "src/Polly.Core/Utils/Pipeline/DelegatingComponent.cs"]}
+{"id": "813d10a68b", "query": "Prevent circuit breakers from capturing ambient ExecutionContext", "relevant": ["src/Polly.Core/CircuitBreaker/Controller/ScheduledTaskExecutor.cs"]}
+{"id": "bb986e4929", "query": "Add Copilot code review skill", "relevant": ["bench/Polly.Core.Benchmarks/CreationBenchmark.cs"]}
+{"id": "482bdf824f", "query": "Return null from FaultGenerator when no fault is generated", "relevant": ["src/Polly.Core/Simmy/Fault/FaultGenerator.cs"]}
+{"id": "f2a07e687b", "query": "Add EnableReloadsWithMonitor extension method", "relevant": ["src/Polly.Extensions/DependencyInjection/AddResiliencePipelineContext.cs"]}
+{"id": "7a1d10f47e", "query": "Avoid test flakiness", "relevant": ["src/Polly.Core/Utils/ObjectPool.cs"]}
+{"id": "e984839b83", "query": "Add caller CancellationToken propagation for hedging and timeout", "relevant": ["src/Polly.Core/Hedging/HedgingResilienceStrategy.cs", "src/Polly.Core/Timeout/TimeoutResilienceStrategy.cs"]}
+{"id": "dceefbd4f9", "query": "Remove unused constant", "relevant": ["src/Polly.Extensions/Telemetry/TelemetryUtil.cs"]}
+{"id": "016dd909db", "query": "Fix `ScheduledTaskExecutor` deadlock when `TrySetResult` runs continuations inline", "relevant": ["src/Polly.Core/CircuitBreaker/Controller/ScheduledTaskExecutor.cs"]}
+{"id": "42b05ffee8", "query": "Update to .NET 10 SDK", "relevant": ["src/Polly/Context.Dictionary.cs"]}
+{"id": "402adfaafb", "query": "Refactor property-based tests", "relevant": ["src/Polly.Core/Retry/RetryHelper.cs"]}
+{"id": "156a9bbee1", "query": "Add specification tests for jitter", "relevant": ["src/Polly.Core/Retry/RetryHelper.cs"]}
+{"id": "74bf31fff0", "query": "Pass timeout to TimeoutRejectedException", "relevant": ["src/Polly/Timeout/AsyncTimeoutEngine.cs", "src/Polly/Timeout/TimeoutEngine.cs"]}
+{"id": "5f9462dc28", "query": "Respect override for PipelineExecuting and PipelineExecuted", "relevant": ["src/Polly.Extensions/Telemetry/Log.cs", "src/Polly.Extensions/Telemetry/TelemetryListenerImpl.cs"]}
+{"id": "708b02b0a6", "query": "Fix documentation for ExecuteOutcomeAsync", "relevant": ["src/Polly.Core/ResiliencePipeline.AsyncT.cs", "src/Polly.Core/ResiliencePipelineT.Async.cs", "src/Snippets/Docs/CircuitBreaker.cs", "src/Snippets/Docs/Fallback.cs", "src/Snippets/Docs/Migration.Execute.cs"]}
+{"id": "1a7cee9054", "query": "Use primary constructor", "relevant": ["src/Polly.Core/Simmy/Utils/GeneratorHelper.cs"]}
+{"id": "32cab5f6a2", "query": "Make delegates static", "relevant": ["bench/Polly.Core.Benchmarks/Utils/Helper.StrategyPipeline.cs", "src/Polly.Testing/ResiliencePipelineExtensions.cs"]}
+{"id": "bbe8807723", "query": "Fix overflow in BulkheadSemaphoreFactory", "relevant": ["src/Polly/Bulkhead/BulkheadSemaphoreFactory.cs"]}
+{"id": "c4193b50c7", "query": "Fix XML documentation", "relevant": ["src/Polly.Core/Retry/OnRetryArguments.cs"]}

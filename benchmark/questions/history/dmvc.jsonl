@@ -1,0 +1,64 @@
+{"id": "614dce2426", "query": "feat(openapi): the Swagger document and the native OpenAPI 3.1 emitter document a DTO the same way", "relevant": ["sources/MVCFramework.OpenAPI3.pas", "sources/MVCFramework.Swagger.Commons.pas"]}
+{"id": "559b4b0747", "query": "fix(filters): an exception raised before an action is answered as in an action", "relevant": ["sources/MVCFramework.pas"]}
+{"id": "b68e3b2a3c", "query": "feat(trace): mask passwords, tokens and secrets in bodies and query strings", "relevant": ["sources/MVCFramework.Filters.pas", "sources/MVCFramework.Middleware.Trace.pas"]}
+{"id": "638c1722eb", "query": "fix(indy): the response Content-Type is the one that was set; a text body without charset is UTF-8", "relevant": ["sources/MVCFramework.Indy.Response.pas"]}
+{"id": "551634b04e", "query": "perf(webbroker): ClassNameIs in the Indy bridge check, no string per request", "relevant": ["sources/MVCFramework.WebBroker.Request.pas"]}
+{"id": "f2a86b0c05", "query": "fix(isapi): no string per class check in GetPathInfo; test the DLL addressed in the URL", "relevant": ["sources/MVCFramework.WebBroker.Request.pas", "tasks.py"]}
+{"id": "c5f0523e6c", "query": "feat(swagger): MVCSwagExampleFromFields gives a DTO an example made of its field examples", "relevant": ["sources/MVCFramework.Swagger.Commons.pas"]}
+{"id": "5552bc0f3f", "query": "fix(trace): log request and response bodies in their charset", "relevant": ["sources/MVCFramework.Filters.pas", "sources/MVCFramework.Middleware.Trace.pas"]}
+{"id": "f41c0dcbcb", "query": "fix(swagger): document JWTAuthenticationBundle as the JWT middleware is", "relevant": ["sources/MVCFramework.pas"]}
+{"id": "f1996ad24f", "query": "fix(filters): an exception raised in an HTTP filter is answered as the dispatcher answers it", "relevant": ["sources/MVCFramework.pas"]}
+{"id": "e0d9f03c2a", "query": "fix(oidc): the session cookie replaces the identity a session carried", "relevant": ["sources/MVCFramework.Middleware.OIDC.pas"]}
+{"id": "8fac62908c", "query": "fix(jwt): a Bearer token on a session opened by Basic no longer fails with 500", "relevant": ["sources/MVCFramework.Filters.pas", "sources/MVCFramework.Middleware.JWT.pas"]}
+{"id": "31002538e6", "query": "feat(swagger): MVCSwagExample puts an example value on a DTO field", "relevant": ["sources/MVCFramework.Swagger.Commons.pas"]}
+{"id": "1b0ec1f54a", "query": "fix(jwt): a malformed token is refused with 401, not 500", "relevant": ["sources/MVCFramework.JWT.pas"]}
+{"id": "9bfa785d22", "query": "fix(swagger): an array parameter describes its elements in items", "relevant": ["sources/MVCFramework.OpenAPI3.pas", "sources/MVCFramework.Swagger.Commons.pas"]}
+{"id": "736fa7e094", "query": "fix(isapi): route on PathInfo again; URL carries the extension's own path", "relevant": ["sources/MVCFramework.WebBroker.Request.pas"]}
+{"id": "2912964e57", "query": "fix(swagger): a class used only as an array body gets an object definition", "relevant": ["sources/MVCFramework.Swagger.Commons.pas"]}
+{"id": "1a11cfea49", "query": "fix(serializer): accept every numeric classification for integer targets (#918, #919)", "relevant": ["sources/MVCFramework.Serializer.JsonDataObjects.pas"]}
+{"id": "0983801d7f", "query": "fix(jsondataobjects): read a number above 2^63 as a Double correctly on 32-bit", "relevant": ["sources/JsonDataObjects.pas"]}
+{"id": "d3f7720d90", "query": "fix(jsonrpc): an error raised before routing answers with the id of the request", "relevant": ["sources/MVCFramework.JSONRPC.pas"]}
+{"id": "3bc1e2386b", "query": "fix(server): Listen(port, host) binds the given host on Indy Direct and WebBroker", "relevant": ["sources/MVCFramework.Server.Indy.pas", "sources/MVCFramework.Server.WebBroker.pas"]}
+{"id": "0f621c9894", "query": "feat(activerecord): Assign copies the mapped state; generator hint names the real unit", "relevant": ["sources/MVCFramework.ActiveRecord.pas"]}
+{"id": "ad7150dbdb", "query": "fix(jsonrpc): no exception text to release clients; X-XSS-Protection 0", "relevant": ["sources/MVCFramework.Filters.pas", "sources/MVCFramework.JSONRPC.pas", "sources/MVCFramework.Middleware.SecurityHeaders.pas"]}
+{"id": "2af65bf1e4", "query": "Delphi 10.2.3 Tokyo compatibility fix", "relevant": ["sources/TemplatePro.pas"]}
+{"id": "6170782243", "query": "fix(serializer): OKResponse(StrDict(...)) returned {\"data\":{}}", "relevant": ["sources/MVCFramework.Serializer.Streaming.pas"]}
+{"id": "d4de7af8e4", "query": "feat(swagger): MVCSwag* field documentation attributes; MVCMaxLength/MVCPattern always validate", "relevant": ["sources/MVCFramework.Swagger.Commons.pas", "sources/MVCFramework.pas"]}
+{"id": "2ebe9257ba", "query": "feat(templatepro): in-memory ViewCache, IsStale, view_cache_check_changes", "relevant": ["sources/MVCFramework.Commons.pas", "sources/MVCFramework.View.Renderers.TemplatePro.pas"]}
+{"id": "015d023e58", "query": "upd(templatepro): sync TemplatePro 1.2 (templatepro f098247)", "relevant": ["sources/ExprEvaluator.pas", "sources/TemplatePro.Types.pas", "sources/TemplatePro.pas"]}
+{"id": "467865f143", "query": "upd(templatepro): sync hardening fixes (templatepro 520a471)", "relevant": ["sources/ExprEvaluator.pas", "sources/TemplatePro.Types.pas", "sources/TemplatePro.pas"]}
+{"id": "b645f1308c", "query": "fix(rql): limit(n,0) on SQL Server returns no rows instead of raising", "relevant": ["sources/MVCFramework.RQL.AST2MSSQL.pas"]}
+{"id": "b6eb078ff0", "query": "fix(mssql): foRefresh re-reads the row by key; tables with triggers work", "relevant": ["sources/MVCFramework.ActiveRecord.pas", "sources/MVCFramework.SQLGenerators.MSSQL.pas"]}
+{"id": "5313aeb7cf", "query": "fix: build on Delphi 13.2 and with current TaurusTLS", "relevant": ["sources/MVCFramework.ActiveRecord.pas", "sources/MVCFramework.JWT.RSA.pas"]}
+{"id": "4daeef0358", "query": "build(release): ship ideexpert icons, templates and .rc files", "relevant": ["tasks.py"]}
+{"id": "985dce62a3", "query": "WebSocket server: bound frame payload length, handshake and frame read timeouts", "relevant": ["sources/MVCFramework.WebSocket.Server.pas", "sources/MVCFramework.WebSocket.pas"]}
+{"id": "51aa0f6c54", "query": "feat(minimalapi): MapQuery", "relevant": ["sources/MVCFramework.MinimalAPI.pas"]}
+{"id": "d62d079c5a", "query": "fix: Delphi 10.2 Tokyo compilation", "relevant": ["sources/MVCFramework.MinimalAPI.pas"]}
+{"id": "5c0b32e970", "query": "fix(httpsys): PATCH, and every verb the kernel does not parse, got no reply", "relevant": ["sources/MVCFramework.HttpSysApi.pas", "sources/MVCFramework.Server.HttpSys.pas"]}
+{"id": "55d10ba915", "query": "fix(httpsys): SEARCH and a dozen other verbs were dispatched as GET", "relevant": ["sources/MVCFramework.HttpSys.Request.pas"]}
+{"id": "1b60fc2604", "query": "build: release task pointed at a tool directory that no longer exists", "relevant": ["tasks.py"]}
+{"id": "55f1aa74fe", "query": "fix(swagger): an action inherited from a base controller could not be documented", "relevant": ["sources/MVCFramework.Middleware.Swagger.pas", "sources/MVCFramework.Swagger.Commons.pas"]}
+{"id": "aa40e57ff3", "query": "fix(rangemedia): a document root written with '/' made every file a 404", "relevant": ["sources/MVCFramework.Middleware.RangeMedia.pas"]}
+{"id": "4aa2b26ea2", "query": "fix(activerecord): change tracking never saw a Nullable column change", "relevant": ["sources/MVCFramework.ActiveRecord.pas"]}
+{"id": "25c3e200ff", "query": "fix(activerecord): MySQL wrote the LAST_INSERT_ID alias unquoted", "relevant": ["sources/MVCFramework.SQLGenerators.MySQL.pas"]}
+{"id": "0c6c443dee", "query": "fix(activerecord): foRefresh killed every Insert on InterBase", "relevant": ["sources/MVCFramework.SQLGenerators.Interbase.pas"]}
+{"id": "5eb18e2891", "query": "fix(activerecord): keep PrimaryKeyIsAutogenerated off the wire, and answerable", "relevant": ["sources/MVCFramework.ActiveRecord.pas"]}
+{"id": "39de885c38", "query": "fix(activerecord): PrimaryKeyIsAutogenerated lied, and its setter did nothing", "relevant": ["sources/MVCFramework.ActiveRecord.pas"]}
+{"id": "66f123a8d1", "query": "fix(activerecord): foRefresh was broken on a composite primary key", "relevant": ["sources/MVCFramework.ActiveRecord.pas", "sources/MVCFramework.SQLGenerators.Oracle.pas"]}
+{"id": "d7115cb2fa", "query": "fix(activerecord): make the Oracle backend actually usable", "relevant": ["sources/MVCFramework.ActiveRecord.pas", "sources/MVCFramework.SQLGenerators.Oracle.pas", "sources/MVCFramework.Serializer.Commons.pas"]}
+{"id": "431d46c2c6", "query": "fix(activerecord): Store/IsNew/IsPersisted raise on a composite PK", "relevant": ["sources/MVCFramework.ActiveRecord.pas"]}
+{"id": "1e864d2395", "query": "fix(sse): review follow-ups on the incremental UTF-8 decoder", "relevant": ["sources/MVCFramework.SSEClient.pas"]}
+{"id": "12be7b9993", "query": "fix(sse): decode the event stream incrementally, not chunk by chunk", "relevant": ["sources/MVCFramework.SSEClient.pas"]}
+{"id": "1aa2c27685", "query": "feat(oidc): PKCE S256, azp validation, and non-blocking JWKS discovery", "relevant": ["sources/MVCFramework.Middleware.OIDC.pas", "sources/MVCFramework.OIDC.JWKS.pas"]}
+{"id": "8627519c75", "query": "fix(swagger): skip duplicate operations on the same path", "relevant": ["sources/MVCFramework.Middleware.Swagger.pas"]}
+{"id": "b03a291f41", "query": "fix(nullables): really clear nullable fields on NULL columns", "relevant": ["sources/MVCFramework.ActiveRecord.pas", "sources/MVCFramework.Serializer.Commons.pas"]}
+{"id": "a9551ba4ba", "query": "feat(websocket): expose handshake headers on TWebSocketClient", "relevant": ["sources/MVCFramework.WebSocket.Server.pas"]}
+{"id": "04c2d8a9d2", "query": "fix(restadapter): avoid use-after-free of [Body] object in DoInvoke", "relevant": ["sources/MVCFramework.RESTAdapter.pas"]}
+{"id": "b855d327c3", "query": "MinimalAPI: TMVCRouteHandle covers all verbs of a MapMethods registration", "relevant": ["sources/MVCFramework.MinimalAPI.pas"]}
+{"id": "7e4e3f12ea", "query": "feat(trace): add correlation id + request timing to Trace middleware; modernize sample", "relevant": ["sources/MVCFramework.Middleware.Trace.pas"]}
+{"id": "17be5dfbf3", "query": "fix(server): enable TLS on non-443 ports for Indy Direct and WebBroker", "relevant": ["sources/MVCFramework.Server.Indy.pas", "sources/MVCFramework.Server.WebBroker.pas"]}
+{"id": "5c0218a27c", "query": "fix(engine): default ViewPath now resolves relative to the executable folder", "relevant": ["sources/MVCFramework.pas"]}
+{"id": "2aabd0541f", "query": "TMVCWebSocketClient: support Sec-WebSocket-Protocol (subprotocol)", "relevant": ["sources/MVCFramework.WebSocket.Client.pas"]}
+{"id": "b2750ffa10", "query": "fix(serializer): handle ftLargeUint (RAD 13) in dataset field mapping", "relevant": ["sources/MVCFramework.Serializer.Commons.pas", "sources/MVCFramework.Serializer.JsonDataObjects.pas"]}
+{"id": "057ea5e4f3", "query": "fix(httpsys): terminate streamed response with DISCONNECT so clients see EOF", "relevant": ["sources/MVCFramework.HttpSys.Response.pas"]}
+{"id": "5043c73c73", "query": "test(streaming): chunked TMVCStreamedDataSet end-to-end across backends", "relevant": ["sources/MVCFramework.Indy.Response.pas"]}
