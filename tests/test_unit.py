@@ -16,7 +16,7 @@ from ragnar.config import Index, RagnarError
 from ragnar.embedder import FakeEmbedder, to_pgvector
 from ragnar.indexer import changed_files, list_files, read_blobs, scrub
 from ragnar.mcp_server import render_hits
-from ragnar.search import like_prefix, tsquery
+from ragnar.search import like_prefix
 
 GO = b"""package widget
 
@@ -104,9 +104,6 @@ def test_fake_embedder_is_deterministic_and_normalized():
 
 def test_search_helpers():
     assert like_prefix("src/a_b%") == "src/a\\_b\\%%"
-    assert tsquery("getUserById!") == "getuserbyid | get | user | by | id"
-    assert tsquery("?") == "zzzznomatch"
-    assert tsquery("situação") == "situação"
 
 
 def test_acl_resolution():

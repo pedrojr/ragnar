@@ -94,6 +94,8 @@ class Retrieval:
     diversity: float = 0.0  # 0 = pure relevance, 1 = pure novelty (MMR)
     neighbor_chunks: int = 0  # adjacent chunks added around each hit
     max_context_tokens: int = 4000  # 0 turns it off
+    reference_hits: int = 6  # hits that did not fit, returned as path and symbol only
+    test_penalty: float = 2.0  # a test at position p competes as if at p * penalty; 1 turns it off
 
 
 @dataclass(frozen=True)

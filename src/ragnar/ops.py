@@ -15,7 +15,7 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
-TOOLS = {"search_code", "find_symbol", "list_repos"}
+TOOLS = {"search_code", "find_symbol", "find_references", "file_outline", "read_code", "list_repos"}
 DEFAULT_QUERIES = [
     "how is the main entry point wired", "where is input validated", "error handling for failed requests",
     "database connection setup", "configuration loading", "authentication and permissions",

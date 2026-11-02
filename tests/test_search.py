@@ -8,7 +8,20 @@ import pytest
 from ragnar import llm
 from ragnar.chunker import Chunk
 from ragnar.config import Contextual, Llm, RagnarError, Rerank, Retrieval
-from ragnar.search import estimate_tokens, fit_budget, fuse, identifier_names, select_diverse
+from ragnar.mcp_server import render_hits
+from ragnar.search import (
+    demote_tests,
+    estimate_tokens,
+    fit_budget,
+    fuse,
+    identifier_names,
+    query_terms,
+    references,
+    select_diverse,
+    selective_terms,
+    split_qualified,
+    term_weights,
+)
 
 
 def hit(i, path="a.py", content=None):
@@ -48,8 +61,63 @@ def test_token_budget_keeps_best_hits_and_never_empties():
     assert estimate_tokens("x" * 400) == 101
 
 
-def test_identifier_names():
-    assert identifier_names("where is TOrder.Cancel used, foo_bar?") == ["where", "torder", "cancel", "used", "foo_bar"]
+def test_identifier_names_read_code_in_a_sentence():
+    assert set(identifier_names("where is TOrder.Cancel used, foo_bar?")) == {"torder", "cancel", "foo_bar"}
+    assert identifier_names("how does the order total get its discount") == []
+    assert identifier_names("Validate tokens with AbstractRouter") == ["abstractrouter"]
+
+
+def test_identifier_names_take_short_queries_as_names():
+    assert identifier_names("find proxyLoopIteration") == ["proxyloopiteration"]
+    assert identifier_names("retry") == ["retry"]
+    assert set(identifier_names("retry policy")) == {"retry", "policy"}
+
+
+def test_query_terms_drop_stopwords_but_never_everything():
+    assert query_terms("how is the circuit opened") == ["circuit", "opened"]
+    assert query_terms("como a senha é salva") == ["senha", "salva"]
+    assert query_terms("how is it") == ["how", "is", "it"]
+    assert query_terms("getUserById") == ["getuserbyid", "user", "id"]
+
+
+def test_rare_terms_weigh_more_and_absent_terms_drop():
+    weights = term_weights({"rare": 2, "common": 900, "absent": 0}, 1000)
+    assert weights["rare"] > 10 * weights["common"] and "absent" not in weights
+
+
+def test_common_terms_do_not_select_candidates():
+    assert selective_terms({"rare": 2, "common": 900}, 1000) == ["rare"]
+    assert selective_terms({"a": 800, "b": 900, "c": 950}, 1000) == ["a", "b"]
+    assert selective_terms({"a": 0}, 1000) == []
+
+
+def test_tests_lose_positions_but_stay_available():
+    hits = [{"id": 1, "kind": "test"}, {"id": 2, "kind": "code"}, {"id": 3, "kind": "code"}]
+    assert [h["id"] for h in demote_tests(hits, 3.0)] == [2, 1, 3]
+    assert [h["id"] for h in demote_tests(hits, 1.0)] == [1, 2, 3]
+
+
+def test_hits_outside_the_budget_become_references():
+    hits = [hit(1), hit(2), hit(3)]
+    kept = hits[:1]
+    out = references(hits, kept, 2)
+    assert [h["id"] for h in out] == [1, 2] and out[1]["compact"] and not out[0].get("compact")
+
+
+def test_references_render_without_their_content():
+    full = {"id": 1, "repo": "r", "path": "a.py", "start_line": 1, "end_line": 2, "symbol": "a", "kind": "code",
+            "content": "BODY"}
+    ref = {**full, "id": 2, "path": "b.py", "content": "SECRET BODY", "compact": True}
+    text = render_hits([full, ref])
+    assert "BODY" in text and "SECRET" not in text and '<ref repo="r" path="b.py" lines="1-2"' in text
+
+
+@pytest.mark.parametrize("name, expected", [
+    ("TOrder.Cancel", ("TOrder", "Cancel")), ("a::b::c", ("b", "c")), ("pkg.Func()", ("pkg", "Func")),
+    ("Cancel", ("", "Cancel")), ("List<T>.Add", ("", "List")), ("handler->run", ("handler", "run")),
+])
+def test_split_qualified(name, expected):
+    assert split_qualified(name) == expected
 
 
 def mock_client(handler):

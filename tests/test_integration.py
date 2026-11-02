@@ -23,7 +23,7 @@ from ragnar.config import load_settings
 from ragnar.embedder import FakeEmbedder
 from ragnar.indexer import index
 from ragnar.migrate import migrate
-from ragnar.search import Pipeline, find_symbol, list_repos
+from ragnar.search import Pipeline, file_outline, find_references, find_symbol, list_repos, read_code
 
 from .test_unit import _git, make_repo
 
@@ -67,6 +67,35 @@ def test_full_incremental_and_unchanged(dsn, tmp_path):
         assert names == ["widget > NewLabel", "widget > NewButton"]  # same weight: shorter name first
         assert [r["repo"] for r in list_repos(conn, None)] == ["demo"]
         assert list_repos(conn, ["other"]) == []
+        assert [s["symbol"] for s in find_symbol(conn, ["demo"], "Button.Refresh")] == ["widget > Button > Refresh"]
+        assert [s["symbol"] for s in find_symbol(conn, ["demo"], "efresh")] == ["widget > Button > Refresh"]
+        outline = file_outline(conn, ["demo"], "button.go")
+        assert outline and all(o["path"] == "widget/button.go" for o in outline)
+        read = read_code(conn, ["demo"], "button.go", 1, 1)
+        assert read["path"] == "widget/button.go" and read["lines"][0] == (1, "package widget")
+        assert read_code(conn, ["demo"], "missing.go", 1, 1) is None
+
+
+def test_find_references_leaves_definitions_out(dsn, tmp_path):
+    repo, emb = tmp_path / "refs", FakeEmbedder(768)
+    repo.mkdir()
+    (repo / "main.go").write_text("package main\n\nfunc helper() {}\n\nfunc run() {\n\thelper()\n}\n")
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "add", ".")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x")
+    index(str(repo), "refs", dsn, emb, load_settings(tmp_path, environ={}), scan=False)
+    with psycopg.connect(dsn) as conn:
+        hits = find_references(conn, ["refs"], "helper")
+    assert [(h["line"], h["text"]) for h in hits] == [(6, "helper()")]
+
+
+def test_settings_change_reuses_vectors(dsn, tmp_path):
+    repo, emb = make_repo(tmp_path), FakeEmbedder(768)
+    first = load_settings(tmp_path, environ={})
+    index(str(repo), "reuse", dsn, emb, first, scan=False)
+    changed = load_settings(tmp_path, overrides=["index.window_lines=50"], environ={})
+    r = index(str(repo), "reuse", dsn, emb, changed, scan=False)
+    assert r.mode == "full" and r.reused_vectors == r.chunks > 0
 
 
 def _free_port() -> int:
