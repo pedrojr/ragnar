@@ -103,7 +103,9 @@ def cmd_index(args) -> None:
     r = index(args.source, args.repo, write_dsn(), from_settings(settings), settings, ref=args.ref, full=args.full,
               scan=not args.no_secret_scan)
     print(f"{r.repo}: {r.mode} at {r.commit_sha[:12]}: {r.files} files, {r.chunks} chunks written, "
-          f"{r.deleted_chunks} removed, {r.seconds}s")
+          f"{r.deleted_chunks} removed, {r.reused_vectors} vectors reused, {r.seconds}s")
+    if r.skipped:
+        print("left out: " + ", ".join(f"{n} {reason}" for reason, n in sorted(r.skipped.items())))
 
 
 def cmd_sync(args) -> None:

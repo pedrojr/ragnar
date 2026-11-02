@@ -10,11 +10,15 @@ import hashlib
 import math
 import os
 import re
+import time
 from functools import lru_cache
 
 import httpx
 
 from .config import Embedding, RagnarError, Settings, load_settings
+
+ATTEMPTS = 3
+BACKOFF_SECONDS = 0.5
 
 
 def to_pgvector(vector: list[float]) -> str:
@@ -49,13 +53,16 @@ class Embedder:
         if self.send_dimensions:
             body["dimensions"] = self.dim
         last: Exception | None = None
-        for _ in range(2):  # one retry on a network failure or a 5xx
+        for attempt in range(ATTEMPTS):  # a network failure or a 5xx is often a replica restarting
+            if attempt:
+                time.sleep(BACKOFF_SECONDS * 2 ** (attempt - 1))
             try:
                 r = self._client.post("/embeddings", json=body)
                 if r.status_code >= 500:
                     last = RagnarError(f"embedder answered {r.status_code}")
                     continue
-                r.raise_for_status()
+                if r.status_code >= 400:
+                    raise RagnarError(f"embedder refused the request ({r.status_code}): {r.text[:200]}")
                 data = sorted(r.json()["data"], key=lambda d: d["index"])
                 vectors = [d["embedding"] for d in data]
                 if any(len(v) != self.dim for v in vectors):

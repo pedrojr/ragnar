@@ -10,13 +10,16 @@ from __future__ import annotations
 import codecs
 import fnmatch
 import re
+from bisect import bisect_right
 from dataclasses import dataclass, field
+from itertools import accumulate
 from pathlib import PurePosixPath
 
-from tree_sitter import Node, Parser
+from tree_sitter import Node, Parser, Tree
 
 from . import delphi
 from .config import Index, Settings
+from .delphi import Declaration
 from .languages import (
     BY_NAME,
     DOC_EXTENSIONS,
@@ -88,21 +91,31 @@ def normalize_source(src: bytes, legacy_encoding: str = "cp1252") -> bytes | Non
         return src.decode(legacy_encoding, errors="replace").encode()
 
 
-def cast_chunks(node: Node, src: bytes, budget: int) -> list[tuple[int, int]]:
-    if nws(src[node.start_byte : node.end_byte]) <= budget or not node.children:
+WHITESPACE = frozenset(b" \t\r\n\f\v")
+OVERSIZE = 1.5  # a span above budget * OVERSIZE is split: one data table must not eat a whole token budget
+
+
+def size_index(src: bytes) -> list[int]:
+    """Non-whitespace bytes before each offset, so sizing a span costs one subtraction."""
+    return [0, *accumulate(b not in WHITESPACE for b in src)]
+
+
+def cast_chunks(node: Node, src: bytes, budget: int, sizes: list[int] | None = None) -> list[tuple[int, int]]:
+    sizes = size_index(src) if sizes is None else sizes
+    if sizes[node.end_byte] - sizes[node.start_byte] <= budget or not node.children:
         return [(node.start_byte, node.end_byte)]
     spans: list[tuple[int, int]] = []
     cur: tuple[int, int] | None = None
     comment_start: int | None = None  # leading comments travel with the declaration after them
     for child in node.children:
-        for s, e in cast_chunks(child, src, budget):
-            if cur and nws(src[cur[0] : e]) <= budget:
+        for s, e in cast_chunks(child, src, budget, sizes):
+            if cur and sizes[e] - sizes[cur[0]] <= budget:
                 cur = (cur[0], e)
             else:
                 if cur and comment_start is not None and comment_start > cur[0]:
                     spans.append((cur[0], comment_start))
                     cur = (comment_start, e)
-                    if nws(src[cur[0] : cur[1]]) > budget:
+                    if sizes[cur[1]] - sizes[cur[0]] > budget:
                         spans.append((cur[0], s))
                         cur = (s, e)
                 else:
@@ -116,6 +129,22 @@ def cast_chunks(node: Node, src: bytes, budget: int) -> list[tuple[int, int]]:
     if cur:
         spans.append(cur)
     return spans
+
+
+def bounded(spans: list[tuple[int, int]], src: bytes, budget: int, sizes: list[int]) -> list[tuple[int, int]]:
+    """Cuts oversized spans at line ends. A leaf node, such as a long literal, reaches here whole."""
+    out: list[tuple[int, int]] = []
+    for s, e in spans:
+        while sizes[e] - sizes[s] > budget * OVERSIZE:
+            limit = bisect_right(sizes, sizes[s] + budget, s, e + 1) - 1
+            cut = src.rfind(b"\n", s + 1, limit) + 1 or limit
+            while cut < e and src[cut] & 0xC0 == 0x80:  # never inside a UTF-8 sequence
+                cut += 1
+            out.append((s, cut))
+            s = cut
+        if s < e:
+            out.append((s, e))
+    return out
 
 
 def _make(lang_comment: str, path: str, symbol: str, language: str, kind: str, start: int, end: int, text: str) -> Chunk:
@@ -139,6 +168,22 @@ def enclosing_symbol(lang: Language, root: Node, s: int, e: int) -> str:
     return " > ".join(p for names in reversed(parts) for p in names)
 
 
+def declared_in(lang: Language, root: Node, s: int, e: int, limit: int = 3) -> str:
+    """Top declarations inside a span. A chunk that holds a whole file has no enclosing symbol."""
+    names: list[str] = []
+    stack = list(reversed(root.children))
+    while stack and len(names) < limit:
+        node = stack.pop()
+        if node.end_byte <= s or node.start_byte >= e:
+            continue
+        declared = (node.type in lang.scopes or node.type in lang.declarations) and lang.accept(node)
+        if declared and (found := _qualified(lang, node)):
+            names.append(".".join(found))
+        else:
+            stack.extend(reversed(node.children))
+    return ", ".join(dict.fromkeys(names))
+
+
 HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 
 
@@ -148,6 +193,7 @@ class Chunker:
 
     index: Index = field(default_factory=Index)
     languages: tuple[str, ...] = ()
+    _parsed: tuple[bytes, Tree] | None = field(default=None, repr=False)  # chunks and symbols share one parse
 
     @classmethod
     def from_settings(cls, settings: Settings) -> Chunker:
@@ -172,9 +218,21 @@ class Chunker:
         return not is_denied(lang, path)
 
     def _readable(self, path: str, src: bytes) -> bytes | None:
-        if not self.eligible(path) or len(src) > self.index.max_file_kb * 1024 or is_generated(src):
+        if self.skip_reason(path, src) is not None:
             return None
         return normalize_source(src, self.index.legacy_encoding)
+
+    def skip_reason(self, path: str, src: bytes) -> str | None:
+        """Why an eligible file stays out of the index. Runs report it: a silent skip looks like a search failure."""
+        if not self.eligible(path):
+            return "not eligible"
+        if len(src) > self.index.max_file_kb * 1024:
+            return "too large"
+        if is_generated(src):
+            return "generated"
+        if normalize_source(src, self.index.legacy_encoding) is None:
+            return "binary"
+        return None
 
     def chunk_file(self, path: str, src: bytes) -> list[Chunk]:
         """Chunks of the file, or an empty list if it must not be indexed."""
@@ -195,18 +253,61 @@ class Chunker:
         except RecursionError:  # a pathologically deep AST
             return self._window(path, text, lang)
 
+    def _root(self, src: bytes, grammar) -> Node:
+        if self._parsed is None or self._parsed[0] != src:
+            self._parsed = (src, Parser(grammar).parse(src))
+        return self._parsed[1].root_node
+
     def _code(self, path: str, src: bytes, lang: Language, grammar) -> list[Chunk]:
-        root = Parser(grammar).parse(src).root_node
+        root = self._root(src, grammar)
+        declarations = lang.fallback(src.decode(errors="replace")) if lang.fallback and root.has_error else []
+        if declarations:
+            return self._sections(path, src, lang, root, declarations)
         kind = "test" if is_test(lang, path) else "code"
         module = lang.module_of(root, path)
+        budget = self.index.chunk_budget
+        sizes = size_index(src)
+        lines = [m.start() for m in re.finditer(b"\n", src)]
         out = []
-        for s, e in cast_chunks(root, src, self.index.chunk_budget):
+        for s, e in bounded(cast_chunks(root, src, budget, sizes), src, budget, sizes):
             text = src[s:e].decode(errors="replace")
             if not text.strip():
                 continue
-            symbol = " > ".join(p for p in (module, enclosing_symbol(lang, root, s, e)) if p)
-            start, end = src[:s].count(b"\n") + 1, src[:e].count(b"\n") + 1
-            out.append(_make(lang.comment, path, symbol, lang.name, kind, start, end, text))
+            inside = enclosing_symbol(lang, root, s, e) or declared_in(lang, root, s, e)
+            symbol = " > ".join(p for p in (module, inside) if p)
+            out.append(_make(lang.comment, path, symbol, lang.name, kind, bisect_right(lines, s - 1) + 1,
+                             bisect_right(lines, e - 1) + 1, text))
+        return out
+
+    def _sections(self, path: str, src: bytes, lang: Language, root: Node,
+                  declarations: list[Declaration]) -> list[Chunk]:
+        """A file the grammar cannot parse: chunk boundaries follow the scanned declarations."""
+        kind = "test" if is_test(lang, path) else "code"
+        module = lang.module_of(root, path)
+        budget = self.index.chunk_budget
+        lines = src.split(b"\n")
+        offsets = [0, *accumulate(len(line) + 1 for line in lines)]
+        offsets[-1] = len(src)
+        sizes = size_index(src)
+        starts = sorted({d.line for d in declarations} | {1})
+        by_line = {d.line: d for d in reversed(declarations)}
+        spans: list[tuple[int, int]] = []  # first line, line after the last
+        for first, after in zip(starts, [*starts[1:], len(lines) + 1]):
+            if spans and sizes[offsets[after - 1]] - sizes[offsets[spans[-1][0] - 1]] <= budget:
+                spans[-1] = (spans[-1][0], after)
+            else:
+                spans.append((first, after))
+        out = []
+        for first, after in spans:
+            inside = starts[bisect_right(starts, first) - 1 :]
+            owner = next((by_line[n] for n in inside if first <= n < after and n in by_line), None)
+            named = ".".join((*owner.owners, owner.name)) if owner else ""
+            symbol = " > ".join(p for p in (module, named) if p)
+            for s, e in bounded([(offsets[first - 1], offsets[after - 1])], src, budget, sizes):
+                text = src[s:e].decode(errors="replace")
+                if text.strip():
+                    out.append(_make(lang.comment, path, symbol, lang.name, kind, bisect_right(offsets, s),
+                                     bisect_right(offsets, max(s, e - 1)), text))
         return out
 
     def _window(self, path: str, src: bytes, lang: Language | None) -> list[Chunk]:
@@ -288,7 +389,7 @@ class Chunker:
         grammar = grammar_for(lang, path) if lang else None
         if grammar is None:
             return []
-        root = Parser(grammar).parse(text).root_node
+        root = self._root(text, grammar)
         kind = "test" if is_test(lang, path) else "code"
         module = lang.module_of(root, path)
         out: list[Symbol] = []
@@ -308,7 +409,24 @@ class Chunker:
                                   child.start_point[0] + 1, child.end_point[0] + 1, signature[:200]))
                 walk(child, [*trail, *names])
 
-        walk(root, [])
+        try:
+            walk(root, [])
+        except RecursionError:  # a pathologically deep AST: keep what the walk found
+            pass
+        if lang.fallback and root.has_error:
+            out += self._scanned_symbols(path, text, lang, module, kind, {s.start_line for s in out})
+        return out
+
+    def _scanned_symbols(self, path: str, text: bytes, lang: Language, module: str, kind: str,
+                         known: set[int]) -> list[Symbol]:
+        declarations = lang.fallback(text.decode(errors="replace"))
+        lines = text.count(b"\n") + 1
+        out = []
+        for d, after in zip(declarations, [*[x.line for x in declarations[1:]], lines + 1]):
+            if d.line not in known:
+                parts = [p for p in (module, *d.owners, d.name) if p]
+                out.append(Symbol(path, " > ".join(parts), d.name, d.node_type, kind, d.line, max(d.line, after - 1),
+                                  d.text[:200]))
         return out
 
     def _form_symbols(self, path: str, raw: bytes, text: bytes) -> list[Symbol]:

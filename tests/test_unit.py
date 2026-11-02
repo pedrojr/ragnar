@@ -56,8 +56,8 @@ def test_go_small_file_is_one_chunk_with_package_symbol():
     assert len(chunks) == 1
     c = chunks[0]
     assert (c.language, c.kind, c.start_line) == ("go", "code", 1)
-    assert c.symbol == "widget"
-    assert c.content.startswith("// file: widget/button.go\n// symbol: widget\n")
+    assert c.symbol == "widget > Button, Button.Refresh, NewButton"
+    assert c.content.startswith("// file: widget/button.go\n// symbol: widget > Button")
     assert "New Button" in c.search_text
 
 

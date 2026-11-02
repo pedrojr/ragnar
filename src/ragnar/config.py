@@ -21,7 +21,7 @@ from typing import Any
 
 CONFIG_FILE = "ragnar.toml"
 LOCAL_CONFIG_FILE = "ragnar.local.toml"
-CHUNKER_VERSION = 2  # bump when chunk boundaries change: forces a full reindex
+CHUNKER_VERSION = 3  # bump when chunk boundaries change: forces a full reindex
 
 
 class RagnarError(Exception):
@@ -55,13 +55,14 @@ class Project:
 class Index:
     include: tuple[str, ...] = ()  # extra globs, indexed with the line-window chunker
     exclude: tuple[str, ...] = ()
-    max_file_kb: int = 300
+    max_file_kb: int = 2048  # legacy units reach megabytes, and they are what people need to find
     chunk_budget: int = 1800  # non-whitespace characters per chunk
     window_lines: int = 80  # line-window chunker, for files without a grammar
     window_overlap: int = 10
     index_tests: bool = True
     index_docs: bool = True
     secret_scan: bool = True
+    secret_action: str = "fail"  # fail: stop the run | skip: leave the files with findings out
     legacy_encoding: str = "cp1252"  # fallback for sources that are not UTF-8
 
 
@@ -149,13 +150,15 @@ SECTIONS = {f.name: f.default_factory for f in dataclasses.fields(Settings)}
 CHOICES = {
     ("project", "preset"): tuple(PRESETS),
     ("embedding", "provider"): ("http", "fake"),
+    ("index", "secret_action"): ("fail", "skip"),
     ("retrieval", "mode"): ("hybrid", "vector", "lexical"),
     ("rerank", "provider"): ("none", "http"),
     ("query", "strategy"): ("none", "multi_query", "hyde"),
 }
 # A repository may tune how it is chunked, but it never picks endpoints or turns off
 # the secret scan: the index worker runs with credentials the repository does not own.
-REPO_OWNED = {"index": {f.name for f in dataclasses.fields(Index)} - {"secret_scan"}}
+SERVER_OWNED = {"secret_scan", "secret_action"}
+REPO_OWNED = {"index": {f.name for f in dataclasses.fields(Index)} - SERVER_OWNED}
 
 
 def _coerce(section: str, key: str, type_name: str, value: Any) -> Any:
@@ -308,7 +311,7 @@ def index_fingerprint(settings: Settings) -> str:
     """Changes when an already indexed repository needs a full reindex."""
     data = {
         "chunker": CHUNKER_VERSION,
-        "index": {k: v for k, v in dataclasses.asdict(settings.index).items() if k != "secret_scan"},
+        "index": {k: v for k, v in dataclasses.asdict(settings.index).items() if k not in SERVER_OWNED},
         "languages": settings.project.languages,
         "doc_prefix": settings.embedding.doc_prefix,
         "contextual": settings.contextual.enabled and settings.llm.model,

@@ -10,6 +10,7 @@ the Delphi IDE or with convert.exe.
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from dataclasses import dataclass, field
 
 OBJECT = re.compile(r"^\s*(object|inherited|inline)\s+(?:(\w+)\s*:\s*)?([\w.]+)", re.I)
@@ -22,6 +23,10 @@ KEEP = re.compile(
 )
 CHAR_CODE = re.compile(r"#(\d+)")
 BINARY_MAGIC = b"TPF0"
+ROUTINE = re.compile(r"^[ \t]*(?:class[ \t]+)?(procedure|function|constructor|destructor|operator)[ \t]+"
+                     r"([A-Za-z_][\w.]*(?:<[^>\n]*>)?(?:\.\w+)*)", re.I | re.M)
+TYPE = re.compile(r"^[ \t]*(?:type[ \t]+)?([A-Za-z_]\w*)(?:<[^>\n]*>)?[ \t]*=[ \t]*(?:packed[ \t]+)?"
+                  r"(class|record|interface|dispinterface|object)\b(?![ \t]*(?:of\b|;))", re.I | re.M)
 
 
 @dataclass
@@ -36,6 +41,30 @@ class Component:
     def describe(self) -> str:
         props = " ".join(f"{k}={v}" for k, v in self.properties)
         return f"{'  ' * self.depth}{self.name}: {self.class_name}" + (f" {props}" if props else "")
+
+
+@dataclass(frozen=True)
+class Declaration:
+    """A declaration found by scanning text, for files the grammar cannot parse."""
+
+    line: int
+    owners: tuple[str, ...]
+    name: str
+    node_type: str
+    text: str
+
+
+def scan_declarations(text: str) -> list[Declaration]:
+    """Routines and types in file order. Conditional defines break the grammar on real units, not this."""
+    starts = [0, *(m.end() for m in re.finditer("\n", text))]
+    found: list[tuple[int, Declaration]] = []
+    for m in ROUTINE.finditer(text):
+        parts = re.sub(r"<[^>]*>", "", m.group(2)).split(".")
+        line = bisect_right(starts, m.start())
+        found.append((m.start(), Declaration(line, tuple(parts[:-1]), parts[-1], "defProc", m.group().strip())))
+    for m in TYPE.finditer(text):
+        found.append((m.start(), Declaration(bisect_right(starts, m.start()), (), m.group(1), "declType", m.group().strip())))
+    return [d for _, d in sorted(found, key=lambda item: item[0])]
 
 
 def is_binary_form(src: bytes) -> bool:
