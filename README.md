@@ -6,9 +6,11 @@
 
 ## Why
 
-Agents spend most of their tokens looking for code: broad greps, then whole files. Ragnar answers those searches with a few precise snippets.
+Agents find code with greps and partial reads. That works when the words of the question appear in the code. Ragnar adds search by concept, exact symbols and callers, in a read-only index.
 
-- **Fewer tokens.** Each search returns a budgeted set of snippets with `path:line`, not whole files.
+In a [benchmark](benchmark/README.md) on 8 open source projects in Delphi, Java, C# and Go, the right file ranked much higher than with grep: MRR 0.67 against 0.36 on 350 questions kept out of all tuning. In real agent sessions, answers were just as correct in 22% fewer turns, but they did not cost fewer tokens. Those projects are small to medium. See the [report](benchmark/report.html).
+
+- **Bounded results.** Each search returns a budgeted set of snippets with `path:line`, and references to what did not fit.
 - **Better results.** Hybrid search understands both business concepts and exact symbol names.
 - **Your code stays with you.** The index runs on your infrastructure. The MCP server is read-only.
 - **Any model.** Agents connect over MCP. Embeddings, reranking and chat use any compatible endpoint, local or hosted.

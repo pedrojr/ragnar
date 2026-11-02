@@ -142,13 +142,22 @@ def agent_section(rows: list[dict]) -> str:
         lines.append([label, str(len(chosen)), pct(mean(r["correct"] for r in chosen)), num(mean(r["turns"] or 0 for r in chosen), 1),
                       thousands(median(r["input_tokens"] for r in chosen)), thousands(median(r["output_tokens"] for r in chosen)),
                       f'{median(r["seconds"] for r in chosen):.0f} s'.replace(".", ","), f'US$ {sum(r["cost_usd"] or 0 for r in chosen):.2f}'])
+    language_lines = []
+    for language in LANGUAGE_NAMES:
+        chosen = [(a, b) for a, b in both if a["language"] == language]
+        if chosen:
+            language_lines.append([LANGUAGE_NAMES[language], str(len(chosen)), pct(mean(a["correct"] for a, _ in chosen)),
+                                   pct(mean(b["correct"] for _, b in chosen)), thousands(median(a["input_tokens"] for a, _ in chosen)),
+                                   thousands(median(b["input_tokens"] for _, b in chosen)),
+                                   f'US$ {sum(a["cost_usd"] or 0 for a, _ in chosen):.3f}', f'US$ {sum(b["cost_usd"] or 0 for _, b in chosen):.3f}'])
+    used = sum(any(t not in ("Grep", "Read", "Glob") for t in (b.get("tools") or {})) for _, b in both)
     failed = len(rows) - len(done)
     delta = ci([a["input_tokens"] for a, _ in both], [b["input_tokens"] for _, b in both])
     relative = median(b["input_tokens"] for _, b in both) / max(1, median(a["input_tokens"] for a, _ in both))
     wins = sum(b["input_tokens"] < a["input_tokens"] for a, b in both)
     note = (f"Mediana de contexto com Ragnar: {pct(relative)} da mediana sem ele. O Ragnar consumiu menos contexto em {wins} de "
             f"{len(both)} pares. Diferença média de {thousands(delta[0])} tokens, com intervalo de 95% entre "
-            f"{thousands(delta[1])} e {thousands(delta[2])}.")
+            f"{thousands(delta[1])} e {thousands(delta[2])}. O agente chamou o Ragnar em {used} de {len(both)} execuções.")
     if failed:
         note += f" {failed} execuções falharam e ficaram de fora."
     return ('<section id="agente"><h2>Agente real, antes e depois</h2>'
@@ -156,7 +165,9 @@ def agent_section(rows: list[dict]) -> str:
             'quando cita um arquivo esperado. O modo com Ragnar ainda tem Grep, Read e Glob: o agente escolhe o que usar.</p>'
             + table(["Modo", "Execuções", "Respostas certas", "Turnos (média)", "Contexto lido (mediana)", "Tokens gerados (mediana)",
                      "Tempo (mediana)", "Custo total"], lines)
-            + f'<p class="note">{esc(note)} O contexto soma tokens novos e lidos de cache em todos os turnos.</p></section>')
+            + f'<p class="note">{esc(note)} O contexto soma tokens novos e lidos de cache em todos os turnos.</p>'
+            + table(["Linguagem", "Pares", "Certas sem Ragnar", "Certas com Ragnar", "Contexto sem Ragnar", "Contexto com Ragnar",
+                     "Custo sem Ragnar", "Custo com Ragnar"], language_lines) + "</section>")
 
 
 def build(args: argparse.Namespace) -> str:
@@ -224,16 +235,37 @@ def build(args: argparse.Namespace) -> str:
 
     secret_repos = [name for name, s in secrets.items() if s["with_findings"]]
     headline = extras.get("headline") or (
-        f"Com Ragnar, a resposta aparece mais alto e custa {ratio:.0f} vezes menos contexto" if gain[1] > 0 else
-        f"Ragnar custa {ratio:.0f} vezes menos contexto, sem ganho comprovado de posição")
+        "Ragnar acha o arquivo certo bem mais alto que o grep, mas um agente real não gastou menos" if gain[1] > 0
+        else "Ragnar não superou o grep em posição do arquivo certo")
+    finished = [r for r in agents if "failed" not in r]
+    agent_grep = [r["input_tokens"] for r in finished if r["arm"] == "grep"]
+    agent_ragnar = [r["input_tokens"] for r in finished if r["arm"] == "ragnar"]
+    context_tile = (
+        (thousands(median(agent_ragnar)), "contexto do agente real", f"contra {thousands(median(agent_grep))} sem Ragnar")
+        if agent_ragnar and agent_grep else
+        (thousands(ragnar["tokens"]), "tokens por busca", "braço roteirizado"))
     hero = "".join(
         f'<div class="tile"><div class="big">{value}</div><div class="what">{esc(what)}</div><div class="sub">{esc(sub)}</div></div>'
         for value, what, sub in (
             (num(ragnar["mrr"]), "MRR com Ragnar", f'contra {num(grep["mrr"])} do grep'),
             (pct(ragnar["solved"]), "perguntas resolvidas", f'contra {pct(grep["solved"])} do grep'),
-            (thousands(ragnar["tokens"]), "tokens por pergunta", f'contra {thousands(grep["tokens"])} do grep'),
+            context_tile,
             (str(ragnar["n"]), "perguntas no holdout", "nunca lidas durante os ajustes"),
         ))
+    by_language = {lang: [r for r in holdout if r["language"] == lang] for lang in languages}
+    best_language = max(by_language, key=lambda lang: stats(by_language[lang], "ragnar")["mrr"] - stats(by_language[lang], "grep")["mrr"])
+    verdict = (f"Na busca, o Ragnar ganha com folga: MRR {num(ragnar['mrr'])} contra {num(grep['mrr'])} do grep, com ganho nas quatro linguagens, "
+               f"maior em {LANGUAGE_NAMES[best_language]}.")
+    if agent_ragnar and agent_grep:
+        by_grep = {r["id"]: r for r in finished if r["arm"] == "grep"}
+        pairs_agent = [(by_grep[r["id"]], r) for r in finished if r["arm"] == "ragnar" and r["id"] in by_grep]
+        turns = 1 - mean(b["turns"] for _, b in pairs_agent) / mean(a["turns"] for a, _ in pairs_agent)
+        cost = sum(b["cost_usd"] for _, b in pairs_agent) / sum(a["cost_usd"] for a, _ in pairs_agent) - 1
+        context = ci([a["input_tokens"] for a, _ in pairs_agent], [b["input_tokens"] for _, b in pairs_agent])
+        verdict += (f" Com um agente real, as respostas acertaram igual ({pct(mean(b['correct'] for _, b in pairs_agent))} com Ragnar e "
+                    f"{pct(mean(a['correct'] for a, _ in pairs_agent))} sem ele), em {pct(turns)} menos turnos. Não houve economia: o contexto "
+                    f"{'não mudou de forma comprovada' if context[1] < 0 < context[2] else 'mudou'} e o custo ficou {pct(cost)} "
+                    f"{'maior' if cost > 0 else 'menor'}. Nestes projetos, de pequeno a médio porte, um agente com grep já resolve quase tudo.")
     limits = "".join(f"<li>{esc(t)}</li>" for t in extras.get("limits", []))
     next_steps = "".join(f"<li>{esc(t)}</li>" for t in extras.get("next", []))
     experiments = extras.get("experiments", [])
@@ -253,7 +285,7 @@ def build(args: argparse.Namespace) -> str:
     repos_list = "".join(f'<li><b>{esc(e["name"])}</b> ({esc(LANGUAGE_NAMES[e["language"]])}), commit <code>{esc(e["snapshot"])}</code></li>'
                          for e in entries)
     return TEMPLATE.format(
-        title="Ragnar benchmark", date=date.today().strftime("%d/%m/%Y"), headline=esc(headline), hero=hero,
+        title="Ragnar benchmark", date=date.today().strftime("%d/%m/%Y"), headline=esc(headline), hero=hero, verdict=esc(verdict),
         gain=signed(gain[0]), lo=signed(gain[1]), hi=signed(gain[2]),
         solved_gain=signed(solved_gain[0]), solved_lo=signed(solved_gain[1]), solved_hi=signed(solved_gain[2]),
         recall_g=num(grep["recall10"]), recall_r=num(ragnar["recall10"]),
@@ -332,7 +364,8 @@ svg .value {{ font-size: 12px; font-variant-numeric: tabular-nums; }}
 .scroll {{ overflow-x: auto; margin: 10px 0; }}
 table {{ border-collapse: collapse; width: 100%; font-size: .88rem; }}
 th, td {{ padding: 7px 10px; border-bottom: 1px solid var(--grid); text-align: left; vertical-align: top; }}
-th {{ color: var(--muted); font-weight: 600; white-space: nowrap; }}
+th {{ color: var(--muted); font-weight: 600; }}
+td:first-child {{ white-space: nowrap; }}
 .n {{ text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }}
 .note {{ color: var(--muted); font-size: .88rem; }}
 .fixes {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }}
@@ -353,8 +386,8 @@ nav a {{ color: var(--ink2); }}
 <main>
 <p class="kicker">Benchmark do Ragnar · {date}</p>
 <h1>{headline}</h1>
-<p>Comparação entre um agente com grep e o Ragnar em 8 projetos open source, em Delphi, Java, C# e Go. Os números principais vêm de
-perguntas que ficaram fora de todos os ajustes.</p>
+<p>{verdict}</p>
+<p>Comparação em 8 projetos open source, em Delphi, Java, C# e Go. Os números principais vêm de perguntas que ficaram fora de todos os ajustes.</p>
 <div class="tiles">{hero}</div>
 <p>O ganho de MRR é de <b>{gain}</b>, com intervalo de 95% entre {lo} e {hi}. O ganho em perguntas resolvidas é de {solved_gain}, entre
 {solved_lo} e {solved_hi}. Recall@10 foi de {recall_g} no grep para {recall_r} no Ragnar. MRR mede quão alto vem o primeiro arquivo certo:

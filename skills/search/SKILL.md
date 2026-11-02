@@ -5,7 +5,7 @@ description: Chooses the cheapest reliable way to find code in a ragnarized proj
 
 # Search: local or index
 
-Goal: the answer with the fewest tokens. The index saves tokens on questions about concepts. Local tools win when you already know where to look.
+Goal: the right answer with the fewest turns. The index finds code by concept, even when the question shares no words with it. Local tools win when you already know where to look.
 
 ## Pick the first tool
 
