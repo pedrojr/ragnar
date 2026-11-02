@@ -23,6 +23,7 @@ from ragnar.config import load_settings
 from ragnar.embedder import FakeEmbedder
 from ragnar.indexer import index
 from ragnar.migrate import migrate
+from ragnar.ops import TOOLS
 from ragnar.search import Pipeline, file_outline, find_references, find_symbol, list_repos, read_code
 
 from .test_unit import _git, make_repo
@@ -130,13 +131,17 @@ def test_mcp_over_http(dsn, tmp_path, monkeypatch):
         async with mcp_client(url, "tok") as c:
             found = (await c.call_tool("search_code", {"query": "NewButton"})).content[0].text
             sym = (await c.call_tool("find_symbol", {"name": "Refresh"})).content[0].text
+            refs = (await c.call_tool("find_references", {"name": "Button"})).content[0].text
+            outline = (await c.call_tool("file_outline", {"path": "button.go"})).content[0].text
+            code = (await c.call_tool("read_code", {"path": "button.go", "start_line": 1, "end_line": 1})).content[0].text
+            tools = {t.name for t in (await c.list_tools()).tools}
             denied = await c.call_tool("search_code", {"query": "x", "repo": "other"})
         async with mcp_client(url, "restricted") as c:
             empty = (await c.call_tool("list_repos", {})).content[0].text
-        return found, sym, denied, empty
+        return found, sym, denied, empty, refs, outline, code, tools
 
     try:
-        found, sym, denied, empty = asyncio.run(calls())
+        found, sym, denied, empty, refs, outline, code, tools = asyncio.run(calls())
     finally:
         server.should_exit = True
         thread.join(5)
@@ -144,3 +149,7 @@ def test_mcp_over_http(dsn, tmp_path, monkeypatch):
     assert "demo:widget/button.go:9-11  widget > Button > Refresh" in sym
     assert denied.is_error and "no permission" in denied.content[0].text
     assert empty == "No repository indexed for this token."
+    assert "demo:widget/button.go:" in refs and "[code]" in refs
+    assert outline.startswith("demo:widget/button.go\n") and "widget > Button > Refresh" in outline
+    assert code == '<code repo="demo" path="widget/button.go">\n1: package widget\n</code>'
+    assert tools == TOOLS
