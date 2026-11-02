@@ -62,7 +62,7 @@ O passo a passo completo está em [Primeiros passos](docs/pt-BR/getting-started.
 | `maintain` | Confere a saúde e corrige índice defasado ou com falha |
 | `infra` | Sobe o lado servidor a partir do exemplo |
 
-O servidor MCP expõe `search_code`, `find_symbol` e `list_repos`. Veja [Servidor MCP](docs/pt-BR/mcp.md).
+O servidor MCP expõe `search_code`, `find_symbol`, `find_references`, `file_outline`, `read_code` e `list_repos`. Veja [Servidor MCP](docs/pt-BR/mcp.md).
 
 ## Linguagens
 

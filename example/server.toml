@@ -7,7 +7,7 @@ preset = "balanced"       # economy | balanced | precise
 
 [retrieval]
 # mode = "hybrid"         # hybrid | vector | lexical
-# max_context_tokens = 4000
+# max_context_tokens = 2000
 
 # Optional reranker, through any /rerank endpoint:
 # [rerank]

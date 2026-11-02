@@ -29,6 +29,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - The secret scan runs on normalized text, so it covers UTF-16 sources.
 - `index.max_file_kb` defaults to 2048, and runs report what they leave out and why.
 - Lexical ranking weighs terms by rarity, drops English and Portuguese stopwords, and matches by light stemming.
+- `balanced` now returns 5 hits within 2,000 tokens, and `economy` 3 hits within 1,000: in real agent sessions, 4,000 tokens cost more context than grep.
+- The agent note and the MCP instructions tell agents when to start with the index. With the previous wording, agents kept using grep.
 - Reindexing reuses the vectors of unchanged chunks, and texts reach the embedder sorted by length.
 - Migration 005 rewrites `code_chunk`, which rebuilds the vector index. Expect it to take a while on large indexes, and give parallel builds enough shared memory.
 

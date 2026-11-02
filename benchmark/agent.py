@@ -16,11 +16,14 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from bench import REPOS, WORK, load_questions, manifest  # noqa: E402
+
+from ragnar.project import AGENT_NOTE  # noqa: E402
 
 PROMPT = """{question}
 
@@ -32,9 +35,9 @@ SKIP_ENV = re.compile(r"^(CLAUDE|ANTHROPIC_BASE)")  # a child session must not i
 CATEGORIES = ("concept", "flow", "callers", "ptbr", "config", "form")
 
 
-def pick(questions: list[dict], count: int) -> list[dict]:
-    """Holdout questions only, spread over the categories in file order."""
-    pool = [q for q in questions if q["source"] == "curated" and q["split"] == "holdout" and q["category"] in CATEGORIES]
+def pick(questions: list[dict], count: int, split: str) -> list[dict]:
+    """Curated questions of one split, spread over the categories in file order."""
+    pool = [q for q in questions if q["source"] == "curated" and q["split"] == split and q["category"] in CATEGORIES]
     chosen: list[dict] = []
     seen: set[str] = set()
     for q in pool:
@@ -55,27 +58,34 @@ def correct(answer: str, q: dict) -> bool:
 
 def run(q: dict, entry: dict, arm: str, model: str, budget: float, mcp_config: str) -> dict:
     tools = LOCAL_TOOLS if arm == "grep" else f"{LOCAL_TOOLS},{RAGNAR_TOOLS}"
-    cmd = ["claude", "-p", PROMPT.format(question=q["query"]), "--model", model, "--output-format", "json",
+    cmd = ["claude", "-p", PROMPT.format(question=q["query"]), "--model", model, "--output-format", "stream-json", "--verbose",
            "--no-session-persistence", "--setting-sources", "project", "--tools", LOCAL_TOOLS, "--allowedTools", tools,
            "--max-budget-usd", str(budget), "--strict-mcp-config", "--disable-slash-commands"]
-    if arm == "ragnar":
-        cmd += ["--mcp-config", mcp_config]
+    if arm == "ragnar":  # the note `ragnar init --agents-md` adds to a project
+        cmd += ["--mcp-config", mcp_config, "--append-system-prompt", AGENT_NOTE]
     env = {k: v for k, v in os.environ.items() if not SKIP_ENV.match(k)}
     t0 = time.perf_counter()
     r = subprocess.run(cmd, cwd=REPOS / entry["name"], capture_output=True, text=True, encoding="utf-8",
                        errors="replace", env=env, timeout=600)
     row = {"id": q["id"], "repo": q["repo"], "language": entry["language"], "category": q["category"], "arm": arm,
            "seconds": round(time.perf_counter() - t0, 1)}
-    try:
-        out = json.loads(r.stdout)
-    except json.JSONDecodeError:
+    events = []
+    for line in r.stdout.splitlines():
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    out = next((e for e in reversed(events) if e.get("type") == "result"), None)
+    if out is None:
         return {**row, "failed": (r.stderr or r.stdout).strip()[-300:]}
+    tools_used = Counter(block["name"].removeprefix("mcp__ragnar__") for e in events if e.get("type") == "assistant"
+                         for block in e.get("message", {}).get("content", []) if block.get("type") == "tool_use")
     usage = out.get("usage", {})
     answer = out.get("result") or ""
     context = sum(usage.get(k, 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
     return {**row, "correct": correct(answer, q), "turns": out.get("num_turns"), "cost_usd": out.get("total_cost_usd"),
             "input_tokens": context, "output_tokens": usage.get("output_tokens", 0), "subtype": out.get("subtype"),
-            "answer": answer[:600]}
+            "tools": dict(tools_used), "answer": answer[:600]}
 
 
 def main() -> None:
@@ -88,12 +98,15 @@ def main() -> None:
     p.add_argument("--url", default="http://127.0.0.1:18080/mcp")
     p.add_argument("--token-env", default="RAGNAR_BENCH_TOKEN")
     p.add_argument("--repo", action="append", default=[])
+    p.add_argument("--split", default="holdout", choices=("dev", "holdout"), help="tune on dev, report on holdout")
+    p.add_argument("--arm", action="append", default=[], choices=("grep", "ragnar"))
     args = p.parse_args()
 
     config = {"mcpServers": {"ragnar": {"type": "http", "url": args.url,
                                         "headers": {"Authorization": f"Bearer {os.environ[args.token_env]}"}}}}
     entries = [e for e in manifest() if not args.repo or e["name"] in args.repo]
-    jobs = [(q, e, arm) for e in entries for q in pick(load_questions(e), args.questions) for arm in ("grep", "ragnar")]
+    arms = args.arm or ["grep", "ragnar"]
+    jobs = [(q, e, arm) for e in entries for q in pick(load_questions(e), args.questions, args.split) for arm in arms]
     print(f"{len(jobs)} runs, at most ${len(jobs) * args.budget:.2f}", flush=True)
     out = WORK / args.label
     out.mkdir(parents=True, exist_ok=True)
@@ -104,8 +117,8 @@ def main() -> None:
             rows = []
             for row in pool.map(lambda j: run(j[0], j[1], j[2], args.model, args.budget, mcp_config), jobs):
                 rows.append(row)
-                print({k: row.get(k) for k in ("id", "arm", "correct", "turns", "input_tokens", "cost_usd", "seconds", "failed")},
-                      flush=True)
+                print({k: row.get(k) for k in ("id", "arm", "correct", "turns", "input_tokens", "cost_usd", "seconds", "tools",
+                                               "failed")}, flush=True)
                 (out / "agent.json").write_text(json.dumps(rows, ensure_ascii=False, indent=0), encoding="utf-8")
 
 

@@ -67,6 +67,10 @@ ragnar eval run /path/to/myapp "$SNAP" myapp-snap \
 
 Each variant reports its gain over grep and over the current configuration. Settings under `[index]` change the chunks, so they need a snapshot built with those values.
 
+## Public benchmark
+
+[`benchmark/`](../benchmark/README.md) runs this comparison on pinned open source projects, with curated questions and real agent sessions. Its report is `benchmark/report.html`.
+
 ## Limits
 
 - Commit messages are imperfect questions. They read differently from what a developer would ask.

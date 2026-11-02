@@ -62,7 +62,7 @@ The complete walkthrough is in [Getting started](docs/getting-started.md). For C
 | `maintain` | Checks health and fixes a stale or failing index |
 | `infra` | Brings up the server side from the example |
 
-The MCP server exposes `search_code`, `find_symbol` and `list_repos`. See [MCP server](docs/mcp.md).
+The MCP server exposes `search_code`, `find_symbol`, `find_references`, `file_outline`, `read_code` and `list_repos`. See [MCP server](docs/mcp.md).
 
 ## Languages
 

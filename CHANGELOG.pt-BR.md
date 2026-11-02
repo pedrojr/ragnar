@@ -29,6 +29,8 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - A varredura de segredos roda no texto normalizado, então cobre fontes em UTF-16.
 - `index.max_file_kb` agora vale 2048 por padrão, e as execuções informam o que deixaram de fora e por quê.
 - O ranking lexical pesa os termos pela raridade, remove stopwords em inglês e português e casa por stemming leve.
+- `balanced` agora devolve 5 resultados em 2.000 tokens, e `economy`, 3 em 1.000: em sessões reais de agente, 4.000 tokens custaram mais contexto que o grep.
+- A nota do agente e as instruções do MCP dizem quando começar pelo índice. Com o texto anterior, os agentes continuavam no grep.
 - A reindexação reaproveita os vetores de chunks sem mudança, e os textos chegam ao embedder ordenados por tamanho.
 - A migração 005 reescreve `code_chunk`, o que reconstrói o índice vetorial. Espere alguma demora em índices grandes e garanta memória compartilhada para builds paralelos.
 

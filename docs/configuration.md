@@ -36,7 +36,7 @@ Secrets never go in these files. Each section names the environment variable tha
 
 | Preset | Use it for | Changes |
 | --- | --- | --- |
-| `economy` | Lowest token cost | 5 hits, 2,000 tokens, 2 chunks per file |
+| `economy` | Lowest token cost per search. Agents may compensate with more greps | 3 hits, 1,000 tokens, 2 chunks per file |
 | `balanced` | The default | No changes |
 | `precise` | Hard questions, higher cost | 10 hits, 8,000 tokens, 100 candidates, neighbor chunks, diversity |
 
@@ -93,7 +93,7 @@ A hosted provider receives your source code. Choose accordingly.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `mode` | `"hybrid"` | `hybrid`, `vector` or `lexical` |
-| `default_k` | `8` | Hits when the caller does not set `k` |
+| `default_k` | `5` | Hits when the caller does not set `k` |
 | `candidates` | `50` | Hits per list, before fusion |
 | `rrf_k` | `60` | RRF smoothing constant |
 | `vector_weight` | `1.0` | Weight of the vector list |
@@ -104,8 +104,8 @@ A hosted provider receives your source code. Choose accordingly.
 | `max_chunks_per_file` | `3` | Cap per file. `0` turns it off |
 | `diversity` | `0.0` | `0` is pure relevance, `1` is pure novelty |
 | `neighbor_chunks` | `0` | Adjacent chunks added around each hit |
-| `max_context_tokens` | `4000` | Estimated token budget. `0` turns it off |
-| `reference_hits` | `6` | Hits that did not fit, returned as path and symbol only |
+| `max_context_tokens` | `2000` | Estimated token budget. `0` turns it off |
+| `reference_hits` | `8` | Hits that did not fit, returned as path and symbol only |
 
 ## `[rerank]`
 

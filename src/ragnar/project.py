@@ -15,9 +15,10 @@ IGNORED = (".ragnar/", LOCAL_CONFIG_FILE)
 AGENT_NOTE = """
 ## Code search (Ragnar)
 
-This project is indexed by Ragnar. Find code with the `find_symbol` and `search_code` MCP tools before
-reading whole files or running broad greps. The index covers the tracked branch: for files changed
-locally, read them directly.
+This project is indexed by Ragnar. For any question about where or how something works, call the
+`search_code` MCP tool first: one call usually replaces several greps and file reads. Use `find_symbol`
+for a known name, `find_references` for its callers, and `file_outline` before reading a large file.
+Use grep for exact strings and for files changed locally: the index covers the tracked branch.
 """
 CONFIG_TEMPLATE = """# Ragnar settings. Full reference: docs/configuration.md
 # Keep secrets out of this file: each section names the environment variable that holds its key.

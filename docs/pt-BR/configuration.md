@@ -36,7 +36,7 @@ Segredos nunca vão nesses arquivos. Cada seção indica, em `api_key_env`, a va
 
 | Preset | Use para | Muda |
 | --- | --- | --- |
-| `economy` | Menor custo em tokens | 5 resultados, 2.000 tokens, 2 chunks por arquivo |
+| `economy` | Menor custo em tokens por busca. Agentes podem compensar com mais greps | 3 resultados, 1.000 tokens, 2 chunks por arquivo |
 | `balanced` | Padrão | Nada |
 | `precise` | Perguntas difíceis, custo maior | 10 resultados, 8.000 tokens, 100 candidatos, chunks vizinhos, diversidade |
 
@@ -93,7 +93,7 @@ Um provedor hospedado recebe seu código-fonte. Escolha com isso em mente.
 | Chave | Padrão | Significado |
 | --- | --- | --- |
 | `mode` | `"hybrid"` | `hybrid`, `vector` ou `lexical` |
-| `default_k` | `8` | Resultados quando quem chama não define `k` |
+| `default_k` | `5` | Resultados quando quem chama não define `k` |
 | `candidates` | `50` | Resultados por lista, antes da fusão |
 | `rrf_k` | `60` | Constante de suavização do RRF |
 | `vector_weight` | `1.0` | Peso da lista vetorial |
@@ -104,8 +104,8 @@ Um provedor hospedado recebe seu código-fonte. Escolha com isso em mente.
 | `max_chunks_per_file` | `3` | Limite por arquivo. `0` desliga |
 | `diversity` | `0.0` | `0` é só relevância, `1` é só novidade |
 | `neighbor_chunks` | `0` | Chunks vizinhos adicionados a cada resultado |
-| `max_context_tokens` | `4000` | Orçamento estimado de tokens. `0` desliga |
-| `reference_hits` | `6` | Resultados que não couberam, devolvidos só com path e símbolo |
+| `max_context_tokens` | `2000` | Orçamento estimado de tokens. `0` desliga |
+| `reference_hits` | `8` | Resultados que não couberam, devolvidos só com path e símbolo |
 
 ## `[rerank]`
 

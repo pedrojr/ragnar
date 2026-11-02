@@ -67,6 +67,10 @@ ragnar eval run /caminho/do/myapp "$SNAP" myapp-snap \
 
 Cada variante mostra o ganho sobre o grep e sobre a configuração atual. Opções em `[index]` mudam os chunks, então exigem um snapshot montado com esses valores.
 
+## Benchmark público
+
+[`benchmark/`](../../benchmark/README.pt-BR.md) roda esta comparação em projetos open source fixados, com perguntas curadas e sessões reais de agente. O relatório fica em `benchmark/report.html`.
+
 ## Limites
 
 - Mensagens de commit são perguntas imperfeitas. Elas soam diferente do que um desenvolvedor perguntaria.

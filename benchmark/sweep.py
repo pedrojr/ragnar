@@ -34,7 +34,7 @@ def score(entries: list[dict], dsn: str, overrides: list[str]) -> dict:
                 if q["split"] != "dev" or not q.get("relevant"):
                     continue
                 row = scored(ragnar_arm(pipeline, conn, entry, q), q)
-                for group in ("all", q["source"], entry["language"]):
+                for group in ("all", q["source"], entry["language"], *([q["category"]] if q["source"] == "curated" else [])):
                     groups.setdefault(group, []).append(row)
     return {g: (round(mean(r["rr"] for r in rows), 3), round(mean(r["recall10"] for r in rows), 3),
                 round(mean(r["solved"] for r in rows), 3), round(mean(r["tokens"] for r in rows)))

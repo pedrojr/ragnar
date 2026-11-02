@@ -29,7 +29,7 @@ REPOS = ROOT / "repos"
 WORK = ROOT / "work"
 QUESTIONS = ROOT / "questions"
 ADMIN_DSN = "postgresql://postgres:benchmark@127.0.0.1:15433/{db}"
-EMBEDDER = "http://127.0.0.1:8001/v1"
+EMBEDDER = os.environ.get("RAGNAR_BENCH_EMBEDDER", "http://127.0.0.1:8001/v1")
 CHARS_PER_TOKEN = 4
 GREP_MAX_LINES = 250  # an agent's grep output is capped; Claude Code's default head_limit is 250
 GREP_READS = 5  # files opened before giving up
@@ -121,8 +121,8 @@ def cmd_index(args: argparse.Namespace) -> None:
                   ref=entry["snapshot"], full=args.full, scan=False)
         with psycopg.connect(dsn) as conn:
             symbols = conn.execute("SELECT count(*) FROM code_symbol WHERE repo = %s", (entry["name"],)).fetchone()[0]
-        results.append({"repo": entry["name"], "mode": r.mode, "files": r.files, "chunks": r.chunks,
-                        "symbols": symbols, "seconds": r.seconds})
+        results.append({"repo": entry["name"], "mode": r.mode, "files": r.files, "chunks": r.chunks, "symbols": symbols,
+                        "seconds": r.seconds, "skipped": getattr(r, "skipped", {}), "reused": getattr(r, "reused_vectors", 0)})
         print(json.dumps(results[-1]), flush=True)
     previous = {}
     target = out / "index.json"

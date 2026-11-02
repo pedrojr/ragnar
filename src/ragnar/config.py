@@ -83,7 +83,7 @@ class Embedding:
 @dataclass(frozen=True)
 class Retrieval:
     mode: str = "hybrid"  # hybrid | vector | lexical
-    default_k: int = 8
+    default_k: int = 5
     candidates: int = 50  # per list, before fusion
     rrf_k: int = 60
     vector_weight: float = 1.0
@@ -94,8 +94,8 @@ class Retrieval:
     max_chunks_per_file: int = 3  # 0 turns it off
     diversity: float = 0.0  # 0 = pure relevance, 1 = pure novelty (MMR)
     neighbor_chunks: int = 0  # adjacent chunks added around each hit
-    max_context_tokens: int = 4000  # 0 turns it off
-    reference_hits: int = 6  # hits that did not fit, returned as path and symbol only
+    max_context_tokens: int = 2000  # 0 turns it off. In real agent sessions, 4000 cost more context than grep
+    reference_hits: int = 8  # hits that did not fit, returned as path and symbol only
 
 
 @dataclass(frozen=True)
@@ -143,7 +143,7 @@ class Settings:
 
 
 PRESETS: dict[str, dict[str, dict[str, Any]]] = {
-    "economy": {"retrieval": {"default_k": 5, "max_context_tokens": 2000, "max_chunks_per_file": 2}},
+    "economy": {"retrieval": {"default_k": 3, "max_context_tokens": 1000, "max_chunks_per_file": 2}},
     "balanced": {},
     "precise": {"retrieval": {"default_k": 10, "candidates": 100, "ef_search": 200, "neighbor_chunks": 1,
                               "diversity": 0.2, "max_context_tokens": 8000}},
