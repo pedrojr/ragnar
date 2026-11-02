@@ -4,7 +4,7 @@ Measures Ragnar against what an agent does without it, on pinned open source pro
 
 [Português (Brasil)](README.pt-BR.md)
 
-Clones and run output stay out of git, in `repos/` and `work/`. The questions, the commit pins and the report are versioned.
+Clones and run output stay out of git, in `repos/` and `work/`. The questions, the commit pins and the report are versioned. The report comes in two languages: [English](report.html) and [Portuguese](report.pt-BR.html).
 
 ## What it measures
 

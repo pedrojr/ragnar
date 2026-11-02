@@ -69,7 +69,7 @@ Cada variante mostra o ganho sobre o grep e sobre a configuração atual. Opçõ
 
 ## Benchmark público
 
-[`benchmark/`](../../benchmark/README.pt-BR.md) roda esta comparação em projetos open source fixados, com perguntas curadas e sessões reais de agente. O relatório fica em `benchmark/report.html`.
+[`benchmark/`](../../benchmark/README.pt-BR.md) roda esta comparação em projetos open source fixados, com perguntas curadas e sessões reais de agente. O relatório fica em `benchmark/report.pt-BR.html`.
 
 ## Limites
 

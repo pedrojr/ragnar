@@ -4,7 +4,7 @@ Mede o Ragnar contra o que um agente faz sem ele, em projetos open source fixado
 
 [English](README.md)
 
-Clones e saídas de execução ficam fora do git, em `repos/` e `work/`. As perguntas, os commits fixados e o relatório são versionados.
+Clones e saídas de execução ficam fora do git, em `repos/` e `work/`. As perguntas, os commits fixados e o relatório são versionados. O relatório tem duas versões: [inglês](report.html) e [português](report.pt-BR.html).
 
 ## O que mede
 

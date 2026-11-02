@@ -1,4 +1,4 @@
-"""Builds benchmark/report.html from the run output in work/. Every number comes from those files.
+"""Builds report.html and report.pt-BR.html from the run output in work/. Every number comes from those files.
 
 Run: uv run python benchmark/report.py [--final final] [--baseline v0]
 """
@@ -10,7 +10,7 @@ import html
 import json
 import random
 import sys
-from datetime import date
+from datetime import datetime
 from pathlib import Path
 from statistics import mean, median
 
@@ -18,10 +18,110 @@ sys.path.insert(0, str(Path(__file__).parent))
 from bench import ROOT, WORK, manifest  # noqa: E402
 
 LANGUAGE_NAMES = {"delphi": "Delphi", "java": "Java", "csharp": "C# / .NET", "go": "Go"}
-CATEGORY_NAMES = {
-    "concept": "Conceito", "symbol": "Símbolo", "callers": "Quem chama", "flow": "Fluxo entre arquivos",
-    "config": "Configuração", "ptbr": "Pergunta em português", "form": "Formulário Delphi",
+CATEGORIES = ("concept", "symbol", "callers", "flow", "config", "ptbr", "form")
+OUTPUTS = {"en": "report.html", "pt-BR": "report.pt-BR.html"}
+TEXT = {
+    "en": {
+        "categories": ("Concept", "Symbol", "Callers", "Cross-file flow", "Configuration", "Question in Portuguese", "Delphi form"),
+        "compare_head": ["Group", "Questions", "grep MRR", "Ragnar MRR", "grep solved", "Ragnar solved",
+                         "grep tokens (median)", "Ragnar tokens (median)"],
+        "problem": "Problem", "fix": "Fix", "evidence": "Evidence",
+        "local_only": "Local tools only", "local_ragnar": "Local tools + Ragnar",
+        "agent_note": ("Median context with Ragnar: {relative} of the median without it. Ragnar used less context in {wins} of {pairs} "
+                       "pairs. Mean difference of {delta} tokens, with a 95% interval from {lo} to {hi}. "
+                       "The agent called Ragnar in {used} of {pairs} runs."),
+        "agent_failed": " {failed} runs failed and were left out.",
+        "agent_title": "Real agent, before and after",
+        "agent_intro": ("Claude Code answered the same holdout questions in both modes, in {pairs} pairs. An answer counts as correct "
+                        "when it cites an expected file. The Ragnar mode still has Grep, Read and Glob: the agent chooses what to use."),
+        "agent_head": ["Mode", "Runs", "Correct answers", "Turns (mean)", "Context read (median)", "Tokens generated (median)",
+                       "Time (median)", "Total cost"],
+        "agent_context": "Context adds up new and cached tokens across all turns.",
+        "agent_lang_head": ["Language", "Pairs", "Correct without Ragnar", "Correct with Ragnar", "Context without Ragnar",
+                            "Context with Ragnar", "Cost without Ragnar", "Cost with Ragnar"],
+        "sources": {"curated": "Curated", "history": "Commit history"},
+        "split_dev": "dev (guided the tuning)", "split_holdout": "holdout (never read during tuning)",
+        "negative": ("On the {n} questions with no answer in the repository, the median was {grep} tokens with grep and {ragnar} with "
+                     "Ragnar. Ragnar does not say \"this does not exist\": it returns the closest snippets, and the agent has to "
+                     "conclude that they do not answer."),
+        "headline_win": "Ragnar ranks the right file much higher than grep, but a real agent did not spend less",
+        "headline_loss": "Ragnar did not beat grep on the rank of the right file",
+        "tile_context": "real agent context", "tile_context_sub": "against {value} without Ragnar",
+        "tile_tokens": "tokens per search", "tile_tokens_sub": "scripted arm",
+        "tile_mrr": "MRR with Ragnar", "tile_mrr_sub": "against {value} for grep",
+        "tile_solved": "questions solved", "tile_solved_sub": "against {value} for grep",
+        "tile_holdout": "holdout questions", "tile_holdout_sub": "never read during tuning",
+        "verdict": "In search, Ragnar wins clearly: MRR {ragnar} against {grep} for grep, with a gain in all four languages, largest in {best}.",
+        "verdict_agent": (" With a real agent, answers were just as correct ({ragnar} with Ragnar and {grep} without it), in {turns} fewer "
+                          "turns. There were no savings: context {context} and cost was {cost} {direction}. On these small to medium "
+                          "projects, an agent with grep already solves almost everything."),
+        "context_unproven": "showed no proven change", "context_changed": "changed", "higher": "higher", "lower": "lower",
+        "experiments_title": "Experiments behind the defaults", "experiments_intro": "Measured on the dev questions only.",
+        "experiments_head": ["Experiment", "Result", "Decision"],
+        "secrets": ("<p>gitleaks flagged files in {n} of the {total} repositories ({names}). With the default <code>fail</code>, those "
+                    "repositories would not index. The benchmark runs without the scan, and "
+                    "<code>index.secret_action = \"skip\"</code> now covers this case in production.</p>"),
+        "repo_line": '<li><b>{name}</b> ({language}), commit <code>{snapshot}</code></li>',
+        "legend_grep": "grep + reads (without Ragnar)", "chart_language": "MRR by language", "chart_type": "MRR by question type",
+        "split_head": ["Set", "Questions", "grep MRR", "Ragnar MRR", "grep solved", "Ragnar solved"],
+        "legend_v0": "Ragnar v0 (start)", "chart_evolution": "MRR of v0 and of the final version",
+        "evolution_head": ["Repository", "Questions", "v0 MRR", "final MRR", "v0 solved", "final solved", "v0 Recall@10", "final Recall@10"],
+        "index_head": ["Repository", "Files", "Chunks", "Symbols", "Time", "Chunks/s", "v0 chunks", "v0 symbols"],
+    },
+    "pt-BR": {
+        "categories": ("Conceito", "Símbolo", "Quem chama", "Fluxo entre arquivos", "Configuração", "Pergunta em português",
+                       "Formulário Delphi"),
+        "compare_head": ["Grupo", "Perguntas", "MRR grep", "MRR Ragnar", "Resolvidas grep", "Resolvidas Ragnar",
+                         "Tokens grep (mediana)", "Tokens Ragnar (mediana)"],
+        "problem": "Problema", "fix": "Correção", "evidence": "Evidência",
+        "local_only": "Só ferramentas locais", "local_ragnar": "Locais + Ragnar",
+        "agent_note": ("Mediana de contexto com Ragnar: {relative} da mediana sem ele. O Ragnar consumiu menos contexto em {wins} de "
+                       "{pairs} pares. Diferença média de {delta} tokens, com intervalo de 95% entre {lo} e {hi}. "
+                       "O agente chamou o Ragnar em {used} de {pairs} execuções."),
+        "agent_failed": " {failed} execuções falharam e ficaram de fora.",
+        "agent_title": "Agente real, antes e depois",
+        "agent_intro": ("O Claude Code respondeu as mesmas perguntas do holdout nos dois modos, em {pairs} pares. Uma resposta conta como "
+                        "certa quando cita um arquivo esperado. O modo com Ragnar ainda tem Grep, Read e Glob: o agente escolhe o que usar."),
+        "agent_head": ["Modo", "Execuções", "Respostas certas", "Turnos (média)", "Contexto lido (mediana)", "Tokens gerados (mediana)",
+                       "Tempo (mediana)", "Custo total"],
+        "agent_context": "O contexto soma tokens novos e lidos de cache em todos os turnos.",
+        "agent_lang_head": ["Linguagem", "Pares", "Certas sem Ragnar", "Certas com Ragnar", "Contexto sem Ragnar", "Contexto com Ragnar",
+                            "Custo sem Ragnar", "Custo com Ragnar"],
+        "sources": {"curated": "Curadas", "history": "Histórico de commits"},
+        "split_dev": "dev (guiou os ajustes)", "split_holdout": "holdout (nunca lido no ajuste)",
+        "negative": ("Nas {n} perguntas sem resposta no repositório, a mediana foi de {grep} tokens com grep e {ragnar} com Ragnar. "
+                     "O Ragnar não diz \"não existe\": devolve os trechos mais próximos, e cabe ao agente concluir que eles não respondem."),
+        "headline_win": "Ragnar acha o arquivo certo bem mais alto que o grep, mas um agente real não gastou menos",
+        "headline_loss": "Ragnar não superou o grep em posição do arquivo certo",
+        "tile_context": "contexto do agente real", "tile_context_sub": "contra {value} sem Ragnar",
+        "tile_tokens": "tokens por busca", "tile_tokens_sub": "braço roteirizado",
+        "tile_mrr": "MRR com Ragnar", "tile_mrr_sub": "contra {value} do grep",
+        "tile_solved": "perguntas resolvidas", "tile_solved_sub": "contra {value} do grep",
+        "tile_holdout": "perguntas no holdout", "tile_holdout_sub": "nunca lidas durante os ajustes",
+        "verdict": "Na busca, o Ragnar ganha com folga: MRR {ragnar} contra {grep} do grep, com ganho nas quatro linguagens, maior em {best}.",
+        "verdict_agent": (" Com um agente real, as respostas acertaram igual ({ragnar} com Ragnar e {grep} sem ele), em {turns} menos turnos. "
+                          "Não houve economia: o contexto {context} e o custo ficou {cost} {direction}. Nestes projetos, de pequeno a "
+                          "médio porte, um agente com grep já resolve quase tudo."),
+        "context_unproven": "não mudou de forma comprovada", "context_changed": "mudou", "higher": "maior", "lower": "menor",
+        "experiments_title": "Experimentos que decidiram os padrões", "experiments_intro": "Medidos só nas perguntas dev.",
+        "experiments_head": ["Experimento", "Resultado", "Decisão"],
+        "secrets": ("<p>O gitleaks marcou arquivos em {n} dos {total} repositórios ({names}). Com o padrão <code>fail</code>, esses "
+                    "repositórios não indexariam. O benchmark roda sem a varredura, e <code>index.secret_action = \"skip\"</code> agora "
+                    "cobre esse caso em produção.</p>"),
+        "repo_line": '<li><b>{name}</b> ({language}), commit <code>{snapshot}</code></li>',
+        "legend_grep": "grep + leitura (sem Ragnar)", "chart_language": "MRR por linguagem", "chart_type": "MRR por tipo de pergunta",
+        "split_head": ["Conjunto", "Perguntas", "MRR grep", "MRR Ragnar", "Resolvidas grep", "Resolvidas Ragnar"],
+        "legend_v0": "Ragnar v0 (início)", "chart_evolution": "MRR da v0 e da versão final",
+        "evolution_head": ["Repositório", "Perguntas", "MRR v0", "MRR final", "Resolvidas v0", "Resolvidas final", "Recall@10 v0",
+                           "Recall@10 final"],
+        "index_head": ["Repositório", "Arquivos", "Chunks", "Símbolos", "Tempo", "Chunks/s", "Chunks v0", "Símbolos v0"],
+    },
 }
+language = "en"  # build() sets this before formatting anything
+
+
+def t(key: str):
+    return TEXT[language][key]
 
 
 def load(path: Path, default=None):
@@ -52,12 +152,16 @@ def esc(text: object) -> str:
     return html.escape(str(text), quote=True)
 
 
+def localized(text: str) -> str:
+    return text if language == "en" else text.translate({ord("."): ",", ord(","): "."})
+
+
 def num(value: float, digits: int = 2) -> str:
-    return f"{value:.{digits}f}".replace(".", ",")
+    return localized(f"{value:.{digits}f}")
 
 
 def thousands(value: float) -> str:
-    return f"{round(value):,}".replace(",", ".")
+    return localized(f"{round(value):,}")
 
 
 def pct(value: float) -> str:
@@ -65,7 +169,11 @@ def pct(value: float) -> str:
 
 
 def signed(value: float) -> str:
-    return f"{value:+.3f}".replace(".", ",")
+    return localized(f"{value:+.3f}")
+
+
+def usd(value: float, digits: int = 2) -> str:
+    return f"US$ {num(value, digits)}"
 
 
 def bars(groups: list[tuple[str, float, float]], first: str, second: str, title: str, fmt=num) -> str:
@@ -117,15 +225,12 @@ def comparison(rows: list[dict], key, names: dict | None, order: list[str]) -> t
     return groups, lines
 
 
-COMPARE_HEAD = ["Grupo", "Perguntas", "MRR grep", "MRR Ragnar", "Resolvidas grep", "Resolvidas Ragnar",
-                "Tokens grep (mediana)", "Tokens Ragnar (mediana)"]
-
-
 def improvements_rows(data: list[dict]) -> str:
     out = []
     for item in data:
-        out.append(f'<article class="fix"><h3>{esc(item["title"])}</h3><p><b>Problema:</b> {esc(item["problem"])}</p>'
-                   f'<p><b>Correção:</b> {esc(item["fix"])}</p><p class="evidence"><b>Evidência:</b> {esc(item["evidence"])}</p></article>')
+        out.append(f'<article class="fix"><h3>{esc(item["title"])}</h3><p><b>{t("problem")}:</b> {esc(item["problem"])}</p>'
+                   f'<p><b>{t("fix")}:</b> {esc(item["fix"])}</p>'
+                   f'<p class="evidence"><b>{t("evidence")}:</b> {esc(item["evidence"])}</p></article>')
     return "".join(out)
 
 
@@ -137,45 +242,44 @@ def agent_section(rows: list[dict]) -> str:
     pairs = {r["id"]: r for r in by_arm["ragnar"]}
     both = [(r, pairs[r["id"]]) for r in by_arm["grep"] if r["id"] in pairs]
     lines = []
-    for label, pick in (("Só ferramentas locais", lambda p: p[0]), ("Locais + Ragnar", lambda p: p[1])):
+    for label, pick in ((t("local_only"), lambda p: p[0]), (t("local_ragnar"), lambda p: p[1])):
         chosen = [pick(p) for p in both]
         lines.append([label, str(len(chosen)), pct(mean(r["correct"] for r in chosen)), num(mean(r["turns"] or 0 for r in chosen), 1),
                       thousands(median(r["input_tokens"] for r in chosen)), thousands(median(r["output_tokens"] for r in chosen)),
-                      f'{median(r["seconds"] for r in chosen):.0f} s'.replace(".", ","), f'US$ {sum(r["cost_usd"] or 0 for r in chosen):.2f}'])
+                      f'{median(r["seconds"] for r in chosen):.0f} s', usd(sum(r["cost_usd"] or 0 for r in chosen))])
     language_lines = []
-    for language in LANGUAGE_NAMES:
-        chosen = [(a, b) for a, b in both if a["language"] == language]
+    for name in LANGUAGE_NAMES:
+        chosen = [(a, b) for a, b in both if a["language"] == name]
         if chosen:
-            language_lines.append([LANGUAGE_NAMES[language], str(len(chosen)), pct(mean(a["correct"] for a, _ in chosen)),
+            language_lines.append([LANGUAGE_NAMES[name], str(len(chosen)), pct(mean(a["correct"] for a, _ in chosen)),
                                    pct(mean(b["correct"] for _, b in chosen)), thousands(median(a["input_tokens"] for a, _ in chosen)),
                                    thousands(median(b["input_tokens"] for _, b in chosen)),
-                                   f'US$ {sum(a["cost_usd"] or 0 for a, _ in chosen):.3f}', f'US$ {sum(b["cost_usd"] or 0 for _, b in chosen):.3f}'])
+                                   usd(sum(a["cost_usd"] or 0 for a, _ in chosen), 3), usd(sum(b["cost_usd"] or 0 for _, b in chosen), 3)])
     used = sum(any(t not in ("Grep", "Read", "Glob") for t in (b.get("tools") or {})) for _, b in both)
     failed = len(rows) - len(done)
     delta = ci([a["input_tokens"] for a, _ in both], [b["input_tokens"] for _, b in both])
     relative = median(b["input_tokens"] for _, b in both) / max(1, median(a["input_tokens"] for a, _ in both))
     wins = sum(b["input_tokens"] < a["input_tokens"] for a, b in both)
-    note = (f"Mediana de contexto com Ragnar: {pct(relative)} da mediana sem ele. O Ragnar consumiu menos contexto em {wins} de "
-            f"{len(both)} pares. Diferença média de {thousands(delta[0])} tokens, com intervalo de 95% entre "
-            f"{thousands(delta[1])} e {thousands(delta[2])}. O agente chamou o Ragnar em {used} de {len(both)} execuções.")
+    note = t("agent_note").format(relative=pct(relative), wins=wins, pairs=len(both), delta=thousands(delta[0]), lo=thousands(delta[1]),
+                                  hi=thousands(delta[2]), used=used)
     if failed:
-        note += f" {failed} execuções falharam e ficaram de fora."
-    return ('<section id="agente"><h2>Agente real, antes e depois</h2>'
-            f'<p>O Claude Code respondeu as mesmas perguntas do holdout nos dois modos, em {len(both)} pares. Uma resposta conta como certa '
-            'quando cita um arquivo esperado. O modo com Ragnar ainda tem Grep, Read e Glob: o agente escolhe o que usar.</p>'
-            + table(["Modo", "Execuções", "Respostas certas", "Turnos (média)", "Contexto lido (mediana)", "Tokens gerados (mediana)",
-                     "Tempo (mediana)", "Custo total"], lines)
-            + f'<p class="note">{esc(note)} O contexto soma tokens novos e lidos de cache em todos os turnos.</p>'
-            + table(["Linguagem", "Pares", "Certas sem Ragnar", "Certas com Ragnar", "Contexto sem Ragnar", "Contexto com Ragnar",
-                     "Custo sem Ragnar", "Custo com Ragnar"], language_lines) + "</section>")
+        note += t("agent_failed").format(failed=failed)
+    return (f'<section id="agent"><h2>{t("agent_title")}</h2><p>{t("agent_intro").format(pairs=len(both))}</p>'
+            + table(t("agent_head"), lines)
+            + f'<p class="note">{esc(note)} {t("agent_context")}</p>'
+            + table(t("agent_lang_head"), language_lines) + "</section>")
 
 
-def build(args: argparse.Namespace) -> str:
+def build(args: argparse.Namespace, lang: str) -> str:
+    global language
+    language = lang
+    notes = ROOT / ("report_notes.json" if lang == "en" else f"report_notes.{lang}.json")
+    category_names = dict(zip(CATEGORIES, t("categories")))
     final = load(WORK / args.final / "eval.json", [])
     baseline = load(WORK / args.baseline / "eval.json", [])
     index = load(WORK / args.final / "index.json", {"repos": []})
     base_index = load(WORK / args.baseline / "index.json", {"repos": []})
-    extras = load(ROOT / "report_notes.json", {})
+    extras = load(notes, {})
     agents = load(WORK / args.final / "agent.json", [])
     secrets = load(WORK / "secrets.json", {})
     entries = manifest()
@@ -191,12 +295,11 @@ def build(args: argparse.Namespace) -> str:
     lang_groups, lang_lines = comparison(holdout, lambda r: r["language"], LANGUAGE_NAMES, languages)
     repo_groups, repo_lines = comparison(holdout, lambda r: r["repo"], None, [e["name"] for e in entries])
     curated = [r for r in final if r["source"] == "curated"]
-    cat_groups, cat_lines = comparison(curated, lambda r: r["category"], CATEGORY_NAMES, list(CATEGORY_NAMES))
-    source_groups, source_lines = comparison(holdout, lambda r: r["source"], {"curated": "Curadas", "history": "Histórico de commits"},
-                                             ["curated", "history"])
+    cat_groups, cat_lines = comparison(curated, lambda r: r["category"], category_names, list(CATEGORIES))
+    source_groups, source_lines = comparison(holdout, lambda r: r["source"], t("sources"), ["curated", "history"])
     split_lines = [[label, str(stats(rows, "ragnar")["n"]), num(stats(rows, "grep")["mrr"]), num(stats(rows, "ragnar")["mrr"]),
                     pct(stats(rows, "grep")["solved"]), pct(stats(rows, "ragnar")["solved"])]
-                   for label, rows in (("dev (guiou os ajustes)", dev), ("holdout (nunca lido no ajuste)", holdout))]
+                   for label, rows in ((t("split_dev"), dev), (t("split_holdout"), holdout))]
 
     common = {r["repo"] for r in baseline}
     v0 = [r for r in baseline if r["split"] == "holdout"]
@@ -217,14 +320,12 @@ def build(args: argparse.Namespace) -> str:
     negatives = [r for r in final if r["category"] == "negative"]
     negative_note = ""
     if negatives:
-        negative_note = (f"Nas {len(negatives)} perguntas sem resposta no repositório, a mediana foi de "
-                         f"{thousands(median(r['grep']['tokens'] for r in negatives))} tokens com grep e "
-                         f"{thousands(median(r['ragnar']['tokens'] for r in negatives))} com Ragnar. O Ragnar não diz \"não existe\": "
-                         "devolve os trechos mais próximos, e cabe ao agente concluir que eles não respondem.")
+        negative_note = t("negative").format(n=len(negatives), grep=thousands(median(r["grep"]["tokens"] for r in negatives)),
+                                             ragnar=thousands(median(r["ragnar"]["tokens"] for r in negatives)))
 
     base_by_repo = {r["repo"]: r for r in base_index["repos"]}
     index_lines = [[esc(r["repo"]), str(r["files"]), thousands(r["chunks"]), thousands(r["symbols"]), f'{r["seconds"]:.0f} s',
-                    f'{r["chunks"] / max(r["seconds"], 0.1):.1f}'.replace(".", ","),
+                    num(r["chunks"] / max(r["seconds"], 0.1), 1),
                     thousands(base_by_repo[r["repo"]]["chunks"]) if r["repo"] in base_by_repo else "-",
                     thousands(base_by_repo[r["repo"]]["symbols"]) if r["repo"] in base_by_repo else "-"]
                    for r in index["repos"]]
@@ -233,84 +334,79 @@ def build(args: argparse.Namespace) -> str:
     size = index.get("database_bytes", 0) / 1024 / 1024
 
     secret_repos = [name for name, s in secrets.items() if s["with_findings"]]
-    headline = extras.get("headline") or (
-        "Ragnar acha o arquivo certo bem mais alto que o grep, mas um agente real não gastou menos" if gain[1] > 0
-        else "Ragnar não superou o grep em posição do arquivo certo")
+    headline = t("headline_win") if gain[1] > 0 else t("headline_loss")
     finished = [r for r in agents if "failed" not in r]
     agent_grep = [r["input_tokens"] for r in finished if r["arm"] == "grep"]
     agent_ragnar = [r["input_tokens"] for r in finished if r["arm"] == "ragnar"]
     context_tile = (
-        (thousands(median(agent_ragnar)), "contexto do agente real", f"contra {thousands(median(agent_grep))} sem Ragnar")
+        (thousands(median(agent_ragnar)), t("tile_context"), t("tile_context_sub").format(value=thousands(median(agent_grep))))
         if agent_ragnar and agent_grep else
-        (thousands(ragnar["tokens"]), "tokens por busca", "braço roteirizado"))
+        (thousands(ragnar["tokens"]), t("tile_tokens"), t("tile_tokens_sub")))
     hero = "".join(
         f'<div class="tile"><div class="big">{value}</div><div class="what">{esc(what)}</div><div class="sub">{esc(sub)}</div></div>'
         for value, what, sub in (
-            (num(ragnar["mrr"]), "MRR com Ragnar", f'contra {num(grep["mrr"])} do grep'),
-            (pct(ragnar["solved"]), "perguntas resolvidas", f'contra {pct(grep["solved"])} do grep'),
+            (num(ragnar["mrr"]), t("tile_mrr"), t("tile_mrr_sub").format(value=num(grep["mrr"]))),
+            (pct(ragnar["solved"]), t("tile_solved"), t("tile_solved_sub").format(value=pct(grep["solved"]))),
             context_tile,
-            (str(ragnar["n"]), "perguntas no holdout", "nunca lidas durante os ajustes"),
+            (str(ragnar["n"]), t("tile_holdout"), t("tile_holdout_sub")),
         ))
-    by_language = {lang: [r for r in holdout if r["language"] == lang] for lang in languages}
-    best_language = max(by_language, key=lambda lang: stats(by_language[lang], "ragnar")["mrr"] - stats(by_language[lang], "grep")["mrr"])
-    verdict = (f"Na busca, o Ragnar ganha com folga: MRR {num(ragnar['mrr'])} contra {num(grep['mrr'])} do grep, com ganho nas quatro linguagens, "
-               f"maior em {LANGUAGE_NAMES[best_language]}.")
+    by_language = {name: [r for r in holdout if r["language"] == name] for name in languages}
+    best_language = max(by_language, key=lambda name: stats(by_language[name], "ragnar")["mrr"] - stats(by_language[name], "grep")["mrr"])
+    verdict = t("verdict").format(ragnar=num(ragnar["mrr"]), grep=num(grep["mrr"]), best=LANGUAGE_NAMES[best_language])
     if agent_ragnar and agent_grep:
         by_grep = {r["id"]: r for r in finished if r["arm"] == "grep"}
         pairs_agent = [(by_grep[r["id"]], r) for r in finished if r["arm"] == "ragnar" and r["id"] in by_grep]
         turns = 1 - mean(b["turns"] for _, b in pairs_agent) / mean(a["turns"] for a, _ in pairs_agent)
         cost = sum(b["cost_usd"] for _, b in pairs_agent) / sum(a["cost_usd"] for a, _ in pairs_agent) - 1
         context = ci([a["input_tokens"] for a, _ in pairs_agent], [b["input_tokens"] for _, b in pairs_agent])
-        verdict += (f" Com um agente real, as respostas acertaram igual ({pct(mean(b['correct'] for _, b in pairs_agent))} com Ragnar e "
-                    f"{pct(mean(a['correct'] for a, _ in pairs_agent))} sem ele), em {pct(turns)} menos turnos. Não houve economia: o contexto "
-                    f"{'não mudou de forma comprovada' if context[1] < 0 < context[2] else 'mudou'} e o custo ficou {pct(cost)} "
-                    f"{'maior' if cost > 0 else 'menor'}. Nestes projetos, de pequeno a médio porte, um agente com grep já resolve quase tudo.")
+        verdict += t("verdict_agent").format(
+            ragnar=pct(mean(b["correct"] for _, b in pairs_agent)), grep=pct(mean(a["correct"] for a, _ in pairs_agent)), turns=pct(turns),
+            context=t("context_unproven") if context[1] < 0 < context[2] else t("context_changed"), cost=pct(abs(cost)),
+            direction=t("higher") if cost > 0 else t("lower"))
     limits = "".join(f"<li>{esc(t)}</li>" for t in extras.get("limits", []))
     next_steps = "".join(f"<li>{esc(t)}</li>" for t in extras.get("next", []))
     experiments = extras.get("experiments", [])
     experiments_html = ""
     if experiments:
-        experiments_html = ('<section id="experimentos"><h2>Experimentos que decidiram os padrões</h2>'
-                            '<p>Medidos só nas perguntas dev.</p>'
-                            + table(["Experimento", "Resultado", "Decisão"], [[esc(e["name"]), esc(e["result"]), esc(e["decision"])]
-                                                                             for e in experiments], numeric_from=9)
+        experiments_html = (f'<section id="experiments"><h2>{t("experiments_title")}</h2><p>{t("experiments_intro")}</p>'
+                            + table(t("experiments_head"), [[esc(e["name"]), esc(e["result"]), esc(e["decision"])] for e in experiments],
+                                    numeric_from=9)
                             + "</section>")
     secret_note = ""
     if secret_repos:
-        secret_note = (f"<p>O gitleaks marcou arquivos em {len(secret_repos)} dos {len(secrets)} repositórios "
-                       f"({esc(', '.join(secret_repos))}). Com o padrão <code>fail</code>, esses repositórios não indexariam. "
-                       "O benchmark roda sem a varredura, e <code>index.secret_action = \"skip\"</code> agora cobre esse caso em produção.</p>")
+        secret_note = t("secrets").format(n=len(secret_repos), total=len(secrets), names=esc(", ".join(secret_repos)))
 
-    repos_list = "".join(f'<li><b>{esc(e["name"])}</b> ({esc(LANGUAGE_NAMES[e["language"]])}), commit <code>{esc(e["snapshot"])}</code></li>'
+    repos_list = "".join(t("repo_line").format(name=esc(e["name"]), language=esc(LANGUAGE_NAMES[e["language"]]), snapshot=esc(e["snapshot"]))
                          for e in entries)
-    return TEMPLATE.format(
-        title="Ragnar benchmark", date=date.today().strftime("%d/%m/%Y"), headline=esc(headline), hero=hero, verdict=esc(verdict),
+    finished_at = datetime.fromtimestamp((WORK / args.final / "eval.json").stat().st_mtime)
+    return (HEAD + BODY[lang] + FOOT).format(
+        lang=lang, title="Ragnar benchmark", headline=esc(headline), hero=hero, verdict=esc(verdict),
+        date=finished_at.strftime("%Y-%m-%d" if lang == "en" else "%d/%m/%Y"),
         gain=signed(gain[0]), lo=signed(gain[1]), hi=signed(gain[2]),
         solved_gain=signed(solved_gain[0]), solved_lo=signed(solved_gain[1]), solved_hi=signed(solved_gain[2]),
         recall_g=num(grep["recall10"]), recall_r=num(ragnar["recall10"]),
-        legend=legend("grep + leitura (sem Ragnar)", "Ragnar"),
-        lang_chart=bars(lang_groups, "grep", "Ragnar", "MRR por linguagem"), lang_table=table(COMPARE_HEAD, lang_lines),
-        cat_chart=bars(cat_groups, "grep", "Ragnar", "MRR por tipo de pergunta"), cat_table=table(COMPARE_HEAD, cat_lines),
-        repo_table=table(COMPARE_HEAD, repo_lines), source_table=table(COMPARE_HEAD, source_lines),
-        split_table=table(["Conjunto", "Perguntas", "MRR grep", "MRR Ragnar", "Resolvidas grep", "Resolvidas Ragnar"], split_lines),
+        legend=legend(t("legend_grep"), "Ragnar"),
+        lang_chart=bars(lang_groups, "grep", "Ragnar", t("chart_language")), lang_table=table(t("compare_head"), lang_lines),
+        cat_chart=bars(cat_groups, "grep", "Ragnar", t("chart_type")), cat_table=table(t("compare_head"), cat_lines),
+        repo_table=table(t("compare_head"), repo_lines), source_table=table(t("compare_head"), source_lines),
+        split_table=table(t("split_head"), split_lines),
         negative_note=esc(negative_note),
-        evo_legend=legend("Ragnar v0 (início)", "Ragnar final"),
-        evo_chart=bars(evolution_groups, "v0", "final", "MRR da v0 e da versão final"),
-        evo_table=table(["Repositório", "Perguntas", "MRR v0", "MRR final", "Resolvidas v0", "Resolvidas final", "Recall@10 v0", "Recall@10 final"],
-                        evolution_lines),
+        evo_legend=legend(t("legend_v0"), "Ragnar final"),
+        evo_chart=bars(evolution_groups, "v0", "final", t("chart_evolution")),
+        evo_table=table(t("evolution_head"), evolution_lines),
         evo_mrr_a=num(v0_stats["mrr"]), evo_mrr_b=num(now_stats["mrr"]), evo_gain=signed(evolution_gain[0]),
         evo_lo=signed(evolution_gain[1]), evo_hi=signed(evolution_gain[2]), evo_n=len(paired),
         agent=agent_section(agents), experiments=experiments_html,
         improvements=improvements_rows(extras.get("improvements", [])),
         limits=limits, next_steps=next_steps,
-        index_table=table(["Repositório", "Arquivos", "Chunks", "Símbolos", "Tempo", "Chunks/s", "Chunks v0", "Símbolos v0"], index_lines),
+        index_table=table(t("index_head"), index_lines),
         chunks_total=thousands(chunks_total), hours=num(seconds_total / 3600, 1), size=thousands(size),
         latency=thousands(ragnar["ms"]), grep_latency=thousands(grep["ms"]), secret_note=secret_note, repos_list=repos_list,
     )
 
 
-TEMPLATE = """<!doctype html>
-<html lang="pt-BR">
+HEAD = """<!doctype html>
+<html lang="{lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -340,7 +436,7 @@ h1 {{ font-size: clamp(1.7rem, 4vw, 2.5rem); line-height: 1.15; margin: 8px 0 12
 h2 {{ font-size: 1.4rem; margin: 0 0 8px; }}
 h3 {{ font-size: 1rem; margin: 0 0 6px; }}
 p {{ margin: 0 0 12px; color: var(--ink2); max-width: 74ch; }}
-.kicker {{ color: var(--muted); font-size: .85rem; margin: 0; }}
+.kicker {{ color: var(--muted); font-size: .85rem; margin: 0; max-width: none; }}
 section {{ margin-top: 44px; }}
 .card {{ background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 18px; margin: 14px 0; }}
 .tiles {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 22px 0; }}
@@ -378,12 +474,85 @@ ul {{ color: var(--ink2); padding-left: 20px; max-width: 74ch; }}
 li {{ margin-bottom: 6px; }}
 nav {{ display: flex; gap: 14px; flex-wrap: wrap; font-size: .88rem; }}
 nav a {{ color: var(--ink2); }}
+.switch {{ float: right; color: var(--ink2); font-size: .85rem; }}
 #tip {{ position: fixed; pointer-events: none; background: var(--ink); color: var(--page); padding: 4px 8px; border-radius: 6px; font-size: .8rem; }}
 </style>
 </head>
 <body>
 <main>
-<p class="kicker">Benchmark do Ragnar · {date}</p>
+"""
+BODY = {"en": """<p class="kicker"><a class="switch" href="report.pt-BR.html">Português</a>Ragnar benchmark · {date}</p>
+<h1>{headline}</h1>
+<p>{verdict}</p>
+<p>Comparison on 8 open source projects, in Delphi, Java, C# and Go. The main numbers come from questions kept out of all tuning.</p>
+<div class="tiles">{hero}</div>
+<p>The MRR gain is <b>{gain}</b>, with a 95% interval from {lo} to {hi}. The gain in solved questions is {solved_gain}, from
+{solved_lo} to {solved_hi}. Recall@10 went from {recall_g} with grep to {recall_r} with Ragnar. MRR measures how high the first right file ranks:
+1 means first place. A question counts as solved only when the evidence for the answer reaches the context.</p>
+<nav>
+<a href="#language">By language</a><a href="#type">By question type</a><a href="#agent">Real agent</a><a href="#evolution">Before and after the improvements</a>
+<a href="#improvements">Improvements</a><a href="#limits">Limits</a><a href="#method">Method</a>
+</nav>
+
+<section id="language">
+<h2>By language</h2>
+<p>Holdout MRR, with the number of questions in parentheses.</p>
+<div class="card">{legend}<div class="chart">{lang_chart}</div></div>
+{lang_table}
+<details><summary>By repository and by question source</summary>{repo_table}{source_table}</details>
+</section>
+
+<section id="type">
+<h2>By question type</h2>
+<p>Curated questions only, dev and holdout together: each type has few of them. Read this part for direction, not for effect size.</p>
+<div class="card">{legend}<div class="chart">{cat_chart}</div></div>
+{cat_table}
+<p class="note">{negative_note}</p>
+</section>
+
+{agent}
+
+<section id="evolution">
+<h2>Before and after the improvements</h2>
+<p>The same holdout questions, in the {evo_n} cases from the 5 repositories indexed in both versions. MRR went from {evo_mrr_a} in v0 to
+{evo_mrr_b} in the final version: a difference of {evo_gain}, with a 95% interval from {evo_lo} to {evo_hi}.</p>
+<div class="card">{evo_legend}<div class="chart">{evo_chart}</div></div>
+{evo_table}
+</section>
+
+{experiments}
+
+<section id="improvements">
+<h2>What changed in the project</h2>
+<div class="fixes">{improvements}</div>
+</section>
+
+<section id="limits">
+<h2>Limits of this result</h2>
+<ul>{limits}</ul>
+</section>
+
+<section>
+<h2>Next steps</h2>
+<ul>{next_steps}</ul>
+</section>
+
+<section id="method">
+<h2>Method</h2>
+<p>Each question ran in both arms on the same snapshot, pinned by commit. <b>Without Ragnar:</b> one <code>git grep</code> per term, files
+ranked by distinct terms, then the top five read in turn until the answer showed up. This is the best case for grep, because a real agent
+cannot always tell it has found the answer. <b>With Ragnar:</b> one <code>search_code</code> call, or the specific tool for symbol and
+caller questions.</p>
+<p>Curated questions have their file and evidence checked against the snapshot. History questions come from the subjects of commits after the snapshot.
+The split between dev and holdout is a hash of the question id. The final run started from an empty database, with no reused vectors.</p>
+{split_table}
+<p>Final run: {chunks_total} chunks in {hours} CPU hours, database of {size} MB. Median latency of {latency} ms per search, against {grep_latency} ms
+for grep with reads, on a single database with the machine shared with other work: this is not a production figure.</p>
+{secret_note}
+<details><summary>Indexing by repository</summary>{index_table}</details>
+<details><summary>Projects and commits</summary><ul>{repos_list}</ul></details>
+</section>
+""", "pt-BR": """<p class="kicker"><a class="switch" href="report.html">English</a>Benchmark do Ragnar · {date}</p>
 <h1>{headline}</h1>
 <p>{verdict}</p>
 <p>Comparação em 8 projetos open source, em Delphi, Java, C# e Go. Os números principais vêm de perguntas que ficaram fora de todos os ajustes.</p>
@@ -392,11 +561,11 @@ nav a {{ color: var(--ink2); }}
 {solved_lo} e {solved_hi}. Recall@10 foi de {recall_g} no grep para {recall_r} no Ragnar. MRR mede quão alto vem o primeiro arquivo certo:
 1 é primeiro lugar. Uma pergunta só conta como resolvida quando a evidência da resposta chega ao contexto.</p>
 <nav>
-<a href="#linguagem">Por linguagem</a><a href="#tipo">Por tipo de pergunta</a><a href="#agente">Agente real</a><a href="#evolucao">Antes e depois das melhorias</a>
-<a href="#melhorias">Melhorias</a><a href="#limites">Limites</a><a href="#metodo">Método</a>
+<a href="#language">Por linguagem</a><a href="#type">Por tipo de pergunta</a><a href="#agent">Agente real</a><a href="#evolution">Antes e depois das melhorias</a>
+<a href="#improvements">Melhorias</a><a href="#limits">Limites</a><a href="#method">Método</a>
 </nav>
 
-<section id="linguagem">
+<section id="language">
 <h2>Por linguagem</h2>
 <p>MRR no holdout, com o número de perguntas entre parênteses.</p>
 <div class="card">{legend}<div class="chart">{lang_chart}</div></div>
@@ -404,7 +573,7 @@ nav a {{ color: var(--ink2); }}
 <details><summary>Por repositório e por origem da pergunta</summary>{repo_table}{source_table}</details>
 </section>
 
-<section id="tipo">
+<section id="type">
 <h2>Por tipo de pergunta</h2>
 <p>Só perguntas curadas, somando dev e holdout: são poucas por tipo. Use esta parte para ver a direção, não o tamanho do efeito.</p>
 <div class="card">{legend}<div class="chart">{cat_chart}</div></div>
@@ -414,7 +583,7 @@ nav a {{ color: var(--ink2); }}
 
 {agent}
 
-<section id="evolucao">
+<section id="evolution">
 <h2>Antes e depois das melhorias</h2>
 <p>Mesmas perguntas de holdout, nos {evo_n} casos dos 5 repositórios indexados nas duas versões. O MRR foi de {evo_mrr_a} na v0 para
 {evo_mrr_b} na versão final: diferença de {evo_gain}, com intervalo de 95% entre {evo_lo} e {evo_hi}.</p>
@@ -424,12 +593,12 @@ nav a {{ color: var(--ink2); }}
 
 {experiments}
 
-<section id="melhorias">
+<section id="improvements">
 <h2>O que mudou no projeto</h2>
 <div class="fixes">{improvements}</div>
 </section>
 
-<section id="limites">
+<section id="limits">
 <h2>Limites deste resultado</h2>
 <ul>{limits}</ul>
 </section>
@@ -439,7 +608,7 @@ nav a {{ color: var(--ink2); }}
 <ul>{next_steps}</ul>
 </section>
 
-<section id="metodo">
+<section id="method">
 <h2>Método</h2>
 <p>Cada pergunta rodou nos dois braços sobre o mesmo snapshot, fixado por commit. <b>Sem Ragnar:</b> um <code>git grep</code> por termo, arquivos
 ordenados por termos distintos, depois os cinco primeiros lidos em sequência até a resposta aparecer. É o melhor caso do grep, porque um agente real
@@ -454,7 +623,8 @@ do grep com leituras, em um banco único e com a máquina dividida com outras ta
 <details><summary>Indexação por repositório</summary>{index_table}</details>
 <details><summary>Projetos e commits</summary><ul>{repos_list}</ul></details>
 </section>
-</main>
+"""}
+FOOT = """</main>
 <div id="tip" hidden></div>
 <script>
 const tip = document.getElementById('tip');
@@ -475,10 +645,10 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--final", default="final")
     p.add_argument("--baseline", default="v0")
-    p.add_argument("--out", default=str(ROOT / "report.html"))
     args = p.parse_args()
-    Path(args.out).write_text(build(args), encoding="utf-8")
-    print(f"wrote {args.out}")
+    for lang, name in OUTPUTS.items():
+        (ROOT / name).write_text(build(args, lang), encoding="utf-8")
+        print(f"wrote {ROOT / name}")
 
 
 if __name__ == "__main__":

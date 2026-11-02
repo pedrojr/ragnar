@@ -8,7 +8,7 @@
 
 Agentes acham código com greps e leituras parciais. Isso funciona quando as palavras da pergunta aparecem no código. O Ragnar acrescenta busca por conceito, símbolos exatos e quem chama o quê, em um índice somente leitura.
 
-Em um [benchmark](benchmark/README.pt-BR.md) com 8 projetos open source em Delphi, Java, C# e Go, o arquivo certo apareceu bem mais alto que com grep: MRR 0,67 contra 0,36 em 350 perguntas mantidas fora de todo ajuste. Em sessões reais de agente, as respostas acertaram igual, com 22% menos turnos, mas não custaram menos tokens. Esses projetos são de pequeno a médio porte. Veja o [relatório](benchmark/report.html).
+Em um [benchmark](benchmark/README.pt-BR.md) com 8 projetos open source em Delphi, Java, C# e Go, o arquivo certo apareceu bem mais alto que com grep: MRR 0,67 contra 0,36 em 350 perguntas mantidas fora de todo ajuste. Em sessões reais de agente, as respostas acertaram igual, com 22% menos turnos, mas não custaram menos tokens. Esses projetos são de pequeno a médio porte. Veja o [relatório](benchmark/report.pt-BR.html).
 
 - **Resultados limitados.** Cada busca devolve trechos dentro de um orçamento, com `path:linha`, e referências para o que não coube.
 - **Resultados melhores.** A busca híbrida entende conceitos de negócio e nomes exatos de símbolos.
