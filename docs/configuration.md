@@ -55,16 +55,17 @@ Secrets never go in these files. Each section names the environment variable tha
 | --- | --- | --- |
 | `include` | `[]` | Extra globs, indexed by line windows |
 | `exclude` | `[]` | Globs to skip |
-| `max_file_kb` | `300` | Larger files are skipped |
+| `max_file_kb` | `2048` | Larger files are skipped, and the run reports them |
 | `chunk_budget` | `1800` | Non-whitespace characters per chunk |
 | `window_lines` | `80` | Lines per chunk, for files without a grammar |
 | `window_overlap` | `10` | Lines shared between windows |
 | `index_tests` | `true` | Index test files |
 | `index_docs` | `true` | Index Markdown |
 | `secret_scan` | `true` | Run gitleaks. Server scope only |
+| `secret_action` | `"fail"` | On a finding: `fail` stops the run, `skip` leaves those files out. Server scope only |
 | `legacy_encoding` | `"cp1252"` | Fallback for files that are not UTF-8 |
 
-Changing any of these, except `secret_scan`, reindexes the repository in full on the next run.
+Changing any of these, except `secret_scan` and `secret_action`, reindexes the repository in full on the next run. Chunks whose text did not change keep their vectors, so a reindex only pays for what is new.
 
 ## `[embedding]`
 
@@ -98,11 +99,13 @@ A hosted provider receives your source code. Choose accordingly.
 | `vector_weight` | `1.0` | Weight of the vector list |
 | `lexical_weight` | `1.0` | Weight of the lexical list |
 | `symbol_weight` | `1.0` | Weight of exact symbol matches. `0` turns it off |
+| `file_weight` | `1.0` | Weight of the whole-file list. `0` turns it off |
 | `ef_search` | `100` | HNSW search width |
 | `max_chunks_per_file` | `3` | Cap per file. `0` turns it off |
 | `diversity` | `0.0` | `0` is pure relevance, `1` is pure novelty |
 | `neighbor_chunks` | `0` | Adjacent chunks added around each hit |
 | `max_context_tokens` | `4000` | Estimated token budget. `0` turns it off |
+| `reference_hits` | `6` | Hits that did not fit, returned as path and symbol only |
 
 ## `[rerank]`
 

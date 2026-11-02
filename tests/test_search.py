@@ -10,7 +10,6 @@ from ragnar.chunker import Chunk
 from ragnar.config import Contextual, Llm, RagnarError, Rerank, Retrieval
 from ragnar.mcp_server import render_hits
 from ragnar.search import (
-    demote_tests,
     estimate_tokens,
     fit_budget,
     fuse,
@@ -96,12 +95,6 @@ def test_common_terms_do_not_select_candidates():
     assert selective_terms({"a": 800, "b": 900, "c": 950}, 1000) == ["a", "b"]
     assert selective_terms({"a": 0}, 1000) == []
     assert selective_terms({"rare:*": 2}, 1000) == ["rare:*"]
-
-
-def test_tests_lose_positions_but_stay_available():
-    hits = [{"id": 1, "kind": "test"}, {"id": 2, "kind": "code"}, {"id": 3, "kind": "code"}]
-    assert [h["id"] for h in demote_tests(hits, 3.0)] == [2, 1, 3]
-    assert [h["id"] for h in demote_tests(hits, 1.0)] == [1, 2, 3]
 
 
 def test_hits_outside_the_budget_become_references():

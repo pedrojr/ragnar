@@ -1,7 +1,7 @@
 """Retrieval pipeline. Read only.
 
 query -> optional expansion -> ranked lists (vector, lexical, exact symbol) -> RRF fusion
-      -> test demotion -> optional rerank -> per-file cap and diversity -> neighbor chunks
+      -> optional rerank -> per-file cap and diversity -> neighbor chunks
       -> token budget -> references to the hits that did not fit
 
 Lexical ranking is BM25 in spirit, on plain Postgres: each query term weighs by its rarity,
@@ -43,7 +43,7 @@ WHERE repo = %(repo)s AND path = %(path)s AND id <> %(id)s
   AND (end_line < %(start)s OR start_line > %(end)s)
 ORDER BY LEAST(abs(%(start)s - end_line), abs(start_line - %(end)s)) LIMIT %(limit)s"""
 CHARS_PER_TOKEN = 4  # rough on purpose: the budget only needs the order of magnitude
-RANK_WEIGHTS = [0.1, 0.2, 0.4, 1.0]  # D (body) to A (path and symbol)
+RANK_WEIGHTS = [0.1, 0.2, 0.4, 0.5]  # D (body) to A (path and symbol)
 RANK_NORMALIZATION = 1  # divides by 1 + log(length): a long chunk does not win by repetition
 MAX_TERMS = 12
 MIN_STEM = 4
@@ -59,7 +59,6 @@ foram há isso isto já lhe mais mas me mesmo meu minha muito na nas nem no nos 
 pela pelas pelo pelos por qual quais qualquer quando que quem se sem ser seu seus sobre sua suas são só também tem têm um
 uma umas uns vai você
 """.split())
-TEST_WORDS = frozenset({"test", "tests", "testing", "spec", "specs", "teste", "testes", "unittest", "mock", "mocks"})
 OCCURRENCE_SQL = """SELECT repo, path, symbol, kind, language, start_line, content FROM code_chunk
 WHERE repo = ANY(%(repos)s) AND path LIKE %(prefix)s ESCAPE '\\' AND tsv @@ phraseto_tsquery('simple', %(words)s)
 ORDER BY kind = 'test', repo, path, start_line LIMIT %(limit)s"""
@@ -154,14 +153,6 @@ def select_diverse(hits: list[dict], k: int, cfg: Retrieval) -> list[dict]:
         per_file[key] = per_file.get(key, 0) + 1
         chosen.append(hit)
     return chosen
-
-
-def demote_tests(hits: list[dict], penalty: float) -> list[dict]:
-    """A test at position p competes as if at p * penalty: production code answers most questions."""
-    if penalty <= 1:
-        return hits
-    positions = [((i + 1) * penalty if h["kind"] == "test" else i + 1, i) for i, h in enumerate(hits)]
-    return [hits[i] for _, i in sorted(positions)]
 
 
 def references(hits: list[dict], kept: list[dict], limit: int) -> list[dict]:
@@ -279,8 +270,6 @@ class Pipeline:
         rows = conn.execute(HITS_SQL, (ids,)).fetchall()
         by_id = {r[0]: dict(zip(HIT_COLUMNS, r)) for r in rows}
         hits = [by_id[i] for i in ids if i in by_id]
-        if kind is None and not TEST_WORDS & set(re.findall(r"\w+", query.lower())):
-            hits = demote_tests(hits, cfg.test_penalty)
         t2 = time.perf_counter()
         if self.reranker and hits:
             top = hits[: s.rerank.candidates]

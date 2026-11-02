@@ -36,7 +36,7 @@ include = ["*.vue", "*.proto"]
 
 ## What is skipped
 
-Vendored and build folders such as `node_modules/`, `vendor/`, `dist/`, `target/`, `bin/` and `obj/`. Each language adds its own: `.pb.go`, `.d.ts`, `.g.cs`, `_pb2.py`, Delphi's `__history/` and `_TLB.pas`. Files with a "generated" marker in their first lines, binary files, and files above `index.max_file_kb` are skipped too.
+Vendored folders such as `node_modules/` and `vendor/`, and build output such as `dist/`, `target/`, `bin/` and `obj/`. A build folder name below `src/`, `source/` or `sources/` is a real package, so it stays, and Go has no in-tree build output. Each language adds its own: `.pb.go`, `.d.ts`, `.g.cs`, `_pb2.py`, Delphi's `__history/` and `_TLB.pas`. Files with a "generated" marker in their first lines, binary files, and files above `index.max_file_kb` are skipped too.
 
 ## Delphi and legacy code
 
@@ -60,9 +60,9 @@ An agent can then go from a business question to the form, and from the form to 
 
 **Tests.** DUnit and DUnitX naming is recognized: `TestOrders.pas`, `OrderTests.pas`, and anything in a `test/` folder.
 
-**Generated code.** `_TLB.pas` type libraries and the IDE's `__history/`, `__recovery/`, `Win32/`, `Win64/`, `Debug/` and `Release/` folders are skipped.
+**Generated code.** `_TLB.pas` type libraries, the IDE's `__history/` and `__recovery/` folders, and compiler output such as `Win32/Debug/` are skipped. A plain `Win32/` folder stays: libraries keep sources there.
 
-Pascal files with conditional compilation still parse, because tree-sitter tolerates errors. A malformed region can produce a coarser chunk, but it never stops indexing.
+Conditional compilation and calling conventions break the Pascal grammar on real units. When that happens, Ragnar scans the file for routines and types, and uses them for chunk boundaries and symbols. Large units are indexed too: core units often pass 500 KB.
 
 ## Adding a language
 

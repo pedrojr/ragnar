@@ -55,16 +55,17 @@ Segredos nunca vão nesses arquivos. Cada seção indica, em `api_key_env`, a va
 | --- | --- | --- |
 | `include` | `[]` | Globs extras, indexados por janelas de linhas |
 | `exclude` | `[]` | Globs a ignorar |
-| `max_file_kb` | `300` | Arquivos maiores são ignorados |
+| `max_file_kb` | `2048` | Arquivos maiores são ignorados, e a execução informa quais |
 | `chunk_budget` | `1800` | Caracteres sem espaço por chunk |
 | `window_lines` | `80` | Linhas por chunk, para arquivos sem gramática |
 | `window_overlap` | `10` | Linhas repetidas entre janelas |
 | `index_tests` | `true` | Indexa arquivos de teste |
 | `index_docs` | `true` | Indexa Markdown |
 | `secret_scan` | `true` | Roda o gitleaks. Só no escopo do servidor |
+| `secret_action` | `"fail"` | Ao achar um segredo: `fail` para a execução, `skip` deixa esses arquivos de fora. Só no escopo do servidor |
 | `legacy_encoding` | `"cp1252"` | Alternativa para arquivos que não são UTF-8 |
 
-Mudar qualquer uma delas, exceto `secret_scan`, reindexa o repositório inteiro na execução seguinte.
+Mudar qualquer uma delas, exceto `secret_scan` e `secret_action`, reindexa o repositório inteiro na execução seguinte. Chunks com o mesmo texto mantêm seus vetores, então a reindexação só paga pelo que é novo.
 
 ## `[embedding]`
 
@@ -98,11 +99,13 @@ Um provedor hospedado recebe seu código-fonte. Escolha com isso em mente.
 | `vector_weight` | `1.0` | Peso da lista vetorial |
 | `lexical_weight` | `1.0` | Peso da lista lexical |
 | `symbol_weight` | `1.0` | Peso de símbolos exatos. `0` desliga |
+| `file_weight` | `1.0` | Peso da lista por arquivo inteiro. `0` desliga |
 | `ef_search` | `100` | Largura da busca HNSW |
 | `max_chunks_per_file` | `3` | Limite por arquivo. `0` desliga |
 | `diversity` | `0.0` | `0` é só relevância, `1` é só novidade |
 | `neighbor_chunks` | `0` | Chunks vizinhos adicionados a cada resultado |
 | `max_context_tokens` | `4000` | Orçamento estimado de tokens. `0` desliga |
+| `reference_hits` | `6` | Resultados que não couberam, devolvidos só com path e símbolo |
 
 ## `[rerank]`
 

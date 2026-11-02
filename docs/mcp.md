@@ -8,13 +8,44 @@ The Ragnar MCP server gives agents read-only access to the index, over Streamabl
 
 ### `find_symbol`
 
-Finds definitions by name. It matches the start of the name, ignores case, and lists exact names first. It returns path, lines, qualified name and signature, with no body, so it is the cheapest call.
+Finds definitions by name. It accepts qualified names such as `TOrder.Cancel`, matches the start of the name and then any part of it, ignores case, and lists exact names first. It returns path, lines, qualified name and signature, with no body, so it is the cheapest call.
 
 | Parameter | Type | Meaning |
 | --- | --- | --- |
 | `name` | string | Name or start of a name |
 | `repo` | string, optional | Limits to one repository |
 | `k` | integer, optional | Maximum results, default 20, up to 50 |
+
+### `find_references`
+
+Finds where a name is used: callers, instantiations and imports. It matches the whole identifier and leaves definitions out. It returns path, line, enclosing symbol and the line itself.
+
+| Parameter | Type | Meaning |
+| --- | --- | --- |
+| `name` | string | The identifier |
+| `repo` | string, optional | Limits to one repository |
+| `path_prefix` | string, optional | Limits to one folder |
+| `k` | integer, optional | Maximum results, default 30, up to 100 |
+
+### `file_outline`
+
+Lists the declarations of a file with their lines, with no bodies. Use it to find your way around a large file before reading any of it.
+
+| Parameter | Type | Meaning |
+| --- | --- | --- |
+| `path` | string | Full path, or just its end |
+| `repo` | string, optional | Limits to one repository |
+
+### `read_code`
+
+Reads lines of an indexed file at the indexed commit, for code that is not on this disk. Long ranges stop at `retrieval.max_context_tokens`.
+
+| Parameter | Type | Meaning |
+| --- | --- | --- |
+| `path` | string | Full path, or just its end |
+| `start_line` | integer | First line |
+| `end_line` | integer | Last line |
+| `repo` | string, optional | Limits to one repository |
 
 ### `search_code`
 
@@ -28,7 +59,7 @@ Runs the configured [retrieval pipeline](retrieval.md) over code, tests and docs
 | `kind` | string, optional | `code`, `test` or `doc` |
 | `k` | integer, optional | Maximum snippets, up to 20. Defaults to `retrieval.default_k` |
 
-Snippets arrive inside `<retrieved_context>`, with a note telling the model to treat them as data. Closing tags inside repository content are escaped, so a file cannot break out of the block.
+Snippets arrive inside `<retrieved_context>`, with a note telling the model to treat them as data. Hits beyond the token budget arrive as `<ref>` lines with path, lines and symbol. Closing tags inside repository content are escaped, so a file cannot break out of the block.
 
 ### `list_repos`
 

@@ -36,7 +36,7 @@ include = ["*.vue", "*.proto"]
 
 ## O que é ignorado
 
-Pastas de terceiros e de build, como `node_modules/`, `vendor/`, `dist/`, `target/`, `bin/` e `obj/`. Cada linguagem soma as suas: `.pb.go`, `.d.ts`, `.g.cs`, `_pb2.py`, e em Delphi `__history/` e `_TLB.pas`. Também ficam de fora arquivos com marca de "gerado" nas primeiras linhas, binários, e arquivos acima de `index.max_file_kb`.
+Pastas de terceiros, como `node_modules/` e `vendor/`, e saídas de build, como `dist/`, `target/`, `bin/` e `obj/`. Um nome de pasta de build abaixo de `src/`, `source/` ou `sources/` é um pacote real, então fica, e Go não tem saída de build na árvore. Cada linguagem soma as suas: `.pb.go`, `.d.ts`, `.g.cs`, `_pb2.py`, e em Delphi `__history/` e `_TLB.pas`. Também ficam de fora arquivos com marca de "gerado" nas primeiras linhas, binários, e arquivos acima de `index.max_file_kb`.
 
 ## Delphi e código legado
 
@@ -60,9 +60,9 @@ Assim o agente vai de uma pergunta de negócio ao formulário, e do formulário 
 
 **Testes.** Os nomes de DUnit e DUnitX são reconhecidos: `TestOrders.pas`, `OrderTests.pas` e tudo em pastas `test/`.
 
-**Código gerado.** Type libraries `_TLB.pas` e as pastas da IDE `__history/`, `__recovery/`, `Win32/`, `Win64/`, `Debug/` e `Release/` são ignoradas.
+**Código gerado.** Type libraries `_TLB.pas`, as pastas da IDE `__history/` e `__recovery/` e saídas do compilador como `Win32/Debug/` são ignoradas. Uma pasta `Win32/` simples fica: bibliotecas guardam fontes nela.
 
-Arquivos Pascal com compilação condicional continuam sendo analisados, porque o tree-sitter tolera erros. Uma região malformada pode gerar um chunk mais grosso, mas nunca interrompe a indexação.
+Compilação condicional e convenções de chamada quebram a gramática Pascal em units reais. Quando isso acontece, o Ragnar varre o arquivo atrás de rotinas e tipos e os usa como fronteiras de chunk e símbolos. Units grandes também são indexadas: units centrais costumam passar de 500 KB.
 
 ## Adicionar uma linguagem
 

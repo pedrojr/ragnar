@@ -8,13 +8,44 @@ O servidor MCP do Ragnar dá aos agentes acesso somente leitura ao índice, por 
 
 ### `find_symbol`
 
-Acha definições pelo nome. Casa o início do nome, ignora maiúsculas e lista nomes exatos primeiro. Devolve path, linhas, nome qualificado e assinatura, sem o corpo, então é a chamada mais barata.
+Acha definições pelo nome. Aceita nomes qualificados como `TOrder.Cancel`, casa o início do nome e depois qualquer parte dele, ignora maiúsculas e lista nomes exatos primeiro. Devolve path, linhas, nome qualificado e assinatura, sem o corpo, então é a chamada mais barata.
 
 | Parâmetro | Tipo | Significado |
 | --- | --- | --- |
 | `name` | texto | Nome ou início do nome |
 | `repo` | texto, opcional | Limita a um repositório |
 | `k` | inteiro, opcional | Máximo de resultados, padrão 20, até 50 |
+
+### `find_references`
+
+Acha onde um nome é usado: chamadas, instanciações e imports. Casa o identificador inteiro e deixa as definições de fora. Devolve path, linha, símbolo que contém o uso e a própria linha.
+
+| Parâmetro | Tipo | Significado |
+| --- | --- | --- |
+| `name` | texto | O identificador |
+| `repo` | texto, opcional | Limita a um repositório |
+| `path_prefix` | texto, opcional | Limita a uma pasta |
+| `k` | inteiro, opcional | Máximo de resultados, padrão 30, até 100 |
+
+### `file_outline`
+
+Lista as declarações de um arquivo com suas linhas, sem os corpos. Use para se orientar em um arquivo grande antes de ler qualquer parte dele.
+
+| Parâmetro | Tipo | Significado |
+| --- | --- | --- |
+| `path` | texto | Path completo, ou só o final |
+| `repo` | texto, opcional | Limita a um repositório |
+
+### `read_code`
+
+Lê linhas de um arquivo indexado, no commit indexado, para código que não está neste disco. Intervalos longos param em `retrieval.max_context_tokens`.
+
+| Parâmetro | Tipo | Significado |
+| --- | --- | --- |
+| `path` | texto | Path completo, ou só o final |
+| `start_line` | inteiro | Primeira linha |
+| `end_line` | inteiro | Última linha |
+| `repo` | texto, opcional | Limita a um repositório |
 
 ### `search_code`
 
@@ -28,7 +59,7 @@ Roda o [pipeline de recuperação](retrieval.md) configurado sobre código, test
 | `kind` | texto, opcional | `code`, `test` ou `doc` |
 | `k` | inteiro, opcional | Máximo de trechos, até 20. O padrão é `retrieval.default_k` |
 
-Os trechos chegam dentro de `<retrieved_context>`, com um aviso para o modelo tratá-los como dados. Tags de fechamento no conteúdo do repositório são escapadas, então um arquivo não consegue sair do bloco.
+Os trechos chegam dentro de `<retrieved_context>`, com um aviso para o modelo tratá-los como dados. Resultados além do orçamento de tokens chegam como linhas `<ref>`, com path, linhas e símbolo. Tags de fechamento no conteúdo do repositório são escapadas, então um arquivo não consegue sair do bloco.
 
 ### `list_repos`
 

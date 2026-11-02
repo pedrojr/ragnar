@@ -11,6 +11,7 @@ services:
       POSTGRES_DB: ragnar
     command: ["postgres", "-c", "shared_buffers=2GB", "-c", "maintenance_work_mem=1GB", "-c", "max_wal_size=4GB",
               "-c", "synchronous_commit=off"]
+    shm_size: 2g   # parallel HNSW builds need more than the default 64 MB
     ports: ["127.0.0.1:15433:5432"]
     volumes: ["bench-data:/var/lib/postgresql/data"]
     healthcheck:
