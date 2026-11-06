@@ -1,6 +1,6 @@
 ---
 name: search
-description: Chooses the cheapest reliable way to find code in a ragnarized project, between local tools (Grep, Glob, Read) and the Ragnar index (find_symbol, find_references, search_code, file_outline, read_code). Use before exploring code to answer a question, locate a feature, trace behavior or understand unfamiliar areas, whenever ragnar.toml exists or the Ragnar MCP tools are available.
+description: Chooses the cheapest reliable way to find code in a ragnarized project, between local tools (Grep, Glob, Read) and the Ragnar index (find_symbol, find_references, call_graph, trace_flow, find_table_usage, repo_map, search_code, file_outline, read_code). Use before exploring code to answer a question, locate a feature, trace behavior or understand unfamiliar areas, whenever ragnar.toml exists or the Ragnar MCP tools are available.
 ---
 
 # Search: local or index
@@ -15,6 +15,10 @@ Goal: the right answer with the fewest turns. The index finds code by concept, e
 | An exact string, error message or config key | `Grep` | Exact and always fresh |
 | A symbol name, or the start of one | `find_symbol` | Returns path, lines and signature, with no body. The cheapest index call |
 | A name, and you need its callers or uses | `find_references` | Whole identifier, definitions left out, one line per use |
+| A routine, and you need what it calls | `call_graph` | Each callee with where it is declared |
+| A screen or routine, and the table it ends up writing | `trace_flow`, or `find_table_usage` with the table | Follows references across files without reading them |
+| A table, and you need who reads or writes it | `find_table_usage` | Finds SQL in strings and in Delphi forms |
+| An unfamiliar folder or module | `repo_map` with `path_prefix` | The files the rest of the code depends on, with their main declarations |
 | A very large file | `file_outline`, then a limited `Read` | A map of the file costs less than one page of it |
 | A concept or behavior: "where do we validate tax IDs?" | `search_code` | Finds code that shares no words with the question |
 | Code in another repository of the organization | `search_code` with `repo`, then `read_code` | Not on this disk |

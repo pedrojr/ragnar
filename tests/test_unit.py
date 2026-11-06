@@ -181,3 +181,23 @@ def test_extract_symbols_finds_every_declaration():
     py = {s.symbol for s in Chunker().extract_symbols("app/orders.py", PY)}
     assert "app.orders > OrderService > cancel" in py
     assert Chunker().extract_symbols("README.md", b"# x\n") == []
+
+
+def test_form_pairs_and_handler_words(tmp_path):
+    from ragnar.indexer import handler_words, with_form_pairs
+
+    assert with_form_pairs(["src/Order.dfm", "src/Util.pas", "a.go"]) == [
+        "src/Order.dfm", "src/Util.pas", "a.go", "src/Order.pas", "src/Util.dfm", "src/Util.fmx", "src/Util.lfm"]
+    form = b"object FrmOrder: TFrmOrder\n  Caption = 'Pedidos'\n  object btnSave: TButton\n    Caption = 'Gravar'\n" \
+           b"    OnClick = btnSaveClick\n  end\nend\n"
+    unit = (b"unit Order;\ninterface\ntype\n  TFrmOrder = class(TForm)\n    procedure btnSaveClick(Sender: TObject);\n"
+            b"  end;\nimplementation\nprocedure TFrmOrder.btnSaveClick(Sender: TObject);\nbegin\n  Save;\nend;\nend.\n")
+    blobs = {"src/Order.dfm": form, "src/Order.pas": unit}
+    c = Chunker()
+    chunks = [ch for p, b in blobs.items() for ch in c.chunk_file(p, b)]
+    symbols = [s for p, b in blobs.items() for s in c.extract_symbols(p, b)]
+    words = handler_words(chunks, symbols, blobs, c)
+    assert [chunks[i].path for i in words] == ["src/Order.pas"]  # the body, not the declaration in the class
+    tagged = next(iter(words))
+    assert "TFrmOrder.btnSaveClick" in chunks[tagged].content.split("implementation")[-1]
+    assert "Gravar" in words[tagged] and "Pedidos" not in words[tagged]

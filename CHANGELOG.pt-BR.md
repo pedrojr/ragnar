@@ -27,6 +27,16 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - Um primeiro índice interrompido retoma do seu checkpoint de embeddings (migração 006).
 - `RAGNAR_BENCH_SUITE` e `RAGNAR_BENCH_DSN` rodam o benchmark numa suíte privada, e `benchmark/summarize_suite.py` publica só os agregados dela.
 - `RAGNAR_EMBED_THREADS` e `RAGNAR_EMBED_MEMORY` na infraestrutura de exemplo.
+- `retrieval.rank_normalization`, o desconto por tamanho do ranking lexical, que antes era uma constante.
+- Strings literais (mensagens, captions de formulário, SQL) ganham um campo lexical próprio e uma lista de literais na fusão (`retrieval.literal_weight`). A lista só roda quando a pergunta cita um texto entre aspas, e todas as palavras citadas precisam estar nas strings. A migração 007 reescreve `code_chunk`, e a nova versão do chunker força uma reindexação completa que reaproveita os vetores.
+- Handlers de evento Delphi carregam o componente, a classe, o caption e o formulário dos controles que os disparam, então palavras da tela chegam ao `.pas`. Palavras para partes da tela (botão, grade, duplo clique) também buscam os nomes que o código dá a elas.
+- Trechos focados (`retrieval.excerpts`, ligado por padrão): depois do primeiro, cada resultado mantém só as linhas numeradas em volta das palavras da pergunta, então mais resultados cabem no orçamento. O `search_code` orienta o agente a ler intervalos de linhas em vez de arquivos inteiros.
+- `retrieval.doc_weight` escala os resultados de documentação na fusão, para que documentos de visão geral parem de tirar o primeiro lugar do código. O padrão é 0,5: +0,02 de MRR no benchmark público, neutro num monorepo Delphi grande.
+- Grafo de código (migração 008): o indexador liga rotinas às declarações que elas citam, eventos de formulário aos seus handlers e rotinas às tabelas que o SQL delas lê ou grava. Novas ferramentas MCP `call_graph`, `trace_flow` e `find_table_usage`; o `find_references` responde pelo grafo quando pode. `retrieval.graph_weight` adiciona à fusão os vizinhos no grafo dos melhores resultados (desligado por padrão).
+- O `search_code` marca o resultado com `confidence="low"` e uma nota curta quando só um método de busca achou o primeiro resultado. Nada é escondido.
+- Ferramenta MCP `repo_map`: os arquivos de uma pasta que o resto do código mais cita, com suas declarações principais.
+- Resumos de arquivo (`[summaries]`, desligado por padrão, migração 009): um modelo de chat escreve duas ou três frases por arquivo de código, com as palavras que o time usaria, buscadas como chunks do tipo `summary`. Ficam em cache pelo conteúdo do arquivo.
+- `ragnar stats`: relatório de uso a partir das linhas de auditoria do MCP (chamadas, tokens, buscas vazias ou com baixa confiança, perguntas repetidas) e, com `--labels`, perguntas do uso real: uma busca seguida de `read_code` num arquivo que ela devolveu. As linhas de auditoria agora trazem os paths que a busca devolveu.
 
 ### Alterado
 
@@ -42,6 +52,10 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - A nota do agente e as instruções do MCP dizem quando começar pelo índice. Com o texto anterior, os agentes continuavam no grep.
 - A reindexação reaproveita os vetores de chunks sem mudança, e os textos chegam ao embedder ordenados por tamanho.
 - A migração 005 reescreve `code_chunk`, o que reconstrói o índice vetorial. Espere alguma demora em índices grandes e garanta memória compartilhada para builds paralelos.
+- `ragnar sync --watch` relê o `repos.toml` antes de cada passada, então repositórios novos não exigem reinício. Um arquivo que deixa de ser válido mantém a lista anterior.
+- Arquivos de instrução para agentes (`AGENTS.md`, `CLAUDE.md`, regras do Copilot e do Cursor) ficam fora do índice, a menos que `index.index_agent_notes` esteja ligado: o agente já os lê, e eles casavam com quase qualquer pergunta.
+- O total de chunks usado na raridade dos termos fica em cache até um indexador gravar, em vez de ser contado a cada busca.
+- As perguntas do histórico pulam mensagens de commit que não dizem nada e tiram das respostas os arquivos alterados por mais de 5% dos commits. O benchmark também informa se algum arquivo certo está entre os 10 primeiros (`hit10`) e registra a confiança de cada busca.
 
 ### Corrigido
 
@@ -52,3 +66,5 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - Literais gigantes se dividem em chunks que cabem no orçamento.
 - Chunks com um arquivo inteiro agora citam suas declarações, e arquivos C#, o namespace.
 - Um 4xx do embedder vira um erro claro, e as novas tentativas esperam entre si.
+- O orçamento de tokens pula um resultado que não cabe e mantém os menores que vêm depois dele.
+- O baseline de grep mantém palavras acentuadas inteiras e também busca a forma sem acento, para que perguntas em português tenham uma comparação justa.

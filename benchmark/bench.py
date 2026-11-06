@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 import tomllib
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from fnmatch import fnmatch
 from pathlib import Path
@@ -40,7 +41,7 @@ GREP_READS = 5  # files opened before giving up
 READ_MAX_LINES = 2000  # the default page of a file read
 READ_MAX_LINE_CHARS = 2000  # longer lines are cut by file reads
 GREP_MAX_LINE_CHARS = 500  # and a grep line is a hint, not a page of minified data
-GREP_ARM_VERSION = 2
+GREP_ARM_VERSION = 3  # 3: Unicode words, with unaccented forms
 GREP_WORKERS = 8
 STOPWORDS = set("""a an and are as at be but by can do does for from has have how i if in into is it its of on or that the
 their them there these this to under use used using was were what when where which who why will with would you your
@@ -176,9 +177,17 @@ def validate(entry: dict, questions: list[dict]) -> list[str]:
     return problems
 
 
-def grep_terms(query: str) -> list[str]:
-    words = re.findall(r"[A-Za-z_][A-Za-z0-9_]{2,}", query)
-    return [w for w in dict.fromkeys(words) if w.lower() not in STOPWORDS][:10]
+def grep_terms(query: str) -> list[tuple[str, ...]]:
+    """Words of the question, each with its unaccented form when that differs: "configuração" and "configuracao".
+
+    Kept here rather than imported, because older Ragnar trees run through this file too.
+    """
+    out: list[tuple[str, ...]] = []
+    for word in dict.fromkeys(re.findall(r"[^\W\d]\w{2,}", query)):
+        if word.lower() not in STOPWORDS:
+            plain = "".join(c for c in unicodedata.normalize("NFKD", word) if not unicodedata.combining(c))
+            out.append((word,) if plain == word else (word, plain))
+    return out[:10]
 
 
 def grep_arm(entry: dict, q: dict) -> dict:
@@ -191,8 +200,9 @@ def grep_arm(entry: dict, q: dict) -> dict:
     name, snapshot = entry["name"], entry["snapshot"]
     score: dict[str, int] = {}
     output_tokens = 0
-    for term in grep_terms(q.get("grep_query", q["query"])):
-        out = git(name, "grep", "-n", "-I", "-i", "-w", "-e", term, snapshot, check=False)
+    for forms in grep_terms(q.get("grep_query", q["query"])):
+        patterns = [arg for form in forms for arg in ("-e", form)]
+        out = git(name, "grep", "-n", "-I", "-i", "-w", *patterns, snapshot, check=False)
         lines = [ln.split(":", 1)[1] for ln in out.splitlines() if ":" in ln]
         lines = [ln[:GREP_MAX_LINE_CHARS] for ln in lines if not excluded(entry, ln.split(":", 1)[0])]
         output_tokens += tokens("\n".join(lines[:GREP_MAX_LINES]))
@@ -240,16 +250,18 @@ def ragnar_arm(pipeline, conn, entry: dict, q: dict) -> dict:
         cost = tokens("\n".join(f'{r["path"]}:{r["start_line"]} {r["symbol"]} {r["signature"]}' for r in rows))
         ranked = list(dict.fromkeys(r["path"] for r in rows))
         solved = any(r["path"] in relevant for r in rows)
-    return {"ranked": ranked, "solved": solved, "tokens": cost, "ms": (time.perf_counter() - t0) * 1000, "chunks": len(hits)}
+    return {"ranked": ranked, "solved": solved, "tokens": cost, "ms": (time.perf_counter() - t0) * 1000, "chunks": len(hits),
+            "confidence": getattr(pipeline, "confidence", "")}
 
 
 def scored(arm: dict, q: dict) -> dict:
     relevant = q.get("relevant", [])
     if not relevant:
-        return {**arm, "rr": None, "recall5": None, "recall10": None}
+        return {**arm, "rr": None, "recall5": None, "recall10": None, "hit10": None}
     rank = next((i for i, p in enumerate(arm["ranked"], 1) if p in relevant), None)
     return {**arm, "rr": 1 / rank if rank else 0.0, "recall5": len(set(arm["ranked"][:5]) & set(relevant)) / len(relevant),
-            "recall10": len(set(arm["ranked"][:10]) & set(relevant)) / len(relevant)}
+            "recall10": len(set(arm["ranked"][:10]) & set(relevant)) / len(relevant),
+            "hit10": float(bool(set(arm["ranked"][:10]) & set(relevant)))}  # any right file in the top 10
 
 
 def cmd_evaluate(args: argparse.Namespace) -> None:
@@ -299,6 +311,7 @@ def summarize(rows: list[dict], arm: str) -> dict:
     return {"n": len(answerable), "mrr": round(mean(a["rr"] for a in answerable), 3),
             "recall5": round(mean(a["recall5"] for a in answerable), 3),
             "recall10": round(mean(a["recall10"] for a in answerable), 3),
+            "hit10": round(mean(a.get("hit10", 0.0) for a in answerable), 3),
             "solved": round(mean(a["solved"] for a in answerable), 3),
             "tokens": round(mean(a["tokens"] for a in all_arm)),
             "tokens_median": round(median(a["tokens"] for a in all_arm)),

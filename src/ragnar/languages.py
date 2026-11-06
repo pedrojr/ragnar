@@ -246,6 +246,8 @@ LANGUAGES: tuple[Language, ...] = (
 
 BY_NAME = {lang.name: lang for lang in LANGUAGES}
 BY_EXTENSION = {ext: lang for lang in LANGUAGES for ext in lang.extensions}
+AGENT_NOTES = re.compile(r"(?:^|/)(?:AGENTS|CLAUDE|GEMINI)\.md$|(?:^|/)\.github/copilot[-_]instructions\.md$"
+                         r"|\.instructions\.md$|(?:^|/)\.(?:cursor|windsurf|clinerules)/", re.I)
 DOC_EXTENSIONS = (".md", ".mdx")
 FORM_EXTENSIONS = (".dfm", ".fmx", ".lfm")  # Delphi and Lazarus forms, parsed by ragnar.delphi
 
@@ -280,6 +282,12 @@ def is_denied(lang: Language | None, path: str) -> bool:
         if match and not (root and root.start() <= match.start()):
             return True
     return bool(lang and lang.deny and lang.deny.search(path))
+
+
+def is_agent_note(path: str) -> bool:
+    """Instructions written for coding agents. The agent already has them in context, and since they
+    summarize the whole project, they match almost any question."""
+    return bool(AGENT_NOTES.search(path))
 
 
 def is_generated(src: bytes) -> bool:

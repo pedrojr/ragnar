@@ -20,6 +20,7 @@ import signal
 import sys
 import threading
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -89,12 +90,22 @@ def sync_once(repos: list[RepoSource], dsn: str, emb: Embedder | FakeEmbedder, s
     return results, errors
 
 
-def watch(repos: list[RepoSource], dsn: str, emb: Embedder | FakeEmbedder, settings: Settings,
-          interval: float, stop: threading.Event | None = None) -> None:
-    """Polls until stopped. The index keeps serving the last good commit when a pass fails."""
+def watch(repos: list[RepoSource] | Callable[[], list[RepoSource]], dsn: str, emb: Embedder | FakeEmbedder,
+          settings: Settings, interval: float, stop: threading.Event | None = None) -> None:
+    """Polls until stopped. The index keeps serving the last good commit when a pass fails.
+
+    `repos` may be a function that reads repos.toml: it runs before each pass, so a repository added
+    to the file is picked up without a restart. A file that stops parsing keeps the last good list.
+    """
     stop = stop or threading.Event()
     if threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    current: list[RepoSource] = [] if callable(repos) else repos
     while not stop.is_set():
-        sync_once(repos, dsn, emb, settings)
+        if callable(repos):
+            try:
+                current = repos()
+            except RagnarError as exc:
+                print(f"error: {exc}; keeping the previous repository list", file=sys.stderr, flush=True)
+        sync_once(current, dsn, emb, settings)
         stop.wait(interval)

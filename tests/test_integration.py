@@ -90,6 +90,124 @@ def test_find_references_leaves_definitions_out(dsn, tmp_path):
     assert [(h["line"], h["text"]) for h in hits] == [(6, "helper()")]
 
 
+def test_a_quoted_message_finds_the_code_that_raises_it(dsn, tmp_path):
+    repo, emb = tmp_path / "msgs", FakeEmbedder(768)
+    repo.mkdir()
+    (repo / "credit.go").write_text('package credit\n\n// Check runs on every order.\nfunc Check(limit int) error {\n'
+                                    '\treturn errors.New("customer over credit limit")\n}\n')
+    (repo / "limit.go").write_text("package credit\n\n// limit of the customer credit, over the order total\n"
+                                   "func Limit(customer string) int { return 0 }\n")
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "add", ".")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x")
+    settings = load_settings(tmp_path, overrides=['retrieval.mode="lexical"', "retrieval.file_weight=0"], environ={})
+    index(str(repo), "msgs", dsn, emb, settings, scan=False)
+    with psycopg.connect(dsn) as conn:
+        pipeline = Pipeline(settings, emb)
+        hits, _ = pipeline.search(conn, ["msgs"], 'error "customer over credit limit" when saving', k=2)
+        assert hits[0]["path"] == "credit.go" and pipeline.literal_ids[:1] == [hits[0]["id"]]
+
+
+ORDER_FORM = """object FrmOrder: TFrmOrder
+  Caption = 'Pedidos'
+  object btnSave: TButton
+    Caption = 'Gravar'
+    OnClick = btnSaveClick
+  end
+end
+"""
+ORDER_UNIT = """unit Order;
+
+interface
+
+type
+  TFrmOrder = class(TForm)
+    procedure btnSaveClick(Sender: TObject);
+  end;
+
+implementation
+
+uses OrderRepo;
+
+procedure TFrmOrder.btnSaveClick(Sender: TObject);
+begin
+  SaveOrderRecord(1);
+end;
+
+end.
+"""
+REPO_UNIT = """unit OrderRepo;
+
+interface
+
+procedure SaveOrderRecord(Id: Integer);
+
+implementation
+
+procedure SaveOrderRecord(Id: Integer);
+begin
+  Query.SQL.Add('insert into PEDIDOS (ID)');
+  Query.SQL.Add('values (:ID)');
+  Query.ExecSQL;
+end;
+
+end.
+"""
+
+
+def test_code_graph_links_a_button_to_the_table_it_writes(dsn, tmp_path):
+    from ragnar.search import callees, edge_references, repo_map, table_usage, trace_flow
+
+    repo, emb = tmp_path / "shop", FakeEmbedder(768)
+    repo.mkdir()
+    for name, text in (("Order.dfm", ORDER_FORM), ("Order.pas", ORDER_UNIT), ("OrderRepo.pas", REPO_UNIT)):
+        (repo / name).write_text(text)
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "add", ".")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x")
+    settings = load_settings(tmp_path, overrides=["retrieval.graph_weight=1"], environ={})
+    index(str(repo), "shop", dsn, emb, settings, scan=False)
+    with psycopg.connect(dsn) as conn:
+        refs = edge_references(conn, ["shop"], "SaveOrderRecord")
+        assert [(r["path"], r["line"], r["edge"]) for r in refs] == [("Order.pas", 16, "ref")]
+        assert refs[0]["symbol"].endswith("btnSaveClick")
+        events = edge_references(conn, ["shop"], "TFrmOrder.btnSaveClick")
+        assert [(r["path"], r["edge"]) for r in events] == [("Order.dfm", "event")]
+        assert "saveorderrecord" in {c["name"] for c in callees(conn, ["shop"], "TFrmOrder.btnSaveClick")}
+        writes = table_usage(conn, ["shop"], "pedidos", "write")
+        assert [(w["path"], w["line"], w["table"]) for w in writes] == [("OrderRepo.pas", 11, "pedidos")]
+        assert {m["path"] for m in repo_map(conn, ["shop"])} == {"Order.pas", "OrderRepo.pas"}  # each referenced once
+        steps = trace_flow(conn, ["shop"], "btnSaveClick", "PEDIDOS")
+        assert [s["to"] for s in steps] == ["saveorderrecord", "pedidos"]
+        one_seed = load_settings(tmp_path, overrides=["retrieval.graph_weight=1", "retrieval.graph_seeds=1"], environ={})
+        pipeline = Pipeline(one_seed, emb)
+        hits, _ = pipeline.search(conn, ["shop"], "btnSaveClick", k=5)
+        assert pipeline.graph_ids and hits[0]["id"] not in pipeline.graph_ids
+
+
+def test_file_summaries_are_cached_and_stay_out_of_line_tools(dsn, tmp_path, monkeypatch):
+    class FakeChat:
+        calls = 0
+
+        def complete(self, prompt: str) -> str:
+            FakeChat.calls += 1
+            return "Draws the order screen button and refreshes its label."
+
+    monkeypatch.setattr("ragnar.indexer.chat_from", lambda settings: FakeChat())
+    repo, emb = make_repo(tmp_path), FakeEmbedder(768)
+    settings = load_settings(tmp_path, overrides=["summaries.enabled=true", "summaries.min_lines=3",
+                                                  'llm.url="http://llm"', 'llm.model="m"'], environ={})
+    index(str(repo), "sums", dsn, emb, settings, scan=False)
+    first = FakeChat.calls
+    index(str(repo), "sums", dsn, emb, settings, scan=False, full=True)
+    assert first >= 1 and FakeChat.calls == first  # the second run reads the cache
+    with psycopg.connect(dsn) as conn:
+        kinds = dict(conn.execute("SELECT path, kind FROM code_chunk WHERE repo = 'sums' AND kind = 'summary'").fetchall())
+        assert "widget/button.go" in kinds
+        read = read_code(conn, ["sums"], "widget/button.go", 1, 1)
+        assert read["lines"][0] == (1, "package widget")
+
+
 def test_settings_change_reuses_vectors(dsn, tmp_path):
     repo, emb = make_repo(tmp_path), FakeEmbedder(768)
     first = load_settings(tmp_path, environ={})

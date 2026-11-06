@@ -27,6 +27,7 @@ from .languages import (
     FORM_EXTENSIONS,
     Language,
     grammar_for,
+    is_agent_note,
     is_denied,
     is_generated,
     is_test,
@@ -44,6 +45,7 @@ class Chunk:
     end_line: int
     content: str  # header + snippet
     search_text: str  # content + split identifiers (lexical search)
+    literals: str = ""  # string literals of the snippet: messages, captions and SQL, weighed above the body
 
 
 @dataclass(frozen=True)
@@ -154,9 +156,38 @@ def bounded(spans: list[tuple[int, int]], src: bytes, budget: int, sizes: list[i
     return out
 
 
-def _make(lang_comment: str, path: str, symbol: str, language: str, kind: str, start: int, end: int, text: str) -> Chunk:
+# Single quotes delimit strings in these languages; elsewhere they are characters, or apostrophes in comments
+SINGLE_QUOTED = frozenset({"delphi", "sql", "python", "javascript", "typescript", "php", "ruby", "bash", "scala"})
+DOUBLE_QUOTED_STRING = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
+SINGLE_QUOTED_STRING = re.compile(r"'((?:[^'\n]|'')*)'")
+MAX_LITERAL_CHARS = 4000
+
+
+def extract_literals(text: str, language: str) -> str:
+    """String literals worth searching, one per line, in order and without repeats.
+
+    The message a user reads ("Cliente sem limite de crédito") lives in a string. Ranked as part of
+    the body, it weighs as little as any other word; in its own field, a symptom finds its code.
+    """
+    if language in ("markdown", "text"):
+        return ""
+    found: dict[str, None] = {}
+    if language not in ("delphi", "sql"):
+        for m in DOUBLE_QUOTED_STRING.finditer(text):
+            found.setdefault(m.group(1).strip(), None)
+    if language in SINGLE_QUOTED:
+        for m in SINGLE_QUOTED_STRING.finditer(text):
+            found.setdefault(m.group(1).replace("''", "'").strip(), None)
+    kept = [v for v in found if len(v) >= 3 and sum(c.isalpha() for c in v) >= 3]
+    return "\n".join(kept)[:MAX_LITERAL_CHARS]
+
+
+def _make(lang_comment: str, path: str, symbol: str, language: str, kind: str, start: int, end: int, text: str,
+          literals: str | None = None) -> Chunk:
     content = f"{lang_comment} file: {path}\n{lang_comment} symbol: {symbol}\n{text}"
-    return Chunk(path, symbol, language, kind, start, end, content, content + "\n" + split_identifiers(content))
+    literals = extract_literals(text, language) if literals is None else literals
+    return Chunk(path, symbol, language, kind, start, end, content, content + "\n" + split_identifiers(content),
+                 literals)
 
 
 def _qualified(lang: Language, node: Node) -> list[str]:
@@ -189,6 +220,12 @@ def declared_in(lang: Language, root: Node, s: int, e: int, limit: int = 3) -> s
         else:
             stack.extend(reversed(node.children))
     return ", ".join(dict.fromkeys(names))
+
+
+def form_literals(components: list[delphi.Component]) -> str:
+    """Text a person sees or a query runs on a form: captions, hints, list items and SQL, not event bindings."""
+    values = dict.fromkeys(v.strip() for c in components for k, v in c.properties if not k.startswith("On") and v.strip())
+    return "\n".join(values)[:MAX_LITERAL_CHARS]
 
 
 HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
@@ -230,6 +267,16 @@ class Chunker:
             return delphi.form_source(src, self.index.legacy_encoding)
         return src
 
+    def source_kind(self, path: str) -> str:
+        """doc, form or code."""
+        suffix = PurePosixPath(path).suffix.lower()
+        return "doc" if suffix in DOC_EXTENSIONS else "form" if suffix in FORM_EXTENSIONS else "code"
+
+    def readable_text(self, path: str, src: bytes) -> str | None:
+        """The text that gets indexed, or None when the file stays out."""
+        text = self._readable(path, self.indexed_source(path, src))
+        return None if text is None else text.decode(errors="replace")
+
     def _readable(self, path: str, src: bytes) -> bytes | None:
         if self.skip_reason(path, src) is not None:
             return None
@@ -244,6 +291,8 @@ class Chunker:
             return "too large"
         if is_generated(src):
             return "generated"
+        if not self.index.index_agent_notes and is_agent_note(path):
+            return "agent note"
         if normalize_source(src, self.index.legacy_encoding) is None:
             return "binary"
         return None
@@ -353,7 +402,7 @@ class Chunker:
                 groups.append([])
             groups[-1].append(c)
         return [_make("//", path, form, "delphi", kind, g[0].start_line, g[-1].end_line,
-                      "\n".join(c.describe() for c in g) + "\n") for g in groups]
+                      "\n".join(c.describe() for c in g) + "\n", form_literals(g)) for g in groups]
 
     def _markdown(self, path: str, src: bytes) -> list[Chunk]:
         """One section per heading; small neighboring sections merge up to the budget."""

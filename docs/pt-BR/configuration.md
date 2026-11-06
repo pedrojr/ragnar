@@ -61,6 +61,7 @@ Segredos nunca vão nesses arquivos. Cada seção indica, em `api_key_env`, a va
 | `window_overlap` | `10` | Linhas repetidas entre janelas |
 | `index_tests` | `true` | Indexa arquivos de teste |
 | `index_docs` | `true` | Indexa Markdown |
+| `index_agent_notes` | `false` | Indexa instruções escritas para agentes (`AGENTS.md`, `CLAUDE.md`, regras do Copilot e do Cursor). O agente já as lê |
 | `secret_scan` | `true` | Roda o gitleaks. Só no escopo do servidor |
 | `secret_action` | `"fail"` | Ao achar um segredo: `fail` para a execução, `skip` deixa esses arquivos de fora. Só no escopo do servidor |
 | `legacy_encoding` | `"cp1252"` | Alternativa para arquivos que não são UTF-8 |
@@ -100,12 +101,18 @@ Um provedor hospedado recebe seu código-fonte. Escolha com isso em mente.
 | `lexical_weight` | `1.0` | Peso da lista lexical |
 | `symbol_weight` | `1.0` | Peso de símbolos exatos. `0` desliga |
 | `file_weight` | `2.0` | Peso da lista por arquivo inteiro. `0` desliga |
+| `literal_weight` | `1.0` | Peso da lista de literais, usada quando a pergunta cita um texto entre aspas: chunks cujas strings têm todas as palavras citadas. `0` desliga |
+| `graph_weight` | `0.0` | Peso da lista do grafo: o que os melhores resultados chamam e quem os chama. `0` desliga |
+| `graph_seeds` | `5` | Melhores resultados cujos vizinhos no grafo entram na lista do grafo |
+| `doc_weight` | `0.5` | Escala a pontuação fundida dos resultados de documentação. Abaixo de 1, o código ganha de documentos de visão geral que citam todos os módulos |
+| `rank_normalization` | `1` | Como o ranking lexical desconta chunks longos: `1` divide por 1 + log(tamanho), `2` pelo tamanho. `2` ajudou um monorepo Delphi grande e atrapalhou projetos menores |
 | `ef_search` | `100` | Largura da busca HNSW |
 | `max_chunks_per_file` | `3` | Limite por arquivo. `0` desliga |
 | `diversity` | `0.0` | `0` é só relevância, `1` é só novidade |
 | `neighbor_chunks` | `0` | Chunks vizinhos adicionados a cada resultado |
 | `max_context_tokens` | `2000` | Orçamento estimado de tokens. `0` desliga |
 | `reference_hits` | `8` | Resultados que não couberam, devolvidos só com path e símbolo |
+| `excerpts` | `true` | Depois do primeiro, cada resultado mantém só as linhas numeradas em volta das palavras da pergunta e diz quais linhas deixou de fora |
 
 ## `[rerank]`
 
@@ -132,6 +139,15 @@ Qualquer endpoint no formato de `/rerank` usado por Jina, Cohere e TEI funciona.
 | --- | --- | --- |
 | `enabled` | `false` | Escreve uma nota de contexto por chunk ao indexar. Exige `[llm]` |
 | `max_file_chars` | `20000` | Texto do arquivo enviado com cada chunk |
+| `concurrency` | `4` | Chamadas paralelas ao modelo |
+
+## `[summaries]`
+
+| Chave | Padrão | Significado |
+| --- | --- | --- |
+| `enabled` | `false` | Escreve um resumo de cada arquivo de código ao indexar, buscado como chunk do tipo `summary`. Exige `[llm]`. Os resumos ficam em cache pelo conteúdo do arquivo, então só arquivos novos ou alterados custam uma chamada ao modelo |
+| `min_lines` | `30` | Arquivos menores ficam sem resumo |
+| `max_chars` | `12000` | Texto do arquivo enviado ao modelo |
 | `concurrency` | `4` | Chamadas paralelas ao modelo |
 
 ## `[llm]`

@@ -21,7 +21,7 @@ from typing import Any
 
 CONFIG_FILE = "ragnar.toml"
 LOCAL_CONFIG_FILE = "ragnar.local.toml"
-CHUNKER_VERSION = 4  # bump when chunk boundaries change: forces a full reindex
+CHUNKER_VERSION = 5  # bump when chunk boundaries or chunk fields change: forces a full reindex
 
 
 class RagnarError(Exception):
@@ -61,6 +61,7 @@ class Index:
     window_overlap: int = 10
     index_tests: bool = True
     index_docs: bool = True
+    index_agent_notes: bool = False  # AGENTS.md, CLAUDE.md, copilot-instructions: agents already read them
     secret_scan: bool = True
     secret_action: str = "fail"  # fail: stop the run | skip: leave the files with findings out
     legacy_encoding: str = "cp1252"  # fallback for sources that are not UTF-8
@@ -90,12 +91,18 @@ class Retrieval:
     lexical_weight: float = 1.0
     symbol_weight: float = 1.0  # exact symbol names in the query; 0 turns it off
     file_weight: float = 2.0  # files holding the query words across chunks; 0 turns it off
+    literal_weight: float = 1.0  # quoted text in the question: chunks whose literals hold it; 0 turns it off
+    graph_weight: float = 0.0  # neighbors of the best hits in the code graph; 0 turns it off
+    graph_seeds: int = 5  # best hits whose neighbors join the graph list
+    doc_weight: float = 0.5  # scales the fused score of documentation hits; below 1, code wins ties
+    rank_normalization: int = 1  # ts_rank length normalization: 1 divides by 1 + log(length), 2 by length
     ef_search: int = 100
     max_chunks_per_file: int = 3  # 0 turns it off
     diversity: float = 0.0  # 0 = pure relevance, 1 = pure novelty (MMR)
     neighbor_chunks: int = 0  # adjacent chunks added around each hit
     max_context_tokens: int = 2000  # 0 turns it off. In real agent sessions, 4000 cost more context than grep
     reference_hits: int = 8  # hits that did not fit, returned as path and symbol only
+    excerpts: bool = True  # hits after the first keep only the lines around the query words
 
 
 @dataclass(frozen=True)
@@ -121,6 +128,14 @@ class Contextual:
 
 
 @dataclass(frozen=True)
+class Summaries:
+    enabled: bool = False  # one model call per file the first time; cached by file content afterwards
+    min_lines: int = 30  # shorter files explain themselves
+    max_chars: int = 12000  # of the file sent to the model
+    concurrency: int = 4
+
+
+@dataclass(frozen=True)
 class Llm:
     url: str = ""
     model: str = ""
@@ -139,6 +154,7 @@ class Settings:
     rerank: Rerank = field(default_factory=Rerank)
     query: Query = field(default_factory=Query)
     contextual: Contextual = field(default_factory=Contextual)
+    summaries: Summaries = field(default_factory=Summaries)
     llm: Llm = field(default_factory=Llm)
 
 
@@ -214,12 +230,16 @@ def _validate(s: Settings) -> None:
         value = getattr(getattr(s, section), key)
         if value not in allowed:
             raise RagnarError(f"{section}.{key} must be one of {', '.join(allowed)}, got {value!r}")
+    if s.retrieval.rank_normalization not in (0, 1, 2, 4, 8, 16, 32):
+        raise RagnarError("retrieval.rank_normalization must be a ts_rank normalization flag: 0, 1, 2, 4, 8, 16 or 32")
+    if s.retrieval.doc_weight < 0:
+        raise RagnarError("retrieval.doc_weight must not be negative")
     if not 0 <= s.retrieval.diversity <= 1:
         raise RagnarError("retrieval.diversity must be between 0 and 1")
     if s.rerank.provider == "http" and not (s.rerank.url and s.rerank.model):
         raise RagnarError("rerank.provider = http requires rerank.url and rerank.model")
-    if (s.query.strategy != "none" or s.contextual.enabled) and not (s.llm.url and s.llm.model):
-        raise RagnarError("query.strategy and contextual.enabled require llm.url and llm.model")
+    if (s.query.strategy != "none" or s.contextual.enabled or s.summaries.enabled) and not (s.llm.url and s.llm.model):
+        raise RagnarError("query.strategy, contextual.enabled and summaries.enabled require llm.url and llm.model")
     if s.index.window_overlap >= s.index.window_lines:
         raise RagnarError("index.window_overlap must be smaller than index.window_lines")
 
@@ -317,5 +337,6 @@ def index_fingerprint(settings: Settings) -> str:
         "languages": settings.project.languages,
         "doc_prefix": settings.embedding.doc_prefix,
         "contextual": settings.contextual.enabled and settings.llm.model,
+        "summaries": settings.summaries.enabled and [settings.llm.model, settings.summaries.min_lines],
     }
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]

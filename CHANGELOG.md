@@ -27,6 +27,16 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - An interrupted first index resumes from its embedding checkpoint (migration 006).
 - `RAGNAR_BENCH_SUITE` and `RAGNAR_BENCH_DSN` run the benchmark on a private suite, and `benchmark/summarize_suite.py` publishes its aggregates only.
 - `RAGNAR_EMBED_THREADS` and `RAGNAR_EMBED_MEMORY` in the example infrastructure.
+- `retrieval.rank_normalization`, the length discount of lexical ranking, formerly a constant.
+- String literals (messages, form captions, SQL) get their own lexical field and a literal list in the fusion (`retrieval.literal_weight`). The list runs only when the question quotes text, and all quoted words must appear in the literals. Migration 007 rewrites `code_chunk`, and the chunker version change triggers a full reindex that reuses vectors.
+- Delphi event handlers carry the component, class, caption and form of the controls that fire them, so screen words reach the `.pas`. Words for screen parts (botão, grade, duplo clique) also search the names code gives them.
+- Excerpts (`retrieval.excerpts`, on by default): hits after the first keep only numbered lines around the query words, so more hits fit the token budget. `search_code` tells agents to read line ranges instead of whole files.
+- `retrieval.doc_weight` scales documentation hits in the fusion, so overview documents stop taking the first place from code. It defaults to 0.5: +0.02 of MRR on the public benchmark, neutral on a large Delphi monorepo.
+- Code graph (migration 008): the indexer links routines to the declarations they name, form events to their handlers, and routines to the tables their SQL reads or writes. New MCP tools `call_graph`, `trace_flow` and `find_table_usage`; `find_references` answers from the graph when it can. `retrieval.graph_weight` adds the graph neighbors of the best hits to the fusion (off by default).
+- `search_code` marks results with `confidence="low"` and a short note when only one retrieval method found the top hit. Nothing is hidden.
+- `repo_map` MCP tool: the files of a folder that the rest of the code refers to most, with their main declarations.
+- File summaries (`[summaries]`, off by default, migration 009): a chat model writes two or three sentences per code file in the words a team would use, searched as chunks of kind `summary`. Cached by file content.
+- `ragnar stats`: a usage report from the MCP audit lines (calls, tokens, empty and low-confidence searches, repeated questions), and with `--labels`, questions from real use: a search followed by `read_code` on a file it returned. Audit lines now carry the paths a search returned.
 
 ### Changed
 
@@ -42,6 +52,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - The agent note and the MCP instructions tell agents when to start with the index. With the previous wording, agents kept using grep.
 - Reindexing reuses the vectors of unchanged chunks, and texts reach the embedder sorted by length.
 - Migration 005 rewrites `code_chunk`, which rebuilds the vector index. Expect it to take a while on large indexes, and give parallel builds enough shared memory.
+- `ragnar sync --watch` rereads `repos.toml` before each pass, so new repositories need no restart. A file that stops parsing keeps the previous list.
+- Agent instruction files (`AGENTS.md`, `CLAUDE.md`, Copilot and Cursor rules) stay out of the index unless `index.index_agent_notes` is set: agents already read them, and they matched almost any question.
+- The chunk total behind term rarity is cached until an indexer writes, instead of counted on every search.
+- History questions skip commit messages that say nothing, and drop from their answers the files changed by more than 5% of the commits. The benchmark also reports whether any right file is in the top 10 (`hit10`) and records the confidence of each search.
 
 ### Fixed
 
@@ -52,3 +66,5 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - Oversized literals split into chunks that fit the budget.
 - Chunks holding a whole file now name its declarations, and C# files their namespace.
 - A 4xx from the embedder is a clear error, and retries back off.
+- The token budget skips a hit that does not fit and keeps the smaller hits after it.
+- The grep baseline keeps accented words whole and also searches their unaccented form, so Portuguese questions get a fair comparison.

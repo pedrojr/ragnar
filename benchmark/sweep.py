@@ -1,7 +1,7 @@
 """Compares retrieval settings on the `dev` questions only. `holdout` never enters here.
 
     uv run python benchmark/sweep.py --db lex --base 'retrieval.mode="lexical"' --base 'embedding.provider="fake"' \
-        --variant 'no-file=retrieval.file_weight=0' --variant 'rank3=RANK_NORMALIZATION:3'
+        --variant 'no-file=retrieval.file_weight=0' --variant 'rank2=retrieval.rank_normalization=2'
 
 A variant is a name and comma-separated changes: section.key=value settings, or NAME:value for a ragnar.search constant.
 """
@@ -37,7 +37,8 @@ def score(entries: list[dict], dsn: str, overrides: list[str]) -> dict:
                 for group in ("all", q["source"], entry["language"], *([q["category"]] if q["source"] == "curated" else [])):
                     groups.setdefault(group, []).append(row)
     return {g: (round(mean(r["rr"] for r in rows), 3), round(mean(r["recall10"] for r in rows), 3),
-                round(mean(r["solved"] for r in rows), 3), round(mean(r["tokens"] for r in rows)))
+                round(mean(r["solved"] for r in rows), 3), round(mean(r["tokens"] for r in rows)),
+                round(mean(r["hit10"] for r in rows), 3))
             for g, rows in sorted(groups.items())}
 
 
@@ -50,7 +51,7 @@ def main() -> None:
     args = p.parse_args()
     dsn = ADMIN_DSN.format(db=f"ragnar_{args.db}")
     entries = [e for e in manifest() if not args.repo or e["name"] in args.repo]
-    print("name: group (mrr, recall10, solved, tokens)")
+    print("name: group (mrr, recall10, solved, tokens, hit10)")
     for item in ["base=", *args.variant]:
         name, _, changes = item.partition("=")
         overrides, constants = [], {}

@@ -210,6 +210,24 @@ def _value(raw: str) -> str:
     return "".join(out) if out else raw.strip()
 
 
+SHOWN = ("Caption", "Hint", "Text", "Title", "DisplayLabel")
+
+
+def event_bindings(components: list[Component]) -> dict[str, str]:
+    """Handler name (lowercase) -> words of the components that fire it.
+
+    "btnGravarClick" learns that a TButton captioned "Gravar pedido" calls it. The handler is in the .pas
+    and the words a person uses are in the .dfm; this joins them.
+    """
+    out: dict[str, list[str]] = {}
+    for c in components[1:]:  # the form's own events (FormCreate) would carry the words of the whole screen
+        shown = " ".join(v for k, v in c.properties if k in SHOWN)
+        for key, handler in c.properties:
+            if key.startswith("On") and re.fullmatch(r"\w+", handler):
+                out.setdefault(handler.lower(), []).append(f"{c.name} {c.class_name} {key} {shown}".strip())
+    return {h: " ".join(dict.fromkeys(parts)) for h, parts in out.items()}
+
+
 def parse_form(text: str) -> list[Component]:
     """Components in file order. Multi-line values of kept properties are joined."""
     lines = text.splitlines()

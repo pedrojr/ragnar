@@ -23,15 +23,18 @@ from pathlib import Path
 
 import psycopg
 
+from . import delphi, graph
 from .chunker import Chunk, Chunker, Symbol, normalize_source, split_identifiers
 from .config import CONFIG_FILE, RagnarError, Settings, index_fingerprint, load_settings, with_repo_config
 from .embedder import Embedder, FakeEmbedder, to_pgvector
-from .llm import chat_from, contextualize
+from .languages import FORM_EXTENSIONS, is_test, language_for
+from .llm import chat_from, contextualize, summarize
 
 COLUMNS = (
     "repo", "path", "symbol", "language", "kind", "start_line", "end_line",
-    "commit_sha", "content", "search_text", "embedding", "content_hash", "head_text",
+    "commit_sha", "content", "search_text", "embedding", "content_hash", "head_text", "literal_text",
 )
+EDGE_COLUMNS = ("repo", "path", "line", "src_symbol", "dst_name", "kind", "text", "commit_sha")
 SYMBOL_COLUMNS = ("repo", "path", "symbol", "name", "node_type", "kind", "start_line", "end_line", "signature", "commit_sha")
 CACHE_DIR = Path.home() / ".cache" / "ragnar" / "repos"
 REPO_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]*$")
@@ -178,6 +181,148 @@ def embed_all(emb: Embedder | FakeEmbedder, texts: list[str], repo: str, batch: 
     return vectors
 
 
+MAX_HANDLER_CHARS = 300  # words of form controls added to one chunk
+
+
+def with_form_pairs(paths: list[str]) -> list[str]:
+    """Changed paths plus their form or unit pair: a handler's words come from the form beside it."""
+    out = dict.fromkeys(paths)
+    for path in paths:
+        stem, dot, suffix = path.rpartition(".")
+        if not dot:
+            continue
+        if f".{suffix.lower()}" in FORM_EXTENSIONS:
+            out.setdefault(f"{stem}.pas")
+        elif suffix.lower() == "pas":
+            for ext in FORM_EXTENSIONS:
+                out.setdefault(f"{stem}{ext}")
+    return list(out)
+
+
+def handler_words(chunks: list[Chunk], symbols: list[Symbol], blobs: dict[str, bytes], chunker: Chunker) -> dict[int, str]:
+    """Chunk index -> words of the form components whose events call a handler in the chunk.
+
+    The question names the screen ("double click on the orders grid"); the code names the handler
+    (GridPedidosDblClick). These words join the chunk's path and symbol in the lexical index.
+    """
+    by_unit: dict[str, dict[str, str]] = {}
+    lower = {p.lower(): p for p in blobs}
+    for path, src in blobs.items():
+        stem, _, suffix = path.rpartition(".")
+        unit = lower.get(f"{stem}.pas".lower())
+        if f".{suffix.lower()}" not in FORM_EXTENSIONS or unit is None:
+            continue
+        text = normalize_source(chunker.indexed_source(path, src), chunker.index.legacy_encoding)
+        if text is not None and not delphi.is_binary_form(text):
+            by_unit.setdefault(unit, {}).update(delphi.event_bindings(delphi.parse_form(text.decode(errors="replace"))))
+    if not by_unit:
+        return {}
+    # The body of a handler comes after its declaration in the class: the last definition is the one to tag.
+    # Tagging the declaration would pile the words of every control of a large form onto one chunk.
+    bodies: dict[tuple[str, str], tuple[int, str]] = {}
+    for s in symbols:
+        key = (s.path, s.name.lower())
+        if (words := by_unit.get(s.path, {}).get(key[1])) and s.start_line >= bodies.get(key, (0,))[0]:
+            bodies[key] = (s.start_line, words)
+    handlers: dict[str, list[tuple[int, str]]] = {}
+    for (path, _), (line, words) in bodies.items():
+        handlers.setdefault(path, []).append((line, words))
+    out: dict[int, str] = {}
+    for i, c in enumerate(chunks):
+        found = [w for line, w in handlers.get(c.path, ()) if c.start_line <= line <= c.end_line]
+        if found:
+            out[i] = " ".join(dict.fromkeys(found))[:MAX_HANDLER_CHARS]
+    return out
+
+
+def definition_counts(dsn: str, repo: str, symbols: list[Symbol], replaced: list[str] | None) -> dict[str, int]:
+    """Declarations per lowercase name: this run's symbols, plus, in an incremental run, the stored
+    symbols of the files it does not replace."""
+    counts: dict[str, int] = {}
+    if replaced is not None:
+        with psycopg.connect(dsn) as conn:
+            counts = dict(conn.execute("SELECT lower(name), count(*) FROM code_symbol WHERE repo = %s "
+                                       "AND NOT (path = ANY(%s)) GROUP BY 1", (repo, replaced)).fetchall())
+    for s in symbols:
+        counts[s.name.lower()] = counts.get(s.name.lower(), 0) + 1
+    return counts
+
+
+def code_edges(chunker: Chunker, blobs: dict[str, bytes], chunks: list[Chunk], symbols: list[Symbol],
+               definitions: dict[str, int]) -> list[graph.Edge]:
+    """References, form events and SQL tables of the files of this run."""
+    names = graph.useful_names(definitions)
+    by_path: dict[str, list[Symbol]] = {}
+    for s in symbols:
+        by_path.setdefault(s.path, []).append(s)
+    edges: list[graph.Edge] = []
+    for path, src in blobs.items():
+        if (kind := chunker.source_kind(path)) == "doc":
+            continue
+        text = chunker.readable_text(path, src)
+        if text is None:
+            continue
+        if kind == "form":
+            edges += graph.form_edges(path, delphi.parse_form(text))
+        else:
+            edges += graph.reference_edges(path, text, by_path.get(path, []), names)
+    scopes = {path: graph.Scopes(found) for path, found in by_path.items()}
+    for chunk in chunks:
+        edges += graph.sql_edges(chunk, scopes.get(chunk.path) or graph.Scopes([]))
+    return edges
+
+
+SUMMARY_SYMBOL = "(summary)"
+
+
+def summary_chunks(chat, settings: Settings, dsn: str, chunker: Chunker, blobs: dict[str, bytes],
+                   symbols: list[Symbol], edges: list[graph.Edge]) -> list[Chunk]:
+    """One model-written summary per code file of this run, as a chunk of kind summary.
+
+    Summaries are cached by the hash of the file text and the model, so only new or changed files cost
+    a model call, even in a full reindex.
+    """
+    cfg, model = settings.summaries, settings.llm.model
+    declared: dict[str, list[str]] = {}
+    for s in symbols:
+        if s.symbol.count(" > ") <= 2:
+            declared.setdefault(s.path, []).append(s.name)
+    refers: dict[str, list[str]] = {}
+    for e in edges:
+        refers.setdefault(e.path, []).append(e.dst_name)
+    files = []
+    for path, src in blobs.items():
+        if chunker.source_kind(path) != "code" or is_test(language_for(path), path):
+            continue
+        text = chunker.readable_text(path, src)
+        if text is None or text.count("\n") + 1 < cfg.min_lines:
+            continue
+        files.append({"path": path, "text": text, "hash": hashlib.sha256(text.encode()).hexdigest()[:32],
+                      "declarations": ", ".join(dict.fromkeys(declared.get(path, [])))[:1500],
+                      "refers": ", ".join(dict.fromkeys(refers.get(path, [])))[:1500]})
+    if not files:
+        return []
+    with psycopg.connect(dsn) as conn:
+        cached = dict(conn.execute("SELECT source_hash, summary FROM summary_cache WHERE model = %s AND source_hash = ANY(%s)",
+                                   (model, [f["hash"] for f in files])).fetchall())
+    missing = [f for f in files if f["hash"] not in cached]
+    if missing:
+        print(f"summaries: {len(missing)} files to the model, {len(files) - len(missing)} cached", file=sys.stderr, flush=True)
+        fresh = summarize(chat, cfg, missing)
+        with psycopg.connect(dsn, autocommit=True) as conn, conn.cursor() as cur:
+            cur.executemany("INSERT INTO summary_cache (model, source_hash, summary) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                            [(model, f["hash"], text) for f, text in zip(missing, fresh)])
+        cached |= {f["hash"]: text for f, text in zip(missing, fresh)}
+    out = []
+    for f in files:
+        lang = language_for(f["path"])
+        comment, language = (lang.comment, lang.name) if lang else ("#", "text")
+        content = f"{comment} file: {f['path']}\n{comment} symbol: {SUMMARY_SYMBOL}\n{cached[f['hash']]}"
+        out.append(Chunk(f["path"], SUMMARY_SYMBOL, language, "summary", 1, f["text"].count("\n") + 1, content,
+                         content + "\n" + split_identifiers(content)))
+    return out
+
+
 def content_hash(text: str, doc_prefix: str) -> str:
     return hashlib.sha256((doc_prefix + text).encode()).hexdigest()[:32]
 
@@ -257,7 +402,7 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
         return Result(repo, "unchanged", head, 0, 0, 0, time.monotonic() - t0)
     else:
         changed = changed_files(repo_dir, state[0], head)
-        mode, paths = ("incremental", changed) if changed is not None else ("full", list_files(repo_dir, head))
+        mode, paths = ("incremental", with_form_pairs(changed)) if changed is not None else ("full", list_files(repo_dir, head))
 
     blobs = read_blobs(repo_dir, head, [p for p in paths if chunker.eligible(p)])
     skipped = Counter(reason for path, src in blobs.items() if (reason := chunker.skip_reason(path, src)))
@@ -273,8 +418,12 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
     for path, src in blobs.items():
         chunks += chunker.chunk_file(path, src)
         symbols += chunker.extract_symbols(path, src)
+    extra_head = handler_words(chunks, symbols, blobs, chunker)
+    edges = code_edges(chunker, blobs, chunks, symbols, definition_counts(dsn, repo, symbols, None if mode == "full" else paths))
     if settings.contextual.enabled and (chat := chat_from(settings)):
         chunks = contextualize(chat, settings.contextual, chunks, blobs)
+    if settings.summaries.enabled and (chat := chat_from(settings)):
+        chunks += summary_chunks(chat, settings, dsn, chunker, blobs, symbols, edges)
     hashes = [content_hash(c.content, settings.embedding.doc_prefix) for c in chunks]
     known = reusable_vectors(dsn, repo, hashes) if state is not None and state[1] == emb.model else {}
     known |= checkpointed_vectors(dsn, emb.model, [h for h in hashes if h not in known])
@@ -300,14 +449,20 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
         scope, args = ("repo = %s", (repo,)) if mode == "full" else ("repo = %s AND path = ANY(%s)", (repo, paths))
         deleted = conn.execute(f"DELETE FROM code_chunk WHERE {scope}", args).rowcount
         conn.execute(f"DELETE FROM code_symbol WHERE {scope}", args)
+        conn.execute(f"DELETE FROM code_edge WHERE {scope}", args)
         with conn.cursor().copy(f"COPY code_chunk ({', '.join(COLUMNS)}) FROM STDIN") as cp:
             for i, c in enumerate(chunks):
                 cp.write_row((repo, c.path, c.symbol, c.language, c.kind, c.start_line, c.end_line, head, c.content,
-                              c.search_text, vectors[i], hashes[i], split_identifiers(f"{c.path} {c.symbol}")))
+                              c.search_text, vectors[i], hashes[i],
+                              split_identifiers(f"{c.path} {c.symbol} {extra_head.get(i, '')}"),
+                              split_identifiers(c.literals)))
         with conn.cursor().copy(f"COPY code_symbol ({', '.join(SYMBOL_COLUMNS)}) FROM STDIN") as cp:
             for s in symbols:
                 cp.write_row((repo, s.path, s.symbol, s.name, s.node_type, s.kind,
                               s.start_line, s.end_line, s.signature, head))
+        with conn.cursor().copy(f"COPY code_edge ({', '.join(EDGE_COLUMNS)}) FROM STDIN") as cp:
+            for e in edges:
+                cp.write_row((repo, e.path, e.line, e.src_symbol, e.dst_name, e.kind, e.text, head))
         conn.execute(
             """INSERT INTO index_state (repo, commit_sha, embed_model, fingerprint, skipped) VALUES (%s, %s, %s, %s, %s)
                ON CONFLICT (repo) DO UPDATE SET commit_sha = EXCLUDED.commit_sha, embed_model = EXCLUDED.embed_model,

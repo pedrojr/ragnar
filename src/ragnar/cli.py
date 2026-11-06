@@ -121,7 +121,7 @@ def cmd_sync(args) -> None:
         print(f"no repository to sync in {args.config}", file=sys.stderr)
     emb = from_settings(settings)
     if args.watch:
-        watch(repos, write_dsn(), emb, settings, args.interval)
+        watch(lambda: load_repos(args.config), write_dsn(), emb, settings, args.interval)
         return
     _, errors = sync_once(repos, write_dsn(), emb, settings)
     sys.exit(1 if errors else 0)
@@ -206,6 +206,18 @@ def cmd_load(args) -> None:
     load(args.url, os.environ["RAGNAR_MCP_TOKEN"], args.concurrency, args.duration, queries, args.rate)
 
 
+def cmd_stats(args) -> None:
+    from .stats import labels, parse, report
+
+    lines = sys.stdin if args.log == "-" else Path(args.log).read_text(encoding="utf-8", errors="replace").splitlines()
+    events = parse(lines)
+    if args.labels:
+        found = labels(events)
+        Path(args.labels).write_text("".join(json.dumps(q, ensure_ascii=False) + "\n" for q in found), encoding="utf-8")
+        print(f"{len(found)} questions written to {args.labels}", file=sys.stderr)
+    print(json.dumps(report(events), indent=1, ensure_ascii=False))
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="ragnar", description=__doc__)
     p.add_argument("--version", action="version", version=f"ragnar {__version__}")
@@ -223,6 +235,11 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--agents-md", action="store_true", help="adds a search note to AGENTS.md")
     s.add_argument("--force", action="store_true", help="rewrites an existing ragnar.toml")
     s.set_defaults(fn=cmd_init)
+
+    s = sub.add_parser("stats", help="usage report from the MCP server's audit lines")
+    s.add_argument("log", help="file with the server's stdout, or - for stdin")
+    s.add_argument("--labels", help="writes questions answered by a later read_code, for ragnar eval run")
+    s.set_defaults(fn=cmd_stats)
 
     s = sub.add_parser("doctor", help="checks the health of a ragnarized project")
     s.add_argument("--dir", default=".")

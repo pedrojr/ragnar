@@ -39,6 +39,7 @@ def test_explicit_config_path(tmp_path):
     ("[retrieval]\nmode = 'magic'\n", "retrieval.mode must be one of"),
     ("[retrieval]\ncandidates = 'many'\n", "retrieval.candidates must be int"),
     ("[retrieval]\ndiversity = 2\n", "between 0 and 1"),
+    ("[retrieval]\nrank_normalization = 3\n", "ts_rank normalization flag"),
     ("[rerank]\nprovider = 'http'\n", "requires rerank.url"),
     ("[query]\nstrategy = 'hyde'\n", "require llm.url"),
     ("[contextual]\nenabled = true\n", "require llm.url"),

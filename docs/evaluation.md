@@ -8,7 +8,7 @@ The `evaluate` and `tune` skills run this for you. This page explains what they 
 
 ## Method
 
-Each commit is a real question with a known answer. Its message is the query, and the files it changed are the expected result.
+Each commit is a real question with a known answer. Its message is the query, and the files it changed are the expected result. Messages that say nothing ("ajustes gerais", "minor fixes") are skipped, and files changed by more than 5% of the commits, such as a project file that lists every unit, leave the expected result: they change in passing.
 
 1. Pick a cutoff date. Index the repository as it was then, under another name, such as `myapp-snap`.
 2. Build questions from the commits after that date. The snapshot predates them, so the answers cannot leak into the index.
@@ -66,6 +66,18 @@ ragnar eval run /path/to/myapp "$SNAP" myapp-snap \
 ```
 
 Each variant reports its gain over grep and over the current configuration. Settings under `[index]` change the chunks, so they need a snapshot built with those values.
+
+## Questions from real use
+
+The MCP server writes one JSON line per tool call to stdout. `ragnar stats` reads those lines into a usage report: calls per tool, tokens returned, searches with no result or low confidence, and repeated questions.
+
+```bash
+kubectl logs deploy/ragnar-mcp > audit.log      # or: docker compose logs ragnar-mcp
+ragnar stats audit.log --labels questions.jsonl
+ragnar eval run --golden questions.jsonl ...
+```
+
+`--labels` turns use into questions: a search followed, within ten minutes and by the same client, by `read_code` on a file the search returned says that file answered it. These questions come from what people ask, not from commit messages.
 
 ## Public benchmark
 

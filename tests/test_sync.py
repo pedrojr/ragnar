@@ -78,6 +78,26 @@ def test_one_failure_does_not_stop_the_other_repositories(tmp_path):
     assert [r.repo for r in results] == ["good"] and errors == ["bad: secret found"]
 
 
+def test_watch_rereads_the_repository_list_on_each_pass(tmp_path, monkeypatch):
+    lists = [[RepoSource("a", "u")], [RepoSource("a", "u"), RepoSource("b", "u")]]
+    seen, stop = [], threading.Event()
+
+    def load():
+        if not lists:
+            raise RagnarError("invalid TOML")
+        return lists.pop(0)
+
+    def fake_sync(repos, *_):
+        seen.append([r.name for r in repos])
+        if len(seen) == 3:
+            stop.set()
+        return [], []
+
+    monkeypatch.setattr("ragnar.sync.sync_once", fake_sync)
+    watch(load, "dsn", FakeEmbedder(8), load_settings(tmp_path, environ={}), 0, stop)
+    assert seen == [["a"], ["a", "b"], ["a", "b"]]
+
+
 def test_watch_stops_on_request(tmp_path):
     stop = threading.Event()
     stop.set()

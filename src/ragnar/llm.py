@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 import httpx
 
 from .chunker import Chunk, split_identifiers
-from .config import Contextual, Llm, RagnarError, Rerank, Settings
+from .config import Contextual, Llm, RagnarError, Rerank, Settings, Summaries
 
 CONTEXT_PROMPT = """<document path="{path}">
 {document}
@@ -22,6 +22,14 @@ CONTEXT_PROMPT = """<document path="{path}">
 </chunk>
 Write one or two sentences that place this chunk within the document, to improve search retrieval.
 Name the feature or responsibility it belongs to. Answer with the sentences only."""
+SUMMARY_PROMPT = """<file path="{path}">
+{code}
+</file>
+Declarations: {declarations}
+Refers to: {refers}
+Write two or three sentences on what this file does: the feature, the screens, data or tables it handles,
+and its main routines. Use the words a person on the team would use when asking about it. Answer with
+the sentences only."""
 MULTI_QUERY_PROMPT = """Rewrite this code search question in {n} different ways, using the terms a developer
 would expect to find in source code. Write one per line, with no numbering.
 
@@ -71,7 +79,7 @@ class Reranker:
 
 
 def chat_from(settings: Settings) -> Chat | None:
-    needed = settings.query.strategy != "none" or settings.contextual.enabled
+    needed = settings.query.strategy != "none" or settings.contextual.enabled or settings.summaries.enabled
     return Chat(settings.llm) if needed else None
 
 
@@ -98,7 +106,22 @@ def contextualize(chat: Chat, cfg: Contextual, chunks: list[Chunk], documents: d
         note = chat.complete(CONTEXT_PROMPT.format(path=c.path, document=document, chunk=c.content))
         content = f"{note}\n{c.content}"
         return Chunk(c.path, c.symbol, c.language, c.kind, c.start_line, c.end_line, content,
-                     c.search_text + "\n" + note + "\n" + split_identifiers(note))
+                     c.search_text + "\n" + note + "\n" + split_identifiers(note), c.literals)
 
     with ThreadPoolExecutor(max_workers=max(1, cfg.concurrency)) as pool:
         return list(pool.map(one, chunks))
+
+
+def summarize(chat: Chat, cfg: Summaries, files: list[dict]) -> list[str]:
+    """One summary per file: {"path", "text", "declarations", "refers"} in, sentences out, in order.
+
+    A question in business words ("onde calcula o desconto do convênio?") rarely shares words with the
+    code. A summary written in those words gives the file a way in (Meta-RAG, Code-Craft).
+    """
+    def one(f: dict) -> str:
+        return chat.complete(SUMMARY_PROMPT.format(path=f["path"], code=f["text"][: cfg.max_chars],
+                                                   declarations=f["declarations"] or "(none)",
+                                                   refers=f["refers"] or "(none)"))
+
+    with ThreadPoolExecutor(max_workers=max(1, cfg.concurrency)) as pool:
+        return list(pool.map(one, files))

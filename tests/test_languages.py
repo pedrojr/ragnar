@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from ragnar import delphi
+from ragnar import chunker, delphi
 from ragnar.chunker import Chunker, cast_chunks, normalize_source
 from ragnar.config import Index
-from ragnar.languages import LANGUAGES, grammar_for, is_denied, is_generated, is_test, language_for
+from ragnar.languages import LANGUAGES, grammar_for, is_agent_note, is_denied, is_generated, is_test, language_for
 
 CASES = {
     "python": ("app/orders.py", b"class OrderService:\n    def cancel(self):\n        return 1\n",
@@ -207,6 +207,22 @@ def test_form_keeps_behavior_and_drops_geometry():
     assert "Password" not in body
 
 
+def test_form_literals_hold_what_a_person_sees_but_no_event_bindings():
+    literals = Chunker().chunk_file("src/Customers.dfm", FORM.encode())[0].literals.split("\n")
+    assert {"Customers", "Sa've", "select * from customers where id = :id", "long text", "NAME"} <= set(literals)
+    assert "btnSaveClick" not in literals and "FormCreate" not in literals
+
+
+def test_string_literals_by_language():
+    pas = "begin\n  raise Exception.Create('Cliente sem limite de cr''dito');\n  x := 'ab';\nend;"
+    assert chunker.extract_literals(pas, "delphi") == "Cliente sem limite de cr'dito"
+    java = 'throw new IllegalStateException("Order already shipped"); char c = \'x\'; // don\'t'
+    assert chunker.extract_literals(java, "java") == "Order already shipped"
+    assert chunker.extract_literals('msg = "Invalid token"\nother = \'Expired session\'', "python") == \
+        "Invalid token\nExpired session"
+    assert chunker.extract_literals("# Title\n'quoted words'", "markdown") == ""
+
+
 def test_form_components_are_symbols():
     symbols = {s.symbol: s for s in Chunker().extract_symbols("src/Customers.dfm", FORM.encode())}
     assert {"Form1", "Form1 > btnSave", "Form1 > qryCustomers", "Form1 > qryCustomersName"} <= set(symbols)
@@ -273,3 +289,18 @@ def test_pascal_program_with_uses_in_clause_still_chunks():
     src = b"program Hello;\nuses Forms, Unit1 in 'Unit1.pas' {Form1};\n{$R *.res}\nbegin\n  Application.Run;\nend.\n"
     chunks = Chunker().chunk_file("Hello.dpr", src)
     assert chunks and chunks[0].symbol.startswith("Hello")
+
+
+def test_event_bindings_join_handlers_to_the_words_of_their_screen():
+    bindings = delphi.event_bindings(delphi.parse_form(FORM))
+    assert bindings == {"btnsaveclick": "btnSave TButton OnClick Sa've"}  # the form's own events stay out
+
+
+@pytest.mark.parametrize("path, note", [
+    ("AGENTS.md", True), ("sub/CLAUDE.md", True), (".github/copilot_instructions.md", True),
+    (".github/copilot-instructions.md", True), ("docs/review.instructions.md", True), (".cursor/rules/x.md", True),
+    ("docs/AGENTS-guide.md", False), ("README.md", False),
+])
+def test_agent_notes(path, note):
+    assert is_agent_note(path) is note
+    assert (Chunker().skip_reason(path, b"# Notes\nUse the index.\n") == "agent note") is note

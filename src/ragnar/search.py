@@ -39,12 +39,41 @@ LIMIT %(limit)s"""
 HIT_COLUMNS = ("id", "repo", "path", "symbol", "kind", "start_line", "end_line", "content")
 HITS_SQL = f"SELECT {', '.join(HIT_COLUMNS)} FROM code_chunk WHERE id = ANY(%s)"
 NEIGHBORS_SQL = f"""SELECT {', '.join(HIT_COLUMNS)} FROM code_chunk
-WHERE repo = %(repo)s AND path = %(path)s AND id <> %(id)s
+WHERE repo = %(repo)s AND path = %(path)s AND id <> %(id)s AND kind <> 'summary'
   AND (end_line < %(start)s OR start_line > %(end)s)
 ORDER BY LEAST(abs(%(start)s - end_line), abs(start_line - %(end)s)) LIMIT %(limit)s"""
+# Graph neighbors of the best hits: what they call, and who calls them. Each seed brings a few of each,
+# in seed order, so a utility called from everywhere does not flood the list.
+GRAPH_SQL = """
+WITH seed AS (
+  SELECT c.id, c.repo, c.path, c.start_line, c.end_line, s.ord
+  FROM unnest(%(ids)s::bigint[]) WITH ORDINALITY AS s(id, ord) JOIN code_chunk c ON c.id = s.id
+), callee AS (
+  SELECT seed.ord, d.repo, d.path, d.start_line AS line FROM seed
+  CROSS JOIN LATERAL (
+    SELECT DISTINCT d.repo, d.path, d.start_line FROM code_edge e
+    JOIN code_symbol d ON d.repo = e.repo AND lower(d.name) = e.dst_name
+    WHERE e.repo = seed.repo AND e.path = seed.path AND e.line BETWEEN seed.start_line AND seed.end_line
+      AND e.kind IN ('ref', 'event') AND NOT (d.path = seed.path AND d.start_line BETWEEN seed.start_line AND seed.end_line)
+    LIMIT 8) d
+), caller AS (
+  SELECT seed.ord, e.repo, e.path, e.line FROM seed
+  CROSS JOIN LATERAL (
+    SELECT DISTINCT e.repo, e.path, e.line FROM code_symbol s
+    JOIN code_edge e ON e.repo = s.repo AND e.dst_name = lower(s.name) AND e.kind IN ('ref', 'event')
+    WHERE s.repo = seed.repo AND s.path = seed.path AND s.start_line BETWEEN seed.start_line AND seed.end_line
+      AND e.path <> seed.path
+    LIMIT 8) e
+), near AS (SELECT * FROM callee UNION ALL SELECT * FROM caller)
+SELECT c.id FROM near
+JOIN code_chunk c ON c.repo = near.repo AND c.path = near.path AND c.start_line <= near.line AND c.end_line >= near.line
+WHERE c.id <> ALL(%(ids)s)
+GROUP BY c.id ORDER BY min(near.ord), count(*) DESC, c.id LIMIT %(limit)s"""
 CHARS_PER_TOKEN = 4  # rough on purpose: the budget only needs the order of magnitude
-RANK_WEIGHTS = [0.1, 0.2, 0.4, 0.5]  # D (body) to A (path and symbol)
-RANK_NORMALIZATION = 1  # divides by 1 + log(length): a long chunk does not win by repetition
+RANK_WEIGHTS = [0.1, 0.2, 0.2, 0.5]  # D (body), C (unused), B (string literals), A (path and symbol)
+LITERAL_RANK_WEIGHTS = [0.0, 0.0, 1.0, 0.0]  # the literal list ranks by string literals alone
+# "text", “text” and 'text', but not the apostrophe of "don't"
+QUOTED = re.compile(r""""([^"]{3,}?)"|“([^”]{3,}?)”|(?<!\w)'([^']{3,}?)'(?!\w)""")
 MAX_TERMS = 12
 MIN_STEM = 4
 FILE_CANDIDATES = 40  # files considered by the whole-file list
@@ -63,7 +92,8 @@ uma umas uns vai você
 """.split())
 STOPWORDS |= frozenset(unaccent(w) for w in STOPWORDS)  # questions are often typed without accents
 OCCURRENCE_SQL = """SELECT repo, path, symbol, kind, language, start_line, content FROM code_chunk
-WHERE repo = ANY(%(repos)s) AND path LIKE %(prefix)s ESCAPE '\\' AND tsv @@ phraseto_tsquery('simple', %(words)s)
+WHERE repo = ANY(%(repos)s) AND path LIKE %(prefix)s ESCAPE '\\' AND kind <> 'summary'
+  AND tsv @@ phraseto_tsquery('simple', %(words)s)
 ORDER BY kind = 'test', repo, path, start_line LIMIT %(limit)s"""
 
 
@@ -86,10 +116,64 @@ def stem(term: str) -> str:
     return f"{term}:*" if len(term) >= MIN_STEM + 1 else term
 
 
+# Words people use for screen parts, and the names VCL, WinForms and their peers give them in code.
+# Narrow on purpose: a general Portuguese to English glossary did not pay for itself.
+WIDGET_TERMS: dict[str, tuple[str, ...]] = {
+    "botao": ("button", "btn"), "botoes": ("button", "btn"), "button": ("btn",), "buttons": ("button", "btn"),
+    "grade": ("grid",), "grid": ("grd",),
+    "clique": ("click",), "clicar": ("click",), "duplo": ("dbl",), "double": ("dbl",),
+    "tela": ("form", "frm"), "telas": ("form", "frm"), "formulario": ("form", "frm"), "janela": ("form", "frm"),
+    "screen": ("form", "frm"), "window": ("form", "frm"),
+    "campo": ("edit", "field"), "rotulo": ("label", "lbl"), "aba": ("tab", "page"), "menu": ("mnu",),
+    "lista": ("list",), "combo": ("cbx", "cmb"), "atalho": ("shortcut",),
+}
+
+
 def query_terms(query: str) -> list[str]:
-    """Lexical terms of a query, as tsquery operands. Stopwords go, unless the query is nothing else."""
+    """Lexical terms of a query, as tsquery operands. Stopwords go, unless the query is nothing else.
+
+    A word for a screen part brings the names code gives it: "botão" also asks for button and btn.
+    """
     terms = list(dict.fromkeys(unaccent(w) for w in re.findall(r"[^\W_]{2,}", split_identifiers(query).lower())))
-    return [stem(t) for t in ([t for t in terms if t not in STOPWORDS] or terms)[:MAX_TERMS]]
+    words = [t for t in terms if t not in STOPWORDS] or terms
+    # the question's own words first: an expansion must never push one of them past MAX_TERMS
+    expanded = dict.fromkeys([*words[:MAX_TERMS], *(e for w in words for e in WIDGET_TERMS.get(w, ()))])
+    return [stem(t) for t in list(expanded)[:MAX_TERMS]]
+
+
+def quoted_terms(query: str) -> list[str]:
+    """Lexical terms of the quoted parts of a query: the text of a message the person saw."""
+    parts = [next(g for g in m.groups() if g) for m in QUOTED.finditer(query)]
+    return list(dict.fromkeys(t for part in parts for t in query_terms(part)))
+
+
+def in_field(term: str, label: str) -> str:
+    """A tsquery operand restricted to one weight label: 'cancel:*' -> 'cancel:*B', 'erro' -> 'erro:B'."""
+    return f"{term}{label}" if term.endswith(":*") else f"{term}:{label}"
+
+
+TOTAL_TTL = 300.0  # seconds a chunk total is reused; the index state also invalidates it
+_totals: dict[tuple, tuple[float, int]] = {}
+
+
+def chunk_total(conn: psycopg.Connection, base: dict) -> int:
+    """Chunks under the search filters, for term rarity. It changes only when an indexer writes, so it is cached."""
+    stamp = conn.execute("SELECT max(indexed_at) FROM index_state WHERE repo = ANY(%s)", (base["repos"],)).fetchone()[0]
+    key = (getattr(getattr(conn, "info", None), "dsn", ""), tuple(sorted(base["repos"])), base["prefix"], base["kind"], stamp)
+    now = time.monotonic()
+    if (cached := _totals.get(key)) and now - cached[0] < TOTAL_TTL:
+        return cached[1]
+    total = conn.execute(TOTAL_SQL, base).fetchone()[0]
+    if len(_totals) > 1000:
+        _totals.clear()
+    _totals[key] = (now, total)
+    return total
+
+
+def term_counts(conn: psycopg.Connection, base: dict, terms: list[str]) -> dict[str, int]:
+    """Chunks that hold each term. One GIN lookup per term is faster than one pass with FILTER,
+    which reads the vector of every chunk that holds any term."""
+    return {t: conn.execute(TERM_SQL, {**base, "term": t}).fetchone()[0] for t in terms}
 
 
 def term_weights(counts: dict[str, int], total: int) -> dict[str, float]:
@@ -141,13 +225,42 @@ def file_scores(hits: dict[str, dict[tuple[str, str], int]], sizes: dict[tuple[s
     return held
 
 
-def fuse(ranked: list[tuple[float, list[int]]], rrf_k: int) -> list[int]:
-    """Weighted Reciprocal Rank Fusion: ids by the sum of weight / (rrf_k + rank)."""
+def fused_scores(ranked: list[tuple[float, list[int]]], rrf_k: int) -> dict[int, float]:
+    """Weighted Reciprocal Rank Fusion: the sum of weight / (rrf_k + rank) per id."""
     scores: dict[int, float] = {}
     for weight, ids in ranked:
         for rank, chunk_id in enumerate(ids, 1):
             scores[chunk_id] = scores.get(chunk_id, 0.0) + weight / (rrf_k + rank)
+    return scores
+
+
+def fuse(ranked: list[tuple[float, list[int]]], rrf_k: int) -> list[int]:
+    """Ids by their fused score, best first."""
+    scores = fused_scores(ranked, rrf_k)
     return sorted(scores, key=lambda i: (-scores[i], i))
+
+
+AGREEMENT_DEPTH = 10  # a list agrees with the top hit when the hit is within its first entries
+
+
+def confidence(ranked: list[tuple[float, list[int]]], top: int) -> str:
+    """high when at least two retrieval lists put the top hit near their start, low otherwise.
+
+    A single list that likes a chunk is how a near miss looks: the closest text, not an answer. The
+    agent gets the hint and decides; nothing is hidden, because thresholds that hide results are
+    poorly calibrated on code (Agent Retrieval Bench, 2026).
+    """
+    agreeing = sum(1 for weight, ids in ranked if weight and top in ids[:AGREEMENT_DEPTH])
+    return "high" if agreeing >= 2 else "low"
+
+
+def weigh_kinds(hits: list[dict], scores: dict[int, float], doc_weight: float) -> list[dict]:
+    """Reorders hits with documentation scaled by doc_weight. Overview documents mention every module,
+    so they match nearly any question; below 1, they stop taking the first place from code."""
+    if doc_weight == 1:
+        return hits
+    factor = {"doc": doc_weight}
+    return sorted(hits, key=lambda h: (-scores.get(h["id"], 0.0) * factor.get(h["kind"], 1.0), h["id"]))
 
 
 def _terms(text: str) -> set[str]:
@@ -188,15 +301,59 @@ def references(hits: list[dict], kept: list[dict], limit: int) -> list[dict]:
     return kept + rest[: max(0, limit - len(kept))]
 
 
+FOCUS_CONTEXT = 2  # lines kept around each line that holds a query term
+FOCUS_MIN_LINES = 12  # shorter chunks stay whole
+FOCUS_MIN_SAVING = 0.3  # an excerpt must drop at least this share of the lines, or the chunk stays whole
+
+
+def focus(hit: dict, terms: list[str], context: int = FOCUS_CONTEXT) -> dict:
+    """The chunk cut to its first line and the lines that hold query terms, with their numbers.
+
+    A whole chunk spends the token budget on lines that do not answer. Like `grep -C2`, the excerpt keeps
+    what matched and says which lines it left out, so read_code can fetch them.
+    """
+    lines = hit["content"].split("\n")
+    head = next((i + 1 for i, line in enumerate(lines[:4]) if " symbol: " in line), 0)
+    body = lines[head:]
+    if len(body) < FOCUS_MIN_LINES or not terms:
+        return hit
+    exact = {t for t in terms if not t.endswith(":*")}
+    prefixes = tuple(t[:-2] for t in terms if t.endswith(":*"))
+
+    def matches(line: str) -> bool:
+        words = re.findall(r"[^\W_]+", unaccent(split_identifiers(line)).lower())
+        return any(w in exact or w.startswith(prefixes) for w in words) if prefixes else any(w in exact for w in words)
+
+    keep = {0}  # the first line usually holds the signature
+    for i, line in enumerate(body):
+        if matches(line):
+            keep.update(range(max(0, i - context), min(len(body), i + context + 1)))
+    if len(keep) > len(body) * (1 - FOCUS_MIN_SAVING):
+        return hit
+    first, out, last = hit["start_line"], lines[:head], -1
+    for i in sorted(keep):
+        if i > last + 1:
+            out.append(f"... lines {first + last + 1}-{first + i - 1}")
+        out.append(f"{first + i}: {body[i]}")
+        last = i
+    if last < len(body) - 1:
+        out.append(f"... lines {first + last + 1}-{first + len(body) - 1}")
+    return {**hit, "content": "\n".join(out), "excerpt": True}
+
+
 def fit_budget(hits: list[dict], max_tokens: int) -> list[dict]:
-    """Keeps the best hits that fit. The first hit always stays: an answer beats an empty one."""
+    """Keeps the best hits that fit, in order. The first hit always stays: an answer beats an empty one.
+
+    A hit that does not fit is skipped, not a stop: one large chunk in second place must not push
+    smaller hits after it out of the budget.
+    """
     if not max_tokens:
         return hits
     out, used = [], 0
     for hit in hits:
         cost = estimate_tokens(hit["content"])
         if out and used + cost > max_tokens:
-            break
+            continue
         out.append(hit)
         used += cost
     return out
@@ -212,6 +369,9 @@ class Pipeline:
     reranker: Reranker | None = None
     timing: dict[str, float] = field(default_factory=dict)
     file_ids: list[int] = field(default_factory=list)
+    literal_ids: list[int] = field(default_factory=list)
+    graph_ids: list[int] = field(default_factory=list)
+    confidence: str = ""  # high | low | none, for the last search
 
     def _lists(self, conn: psycopg.Connection, text: str, base: dict) -> list[tuple[float, list[int]]]:
         cfg = self.settings.retrieval
@@ -228,8 +388,9 @@ class Pipeline:
 
     def _lexical(self, conn: psycopg.Connection, text: str, base: dict) -> list[int]:
         terms = query_terms(text)
-        total = conn.execute(TOTAL_SQL, base).fetchone()[0]
-        counts = {t: conn.execute(TERM_SQL, {**base, "term": t}).fetchone()[0] for t in terms}
+        norm = int(self.settings.retrieval.rank_normalization)
+        total = chunk_total(conn, base)
+        counts = term_counts(conn, base, terms)
         weights = term_weights(counts, total)
         if not weights:
             return []
@@ -237,13 +398,31 @@ class Pipeline:
         params = {f"t{i}": term for i, (term, _) in enumerate(scored)}
         params |= {f"w{i}": weight for i, (_, weight) in enumerate(scored)}
         score = " + ".join(f"%(w{i})s::float8 * ts_rank(%(ranks)s::float4[], tsv, to_tsquery('simple', %(t{i})s), "
-                           f"{RANK_NORMALIZATION})" for i in range(len(scored)))
+                           f"{norm})" for i in range(len(scored)))
         sql = (f"SELECT id FROM code_chunk WHERE {FILTERS} AND tsv @@ to_tsquery('simple', %(selective)s) "
                f"ORDER BY {score} DESC LIMIT %(limit)s")
         selective = selective_terms(counts, total)
         rows = conn.execute(sql, {**base, **params, "ranks": RANK_WEIGHTS, "selective": " | ".join(selective)}).fetchall()
         files = self._file_list(conn, base, selective, weights, score, params) if self.settings.retrieval.file_weight else []
         self.file_ids += files
+        if self.settings.retrieval.literal_weight:
+            self.literal_ids += self._literal_list(conn, base, text, weights, score, params)
+        return [r[0] for r in rows]
+
+    def _literal_list(self, conn: psycopg.Connection, base: dict, text: str, weights: dict[str, float], score: str,
+                      params: dict) -> list[int]:
+        """Chunks whose string literals hold every quoted word of the query, ranked by those literals.
+
+        Only for quoted text: "erro 'limite de crédito excedido'" asks for that message. On every query,
+        this list cost 0.05 to 0.09 of MRR on the benchmark, though it doubled the MRR of symptom questions.
+        """
+        quoted = [t for t in quoted_terms(text) if t in weights]
+        if not quoted:
+            return []
+        wanted = " & ".join(in_field(t, "B") for t in quoted)
+        sql = (f"SELECT id FROM code_chunk WHERE {FILTERS} AND tsv @@ to_tsquery('simple', %(wanted)s) "
+               f"ORDER BY {score} DESC LIMIT %(limit)s")
+        rows = conn.execute(sql, {**base, **params, "ranks": LITERAL_RANK_WEIGHTS, "wanted": wanted}).fetchall()
         return [r[0] for r in rows]
 
     def _file_list(self, conn: psycopg.Connection, base: dict, selective: list[str], weights: dict[str, float],
@@ -254,7 +433,7 @@ class Pipeline:
         words sit far apart. This is what makes grep strong on large files.
         """
         hits: dict[str, dict[tuple[str, str], int]] = {}
-        for term in selective:
+        for term in selective:  # one GIN lookup per term: counting with FILTER would read every vector
             hits[term] = {(repo, path): n for repo, path, n in conn.execute(
                 f"SELECT repo, path, count(*) FROM code_chunk WHERE {FILTERS} "
                 "AND tsv @@ to_tsquery('simple', %(term)s) GROUP BY repo, path", {**base, "term": term})}
@@ -285,7 +464,7 @@ class Pipeline:
                path_prefix: str = "", kind: str | None = None) -> tuple[list[dict], dict[str, float]]:
         """Returns (hits, seconds per phase)."""
         s, cfg = self.settings, self.settings.retrieval
-        self.timing, self.file_ids = {}, []
+        self.timing, self.file_ids, self.literal_ids, self.graph_ids = {}, [], [], []
         k = k or cfg.default_k
         t0 = time.perf_counter()
         extras = expand_query(self.chat, s.query.strategy, s.query.variants, query) \
@@ -300,13 +479,22 @@ class Pipeline:
             ranked += self._lists(conn, text, base)
         if self.file_ids:
             ranked.append((cfg.file_weight, self.file_ids))
+        if self.literal_ids:
+            ranked.append((cfg.literal_weight, self.literal_ids))
         if cfg.symbol_weight and (names := identifier_names(query)):
             rows = conn.execute(SYMBOL_SQL, {**base, "names": names}).fetchall()
             ranked.append((cfg.symbol_weight, [r[0] for r in rows]))
-        ids = fuse(ranked, cfg.rrf_k)[: max(cfg.candidates, k)]
+        scores = fused_scores(ranked, cfg.rrf_k)
+        if cfg.graph_weight:
+            seeds = sorted(scores, key=lambda i: (-scores[i], i))[: cfg.graph_seeds]
+            self.graph_ids = [r[0] for r in conn.execute(GRAPH_SQL, {"ids": seeds, "limit": cfg.candidates}).fetchall()]
+            if self.graph_ids:
+                ranked.append((cfg.graph_weight, self.graph_ids))
+                scores = fused_scores(ranked, cfg.rrf_k)
+        ids = sorted(scores, key=lambda i: (-scores[i], i))[: max(cfg.candidates, k)]
         rows = conn.execute(HITS_SQL, (ids,)).fetchall()
         by_id = {r[0]: dict(zip(HIT_COLUMNS, r)) for r in rows}
-        hits = [by_id[i] for i in ids if i in by_id]
+        hits = weigh_kinds([by_id[i] for i in ids if i in by_id], scores, cfg.doc_weight)
         t2 = time.perf_counter()
         if self.reranker and hits:
             top = hits[: s.rerank.candidates]
@@ -317,6 +505,10 @@ class Pipeline:
         hits = hits[:k]
         if cfg.neighbor_chunks:
             hits = self._with_neighbors(conn, hits)
+        if cfg.excerpts:  # the best hit stays whole: it is the one most likely to be read in full
+            terms = query_terms(query)
+            hits = [hit if i == 0 else focus(hit, terms) for i, hit in enumerate(hits)]
+        self.confidence = confidence(ranked, hits[0]["id"]) if hits else "none"
         kept = fit_budget(hits, cfg.max_context_tokens)
         seen = {h["id"] for h in kept}
         hits = references([*hits, *(h for h in ranked_hits if h["id"] not in seen)], kept, len(kept) + cfg.reference_hits)
@@ -419,6 +611,7 @@ def read_code(conn: psycopg.Connection, repos: list[str], path: str, start: int,
     repo, full_path = row
     rows = conn.execute(
         """SELECT start_line, content FROM code_chunk WHERE repo = %s AND path = %s AND start_line <= %s AND end_line >= %s
+           AND kind <> 'summary'
            ORDER BY start_line""",
         (repo, full_path, end, start),
     ).fetchall()
@@ -441,3 +634,121 @@ def list_repos(conn: psycopg.Connection, repos: list[str] | None) -> list[dict]:
         {"all": repos is None, "repos": repos or []},
     ).fetchall()
     return [dict(zip(("repo", "commit_sha", "embed_model", "indexed_at", "chunks"), r)) for r in rows]
+
+
+EDGE_COLUMNS = ("repo", "path", "line", "src_symbol", "dst_name", "kind", "text")
+CALL_KINDS = ["ref", "event"]
+
+
+def edge_references(conn: psycopg.Connection, repos: list[str], name: str, k: int = 30,
+                    path_prefix: str = "") -> list[dict]:
+    """Routines and form events that name a declaration, from the code graph. Empty when the graph has
+    no edge for the name: it only holds names declared in few places of the repository."""
+    _, short = split_qualified(name)
+    rows = conn.execute(
+        """SELECT e.repo, e.path, e.line, e.src_symbol, e.kind, e.text, c.kind FROM code_edge e
+            LEFT JOIN LATERAL (SELECT kind FROM code_chunk c WHERE c.repo = e.repo AND c.path = e.path
+                               AND c.start_line <= e.line AND c.end_line >= e.line LIMIT 1) c ON true
+            WHERE e.repo = ANY(%(repos)s) AND e.dst_name = %(name)s AND e.kind = ANY(%(kinds)s)
+              AND e.path LIKE %(prefix)s ESCAPE '\\'
+            ORDER BY c.kind = 'test', e.repo, e.path, e.line LIMIT %(k)s""",
+        {"repos": repos, "name": short.lower(), "kinds": CALL_KINDS, "prefix": like_prefix(path_prefix), "k": k},
+    ).fetchall()
+    return [{"repo": r[0], "path": r[1], "line": r[2], "symbol": r[3], "edge": r[4], "text": r[5], "kind": r[6] or "code"}
+            for r in rows]
+
+
+def callees(conn: psycopg.Connection, repos: list[str], name: str, k: int = 30) -> list[dict]:
+    """Declarations named inside the routines called `name`, with where each is declared."""
+    owner, short = split_qualified(name)
+    rows = conn.execute(
+        """SELECT DISTINCT ON (e.dst_name, d.path, d.start_line) e.repo, e.dst_name, e.kind, e.line, e.text,
+                  d.path, d.start_line, d.symbol
+           FROM code_symbol s
+           JOIN code_edge e ON e.repo = s.repo AND e.path = s.path AND e.line BETWEEN s.start_line AND s.end_line
+                            AND e.kind = ANY(%(kinds)s)
+           LEFT JOIN code_symbol d ON d.repo = e.repo AND lower(d.name) = e.dst_name
+           WHERE s.repo = ANY(%(repos)s) AND lower(s.name) = %(name)s AND lower(s.symbol) LIKE %(owner)s ESCAPE '\\'
+           ORDER BY e.dst_name, d.path, d.start_line, e.line LIMIT %(k)s""",
+        {"repos": repos, "name": short.lower(), "owner": f"%{like_prefix(owner.lower())}", "kinds": CALL_KINDS, "k": k},
+    ).fetchall()
+    return [{"repo": r[0], "name": r[1], "edge": r[2], "line": r[3], "text": r[4], "path": r[5], "start_line": r[6],
+             "symbol": r[7]} for r in rows]
+
+
+def table_usage(conn: psycopg.Connection, repos: list[str], table: str, op: str | None = None, k: int = 50) -> list[dict]:
+    """Routines whose SQL reads or writes a table, writes first. op: read or write."""
+    kinds = {"read": ["sql_read"], "write": ["sql_write"]}.get(op or "", ["sql_write", "sql_read"])
+    name = table.strip().lower()
+    rows = conn.execute(
+        """SELECT repo, path, line, src_symbol, kind, text, dst_name FROM code_edge
+           WHERE repo = ANY(%(repos)s) AND kind = ANY(%(kinds)s)
+             AND (dst_name = %(name)s OR dst_name LIKE %(qualified)s ESCAPE '\\')
+           ORDER BY kind = 'sql_read', repo, path, line LIMIT %(k)s""",
+        {"repos": repos, "kinds": kinds, "name": name, "qualified": f"%.{like_prefix(name)[:-1]}", "k": k},
+    ).fetchall()
+    return [{"repo": r[0], "path": r[1], "line": r[2], "symbol": r[3], "edge": r[4], "text": r[5], "table": r[6]}
+            for r in rows]
+
+
+def trace_flow(conn: psycopg.Connection, repos: list[str], source: str, target: str, max_depth: int = 4,
+               fan_out: int = 200) -> list[dict] | None:
+    """Shortest chain of references from the routine `source` to the declaration or table `target`.
+
+    Breadth first over the graph, one query per level. Each step lists where the reference is made.
+    None when no chain is found within max_depth.
+    """
+    _, start = split_qualified(source)
+    _, goal = split_qualified(target)
+    start, goal = start.lower(), goal.lower()
+    frontier, parent = {start}, {start: None}
+    for _ in range(max_depth):
+        rows = conn.execute(
+            """SELECT lower(s.name), e.dst_name, e.repo, e.path, e.line, e.kind, e.text FROM code_symbol s
+               JOIN code_edge e ON e.repo = s.repo AND e.path = s.path AND e.line BETWEEN s.start_line AND s.end_line
+               WHERE s.repo = ANY(%(repos)s) AND lower(s.name) = ANY(%(frontier)s)
+               ORDER BY e.kind LIKE 'sql%%' DESC, e.path, e.line LIMIT %(cap)s""",
+            {"repos": repos, "frontier": list(frontier), "cap": fan_out * len(frontier)}).fetchall()
+        nxt: set[str] = set()
+        for src, dst, repo, path, line, kind, text in rows:
+            if dst in parent:
+                continue
+            parent[dst] = (src, {"repo": repo, "path": path, "line": line, "edge": kind, "to": dst, "text": text})
+            if dst == goal or dst.endswith(f".{goal}"):
+                steps, node = [], dst
+                while parent[node] is not None:
+                    node, step = parent[node]
+                    steps.append(step)
+                return list(reversed(steps))
+            nxt.add(dst)
+        if not nxt:
+            return None
+        frontier = nxt
+    return None
+
+
+REPO_MAP_SQL = """
+WITH defs AS (
+  SELECT DISTINCT repo, path, lower(name) AS name FROM code_symbol
+  WHERE repo = ANY(%(repos)s) AND path LIKE %(prefix)s ESCAPE '\\' AND kind <> 'test'
+), degree AS (
+  SELECT d.repo, d.path, count(*) AS refs FROM defs d
+  JOIN code_edge e ON e.repo = d.repo AND e.dst_name = d.name AND e.path <> d.path AND e.kind IN ('ref', 'event')
+  GROUP BY d.repo, d.path
+)
+SELECT g.repo, g.path, g.refs,
+       (SELECT string_agg(s.name, ', ' ORDER BY s.start_line) FROM (
+          SELECT name, start_line FROM code_symbol s WHERE s.repo = g.repo AND s.path = g.path
+          ORDER BY (length(s.symbol) - length(replace(s.symbol, '>', ''))), s.start_line LIMIT %(per_file)s) s) AS names
+FROM degree g ORDER BY g.refs DESC, g.path LIMIT %(k)s"""
+
+
+def repo_map(conn: psycopg.Connection, repos: list[str], path_prefix: str = "", k: int = 40,
+             per_file: int = 6) -> list[dict]:
+    """The files under a folder that the rest of the code refers to most, with their top declarations.
+
+    A map ranked by the code graph: where to start reading in an unfamiliar area.
+    """
+    rows = conn.execute(REPO_MAP_SQL, {"repos": repos, "prefix": like_prefix(path_prefix), "k": k,
+                                       "per_file": per_file}).fetchall()
+    return [{"repo": r[0], "path": r[1], "refs": r[2], "names": r[3] or ""} for r in rows]

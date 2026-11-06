@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ragnar.evaluation import build_golden, format_report, grep_baseline, mrr, paired_ci, recall_at
+from ragnar.evaluation import STOPWORDS, build_golden, format_report, grep_baseline, grep_terms, mrr, paired_ci, recall_at
 
 from .test_unit import _git, make_repo
 
@@ -42,3 +42,34 @@ def test_grep_baseline_ranks_files_with_more_terms(tmp_path):
     repo = make_repo(tmp_path)
     snapshot = _git(repo, "rev-parse", "HEAD").strip()
     assert grep_baseline(str(repo), snapshot, "redraws the button") == ["widget/button.go"]
+
+
+def test_grep_terms_keep_accented_words_whole_and_add_the_plain_form():
+    assert grep_terms("validação do CNPJ para emissão", STOPWORDS) == [
+        ("validação", "validacao"), ("CNPJ",), ("emissão", "emissao")]
+    assert grep_terms("the getUserById helper", STOPWORDS) == [("getUserById",), ("helper",)]
+
+
+def test_informative_messages_say_what_changed():
+    from ragnar.evaluation import informative
+
+    assert informative("Corrige cálculo do desconto de convênio")
+    assert not informative("Ajustes gerais")
+    assert not informative("fix minor changes in code")
+
+
+def test_files_changed_in_passing_leave_the_right_answers(tmp_path):
+    repo = make_repo(tmp_path)
+    for i in range(6):  # the files must exist at the snapshot to count as answers
+        (repo / f"unit{i}.go").write_text("package widget\n")
+    (repo / "project.go").write_text("package widget\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "units")
+    snapshot = _git(repo, "rev-parse", "HEAD").strip()
+    for i in range(6):
+        (repo / f"unit{i}.go").write_text(f"package widget\n\nfunc Unit{i}() {{}}\n")
+        (repo / "project.go").write_text(f"package widget\n\nconst Units = {i}\n")
+        _git(repo, "add", ".")
+        _git(repo, "commit", "-q", "-m", f"cadastro de cliente numero {i} com validacao de documento")
+    golden = build_golden(str(repo), snapshot)
+    assert len(golden) == 6 and all(q["relevant"] == [f"unit{i}.go"] for i, q in enumerate(reversed(golden)))

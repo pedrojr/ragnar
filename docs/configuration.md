@@ -61,6 +61,7 @@ Secrets never go in these files. Each section names the environment variable tha
 | `window_overlap` | `10` | Lines shared between windows |
 | `index_tests` | `true` | Index test files |
 | `index_docs` | `true` | Index Markdown |
+| `index_agent_notes` | `false` | Index instructions written for agents (`AGENTS.md`, `CLAUDE.md`, Copilot and Cursor rules). Agents already read them |
 | `secret_scan` | `true` | Run gitleaks. Server scope only |
 | `secret_action` | `"fail"` | On a finding: `fail` stops the run, `skip` leaves those files out. Server scope only |
 | `legacy_encoding` | `"cp1252"` | Fallback for files that are not UTF-8 |
@@ -100,12 +101,18 @@ A hosted provider receives your source code. Choose accordingly.
 | `lexical_weight` | `1.0` | Weight of the lexical list |
 | `symbol_weight` | `1.0` | Weight of exact symbol matches. `0` turns it off |
 | `file_weight` | `2.0` | Weight of the whole-file list. `0` turns it off |
+| `literal_weight` | `1.0` | Weight of the literal list, used when the question quotes text: chunks whose string literals hold every quoted word. `0` turns it off |
+| `graph_weight` | `0.0` | Weight of the graph list: what the best hits call, and who calls them. `0` turns it off |
+| `graph_seeds` | `5` | Best hits whose graph neighbors join the graph list |
+| `doc_weight` | `0.5` | Scales the fused score of documentation hits. Below 1, code wins over overview documents that mention every module |
+| `rank_normalization` | `1` | How lexical ranking discounts long chunks: `1` divides by 1 + log(length), `2` by length. `2` helped one large Delphi monorepo and hurt smaller projects |
 | `ef_search` | `100` | HNSW search width |
 | `max_chunks_per_file` | `3` | Cap per file. `0` turns it off |
 | `diversity` | `0.0` | `0` is pure relevance, `1` is pure novelty |
 | `neighbor_chunks` | `0` | Adjacent chunks added around each hit |
 | `max_context_tokens` | `2000` | Estimated token budget. `0` turns it off |
 | `reference_hits` | `8` | Hits that did not fit, returned as path and symbol only |
+| `excerpts` | `true` | Hits after the first keep only the numbered lines around the query words, and say which lines they left out |
 
 ## `[rerank]`
 
@@ -132,6 +139,15 @@ Any endpoint with the `/rerank` request shape used by Jina, Cohere and TEI works
 | --- | --- | --- |
 | `enabled` | `false` | Writes a context note per chunk at index time. Needs `[llm]` |
 | `max_file_chars` | `20000` | File text sent with each chunk |
+| `concurrency` | `4` | Parallel model calls |
+
+## `[summaries]`
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | Writes a summary of each code file at index time, searched as a chunk of kind `summary`. Needs `[llm]`. Summaries are cached by file content, so only new or changed files cost a model call |
+| `min_lines` | `30` | Shorter files get no summary |
+| `max_chars` | `12000` | File text sent to the model |
 | `concurrency` | `4` | Parallel model calls |
 
 ## `[llm]`

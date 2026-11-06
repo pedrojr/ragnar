@@ -8,7 +8,7 @@ As skills `evaluate` e `tune` fazem isso por você. Esta página explica o que e
 
 ## Método
 
-Cada commit é uma pergunta real com resposta conhecida. A mensagem é a consulta, e os arquivos alterados são o resultado esperado.
+Cada commit é uma pergunta real com resposta conhecida. A mensagem é a consulta, e os arquivos alterados são o resultado esperado. Mensagens que não dizem nada ("ajustes gerais", "minor fixes") ficam de fora, e arquivos alterados por mais de 5% dos commits, como um arquivo de projeto que lista todas as units, saem do resultado esperado: eles mudam de passagem.
 
 1. Escolha uma data de corte. Indexe o repositório como ele era naquele momento, com outro nome, como `myapp-snap`.
 2. Monte as perguntas com os commits depois dessa data. O snapshot é anterior a eles, então as respostas não vazam para o índice.
@@ -66,6 +66,18 @@ ragnar eval run /caminho/do/myapp "$SNAP" myapp-snap \
 ```
 
 Cada variante mostra o ganho sobre o grep e sobre a configuração atual. Opções em `[index]` mudam os chunks, então exigem um snapshot montado com esses valores.
+
+## Perguntas do uso real
+
+O servidor MCP escreve uma linha JSON por chamada de ferramenta no stdout. O `ragnar stats` lê essas linhas e monta um relatório de uso: chamadas por ferramenta, tokens devolvidos, buscas sem resultado ou com baixa confiança e perguntas repetidas.
+
+```bash
+kubectl logs deploy/ragnar-mcp > audit.log      # ou: docker compose logs ragnar-mcp
+ragnar stats audit.log --labels questions.jsonl
+ragnar eval run --golden questions.jsonl ...
+```
+
+O `--labels` transforma uso em perguntas: uma busca seguida, em até dez minutos e pelo mesmo cliente, de um `read_code` num arquivo que ela devolveu indica que esse arquivo respondeu. Essas perguntas vêm do que as pessoas perguntam, não de mensagens de commit.
 
 ## Benchmark público
 
