@@ -5,6 +5,8 @@
     uv run python benchmark/bench.py evaluate --label final  # retrieval scores, with and without Ragnar
 
 PYTHONPATH selects the Ragnar under test, so a frozen source tree runs through this same script.
+RAGNAR_BENCH_SUITE points to another folder with its own repos.toml and questions: a private suite
+keeps its code, questions and runs out of this repository.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ import subprocess
 import sys
 import time
 import tomllib
+from concurrent.futures import ThreadPoolExecutor
 from fnmatch import fnmatch
 from pathlib import Path
 from statistics import mean, median
@@ -25,10 +28,11 @@ from statistics import mean, median
 import psycopg
 
 ROOT = Path(__file__).resolve().parent
-REPOS = ROOT / "repos"
-WORK = ROOT / "work"
-QUESTIONS = ROOT / "questions"
-ADMIN_DSN = "postgresql://postgres:benchmark@127.0.0.1:15433/{db}"
+SUITE = Path(os.environ.get("RAGNAR_BENCH_SUITE") or ROOT).resolve()
+REPOS = SUITE / "repos"
+WORK = SUITE / "work"
+QUESTIONS = SUITE / "questions"
+ADMIN_DSN = os.environ.get("RAGNAR_BENCH_DSN", "postgresql://postgres:benchmark@127.0.0.1:15433/{db}")
 EMBEDDER = os.environ.get("RAGNAR_BENCH_EMBEDDER", "http://127.0.0.1:8001/v1")
 CHARS_PER_TOKEN = 4
 GREP_MAX_LINES = 250  # an agent's grep output is capped; Claude Code's default head_limit is 250
@@ -37,13 +41,14 @@ READ_MAX_LINES = 2000  # the default page of a file read
 READ_MAX_LINE_CHARS = 2000  # longer lines are cut by file reads
 GREP_MAX_LINE_CHARS = 500  # and a grep line is a hint, not a page of minified data
 GREP_ARM_VERSION = 2
+GREP_WORKERS = 8
 STOPWORDS = set("""a an and are as at be but by can do does for from has have how i if in into is it its of on or that the
 their them there these this to under use used using was were what when where which who why will with would you your
 """.split())
 
 
 def manifest() -> list[dict]:
-    return tomllib.loads((ROOT / "repos.toml").read_text(encoding="utf-8"))["repo"]
+    return tomllib.loads((SUITE / "repos.toml").read_text(encoding="utf-8"))["repo"]
 
 
 def git(repo: str, *args: str, check: bool = True) -> str:
@@ -265,11 +270,13 @@ def cmd_evaluate(args: argparse.Namespace) -> None:
                 questions = [q for q in questions if q["split"] == args.split]
             settings = _settings(entry, [f"embedding.url={json.dumps(EMBEDDER)}", *args.set])
             pipeline = Pipeline(settings, from_settings(settings))
-            for q in questions:
-                key = hashlib.sha256(json.dumps([GREP_ARM_VERSION, q["id"], q.get("grep_query", q["query"]),
-                                                 q.get("evidence")]).encode()).hexdigest()
-                if key not in grep_cache:
-                    grep_cache[key] = grep_arm(entry, q)
+            keys = [hashlib.sha256(json.dumps([GREP_ARM_VERSION, q["id"], q.get("grep_query", q["query"]),
+                                               q.get("evidence")]).encode()).hexdigest() for q in questions]
+            todo = [(k, q) for k, q in zip(keys, questions) if k not in grep_cache]
+            with ThreadPoolExecutor(GREP_WORKERS) as pool:  # git grep on a large tree takes seconds per term
+                for k, arm in zip([k for k, _ in todo], pool.map(grep_arm, [entry] * len(todo), [q for _, q in todo])):
+                    grep_cache[k] = arm
+            for key, q in zip(keys, questions):
                 rows.append({k: q.get(k) for k in ("id", "repo", "source", "category", "split", "query", "relevant", "evidence")}
                             | {"language": entry["language"], "grep": scored(grep_cache[key], q),
                                "ragnar": scored(ragnar_arm(pipeline, conn, entry, q), q)})

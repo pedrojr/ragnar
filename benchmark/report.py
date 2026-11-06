@@ -67,6 +67,18 @@ TEXT = {
         "legend_v0": "Ragnar v0 (start)", "chart_evolution": "MRR of v0 and of the final version",
         "evolution_head": ["Repository", "Questions", "v0 MRR", "final MRR", "v0 solved", "final solved", "v0 Recall@10", "final Recall@10"],
         "index_head": ["Repository", "Files", "Chunks", "Symbols", "Time", "Chunks/s", "v0 chunks", "v0 symbols"],
+        "mono_title": "Large monorepo",
+        "mono_intro": ("{description}: about {total} million lines of source code and Delphi forms ({source} million in source files, "
+                       "{forms} million in forms), in about {files} thousand files. Third-party folders stay out of the index, which "
+                       "holds about {ifiles} thousand files in {chunks} thousand chunks and {symbols} thousand symbols, "
+                       "embedded in {hours} hours on a CPU. The repository is private: this report names none of its files and shows "
+                       "aggregates only. {questions} questions, {history} of them from the commit history after the snapshot."),
+        "mono_head": ["Arm", "Holdout questions", "MRR", "Recall@10", "Solved", "Tokens (median)"],
+        "mono_cat_head": ["Question type", "Questions", "grep MRR", "Ragnar MRR", "grep solved", "Ragnar solved"],
+        "mono_cat_note": "Curated questions, dev and holdout together, with the final version.",
+        "mono_agent_head": ["Mode", "Runs", "Correct answers", "Turns (mean)", "Context read (median)", "Total cost"],
+        "mono_agent_note": "Claude Code on {n} holdout questions of this repository, in both modes.",
+        "mono_grep": "grep + reads (without Ragnar)",
     },
     "pt-BR": {
         "categories": ("Conceito", "Símbolo", "Quem chama", "Fluxo entre arquivos", "Configuração", "Pergunta em português",
@@ -115,6 +127,18 @@ TEXT = {
         "evolution_head": ["Repositório", "Perguntas", "MRR v0", "MRR final", "Resolvidas v0", "Resolvidas final", "Recall@10 v0",
                            "Recall@10 final"],
         "index_head": ["Repositório", "Arquivos", "Chunks", "Símbolos", "Tempo", "Chunks/s", "Chunks v0", "Símbolos v0"],
+        "mono_title": "Monorepo grande",
+        "mono_intro": ("{description}: cerca de {total} milhões de linhas de código-fonte e formulários Delphi ({source} milhões em "
+                       "fontes, {forms} milhões em formulários), em cerca de {files} mil arquivos. As pastas de terceiros ficam fora do "
+                       "índice, que tem cerca de {ifiles} mil arquivos em {chunks} mil chunks e {symbols} mil símbolos, com embeddings calculados em {hours} horas de CPU. O repositório é privado: este relatório "
+                       "não cita nenhum arquivo dele e mostra só agregados. São {questions} perguntas, {history} delas do histórico "
+                       "de commits posterior ao snapshot."),
+        "mono_head": ["Braço", "Perguntas no holdout", "MRR", "Recall@10", "Resolvidas", "Tokens (mediana)"],
+        "mono_cat_head": ["Tipo de pergunta", "Perguntas", "MRR grep", "MRR Ragnar", "Resolvidas grep", "Resolvidas Ragnar"],
+        "mono_cat_note": "Perguntas curadas, dev e holdout juntos, na versão final.",
+        "mono_agent_head": ["Modo", "Execuções", "Respostas certas", "Turnos (média)", "Contexto lido (mediana)", "Custo total"],
+        "mono_agent_note": "Claude Code em {n} perguntas do holdout deste repositório, nos dois modos.",
+        "mono_grep": "grep + leitura (sem Ragnar)",
     },
 }
 language = "en"  # build() sets this before formatting anything
@@ -162,6 +186,12 @@ def num(value: float, digits: int = 2) -> str:
 
 def thousands(value: float) -> str:
     return localized(f"{round(value):,}")
+
+
+def scaled(value: float, unit: float) -> str:
+    """A rounded size in millions or thousands: the private suite describes its repository without exact counts."""
+    value /= unit
+    return num(value, 1 if value < 10 else 0)
 
 
 def pct(value: float) -> str:
@@ -268,6 +298,52 @@ def agent_section(rows: list[dict]) -> str:
             + table(t("agent_head"), lines)
             + f'<p class="note">{esc(note)} {t("agent_context")}</p>'
             + table(t("agent_lang_head"), language_lines) + "</section>")
+
+
+MONO_CATEGORIES = {
+    "en": {"symptom": "Error symptom", "change": "Change intent", "concept": "Concept", "symbol": "Symbol", "callers": "Callers",
+           "form": "Delphi form", "config": "Configuration", "flow": "Cross-file flow", "english": "Question in English"},
+    "pt-BR": {"symptom": "Sintoma de erro", "change": "Intenção de mudança", "concept": "Conceito", "symbol": "Símbolo",
+              "callers": "Quem chama", "form": "Formulário Delphi", "config": "Configuração", "flow": "Fluxo entre arquivos",
+              "english": "Pergunta em inglês"},
+}
+
+
+def monorepo_section(data: dict | None) -> str:
+    """The private suite, from the aggregates of summarize_suite.py: no file of that repository reaches the report."""
+    if not data:
+        return ""
+    lines, index = data["lines"], data["index"]
+    text = data.get("text", {}).get(language, {})
+    intro = t("mono_intro").format(
+        description=esc(text.get("description", data["description"])), total=scaled(lines["source"] + lines["forms"], 1e6),
+        source=scaled(lines["source"], 1e6), forms=scaled(lines["forms"], 1e6), files=scaled(lines["files"], 1e3),
+        ifiles=scaled(index["files"], 1e3), chunks=scaled(index["chunks"], 1e3), symbols=scaled(index["symbols"], 1e3),
+        hours=num(data.get("embedding_hours", index["seconds"] / 3600), 1),
+        questions=data["questions"]["curated"] + data["questions"]["history"], history=data["questions"]["history"])
+    runs = data["runs"]
+    final = runs[list(runs)[-1]]
+    grep = final["holdout"]["grep"]
+    rows = [[esc(t("mono_grep")), str(grep["n"]), num(grep["mrr"]), num(grep["recall10"]), pct(grep["solved"]), thousands(grep["tokens"])]]
+    for name, run in runs.items():
+        r = run["holdout"]["ragnar"]
+        rows.append([esc(text.get("runs", {}).get(name, name)), str(r["n"]), num(r["mrr"]), num(r["recall10"]), pct(r["solved"]),
+                     thousands(r["tokens"])])
+    cats = []
+    for key, name in MONO_CATEGORIES[language].items():
+        group = final.get(f"category:{key}")
+        if group and group["grep"]["n"]:
+            cats.append([esc(name), str(group["grep"]["n"]), num(group["grep"]["mrr"]), num(group["ragnar"]["mrr"]),
+                         pct(group["grep"]["solved"]), pct(group["ragnar"]["solved"])])
+    notes = "".join(f"<p>{esc(p)}</p>" for p in text.get("notes", []))
+    agent = ""
+    if data.get("agent"):
+        agent_rows = [[esc(t("local_only") if arm == "grep" else t("local_ragnar")), str(a["runs"]), pct(a["correct"]),
+                       num(a["turns"], 1), thousands(a["context"]), usd(a["cost"])] for arm, a in data["agent"].items()]
+        agent = (f'<p class="note">{t("mono_agent_note").format(n=data["agent"]["grep"]["runs"])}</p>'
+                 + table(t("mono_agent_head"), agent_rows))
+    return (f'<section id="monorepo"><h2>{t("mono_title")}</h2><p>{intro}</p>' + table(t("mono_head"), rows) + notes
+            + f'<p class="note">{t("mono_cat_note")}</p>' + table(t("mono_cat_head"), cats) + agent + "</section>")
 
 
 def build(args: argparse.Namespace, lang: str) -> str:
@@ -396,7 +472,7 @@ def build(args: argparse.Namespace, lang: str) -> str:
         evo_table=table(t("evolution_head"), evolution_lines),
         evo_mrr_a=num(v0_stats["mrr"]), evo_mrr_b=num(now_stats["mrr"]), evo_gain=signed(evolution_gain[0]),
         evo_lo=signed(evolution_gain[1]), evo_hi=signed(evolution_gain[2]), evo_n=len(paired),
-        agent=agent_section(agents), experiments=experiments_html,
+        agent=agent_section(agents), experiments=experiments_html, monorepo=monorepo_section(load(ROOT / "monorepo.json")),
         improvements=improvements_rows(extras.get("improvements", [])),
         limits=limits, next_steps=next_steps,
         index_table=table(t("index_head"), index_lines),
@@ -512,6 +588,8 @@ BODY = {"en": """<p class="kicker"><a class="switch" href="report.pt-BR.html">Po
 
 {agent}
 
+{monorepo}
+
 <section id="evolution">
 <h2>Before and after the improvements</h2>
 <p>The same holdout questions, in the {evo_n} cases from the 5 repositories indexed in both versions. MRR went from {evo_mrr_a} in v0 to
@@ -582,6 +660,8 @@ for grep with reads, on a single database with the machine shared with other wor
 </section>
 
 {agent}
+
+{monorepo}
 
 <section id="evolution">
 <h2>Antes e depois das melhorias</h2>

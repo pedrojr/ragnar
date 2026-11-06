@@ -26,6 +26,9 @@ from .search import Pipeline, estimate_tokens
 
 COMMIT_MARK, BODY_END = "\x1ecommit\x1e", "\x1eend\x1e"
 SKIP_COMMIT = re.compile(r"^(merge|bump|chore|release|revert|format|wip)\b", re.I)
+# "#(ABC-123) - ", "[ABC-123] ", "ABC-123: " and "fix - " are bookkeeping, not words a person would ask with
+TICKET = re.compile(r"^\s*(?:(?:[#\[(]+[A-Z][A-Z0-9]+-\d+[\])]+|[A-Z][A-Z0-9]+-\d+\s*[-:–—])\s*[-:–—]?\s*)+")
+COMMIT_TYPE = re.compile(r"^(?:fix|feat|refactor|perf|test|docs|style)(?:\([^)]*\))?!?\s*[-:–—]\s*", re.I)
 STOPWORDS = {"the", "and", "for", "with", "fix", "add", "use", "feat", "para", "com", "que", "não", "uma", "dos", "das"}
 MIN_QUESTIONS = 30
 GREP_FILES_READ = 5  # files an agent would open from a grep result, for the cost estimate
@@ -34,6 +37,11 @@ GREP_FILES_READ = 5  # files an agent would open from a grep result, for the cos
 def _git(repo: str, *args: str) -> str:
     return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, encoding="utf-8",
                           errors="replace", check=True).stdout
+
+
+def strip_bookkeeping(message: str) -> str:
+    """The commit message without a leading ticket key or commit type."""
+    return COMMIT_TYPE.sub("", TICKET.sub("", message, count=1), count=1)
 
 
 def build_golden(repo: str, snapshot: str, branch: str = "main") -> list[dict]:
@@ -47,7 +55,7 @@ def build_golden(repo: str, snapshot: str, branch: str = "main") -> list[dict]:
     for entry in log.split(COMMIT_MARK)[1:]:
         head, _, names = entry.partition(BODY_END)
         sha, _, message = head.partition("\n")
-        message = message.strip()
+        message = strip_bookkeeping(message.strip())
         files = [f for f in names.splitlines() if f and Path(f).suffix.lower() in source and f in existing]
         if not SKIP_COMMIT.match(message) and len(message) >= 25 and 1 <= len(files) <= 5:
             golden.append({"id": sha[:10], "query": message, "relevant": files})

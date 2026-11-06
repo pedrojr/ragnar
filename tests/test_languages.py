@@ -219,8 +219,42 @@ def test_inherited_forms_and_nesting():
     assert [(c.name, c.depth, c.end_line) for c in components] == [("Form2", 0, 4), ("Panel1", 1, 3)]
 
 
-def test_binary_form_is_skipped():
+def _short(text: str) -> bytes:
+    return bytes([len(text)]) + text.encode("cp1252")
+
+
+BINARY_FORM = (
+    b"TPF0" + _short("TForm1") + _short("Form1")
+    + _short("Caption") + b"\x06" + _short("Situação")
+    + _short("OnCreate") + b"\x07" + _short("FormCreate")
+    + _short("Width") + b"\x03" + (640).to_bytes(2, "little")
+    + _short("Picture.Data") + b"\x0a" + (3).to_bytes(4, "little") + b"\x01\x02\x03"
+    + b"\x00"
+    + _short("TADOQuery") + _short("qry")
+    + _short("SQL.Strings") + b"\x01" + b"\x06" + _short("select * from t") + b"\x06" + _short("where id = 1") + b"\x00"
+    + b"\x00\x00"
+    + b"\x00"
+)
+
+
+def test_binary_form_is_read_as_text():
+    for src in (BINARY_FORM, b"\xff\x0a\x00FORM1\x00\x30\x10" + len(BINARY_FORM).to_bytes(4, "little") + BINARY_FORM):
+        body = Chunker().chunk_file("src/Old.dfm", src)[0].content
+        assert "Caption=Situação" in body and "OnCreate=FormCreate" in body
+        assert "SQL=select * from t where id = 1" in body and "Width" not in body
+    symbols = {s.symbol for s in Chunker().extract_symbols("src/Old.dfm", BINARY_FORM)}
+    assert {"Form1", "Form1 > qry"} <= symbols
+
+
+def test_truncated_binary_form_is_skipped():
     assert Chunker().chunk_file("src/Old.dfm", b"TPF0\x06TForm1") == []
+
+
+def test_form_size_limit_ignores_image_data():
+    image = "  Picture.Data = {\n" + "    0954506E67496D616765\n" * 2000 + "  }\n"
+    src = f"object F: TForm\n{image}  OnShow = FormShow\nend\n".encode()
+    chunks = Chunker(Index(max_file_kb=8)).chunk_file("a.dfm", src)
+    assert chunks and "OnShow=FormShow" in chunks[0].content and chunks[0].end_line == 2005
 
 
 def test_cp1252_form_is_decoded():

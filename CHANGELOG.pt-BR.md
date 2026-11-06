@@ -22,6 +22,11 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - Lista por arquivo inteiro na fusão (`retrieval.file_weight`) e referências para resultados além do orçamento de tokens (`retrieval.reference_hits`).
 - `index.secret_action`, para deixar de fora os arquivos com achados em vez de parar a execução. Só no escopo do servidor.
 - `benchmark/`: comparação de antes e depois em projetos open source fixados em Delphi, Java, C# e Go.
+- Formulários Delphi binários (`TPF0`) são lidos como texto, e dados de imagem em formulários texto ficam fora dos chunks e do limite de tamanho.
+- `exclude` por repositório no `repos.toml`.
+- Um primeiro índice interrompido retoma do seu checkpoint de embeddings (migração 006).
+- `RAGNAR_BENCH_SUITE` e `RAGNAR_BENCH_DSN` rodam o benchmark numa suíte privada, e `benchmark/summarize_suite.py` publica só os agregados dela.
+- `RAGNAR_EMBED_THREADS` e `RAGNAR_EMBED_MEMORY` na infraestrutura de exemplo.
 
 ### Alterado
 
@@ -29,6 +34,10 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - A varredura de segredos roda no texto normalizado, então cobre fontes em UTF-16.
 - `index.max_file_kb` agora vale 2048 por padrão, e as execuções informam o que deixaram de fora e por quê.
 - O ranking lexical pesa os termos pela raridade, remove stopwords em inglês e português e casa por stemming leve.
+- Sufixos do português e acentos não separam mais uma palavra das suas variantes, nas perguntas e nos identificadores.
+- A lista por arquivo ordena os arquivos por BM25 sobre a contagem de chunks, com penalidade de tamanho. `retrieval.file_weight` passa a valer 2.0, e `retrieval.rrf_k`, 30.
+- A varredura de segredos lê os formulários como indexados, então dados de imagem não geram mais achados.
+- Perguntas do histórico tiram prefixos de ticket e tipos de commit dos assuntos.
 - `balanced` agora devolve 5 resultados em 2.000 tokens, e `economy`, 3 em 1.000: em sessões reais de agente, 4.000 tokens custaram mais contexto que o grep.
 - A nota do agente e as instruções do MCP dizem quando começar pelo índice. Com o texto anterior, os agentes continuavam no grep.
 - A reindexação reaproveita os vetores de chunks sem mudança, e os textos chegam ao embedder ordenados por tamanho.

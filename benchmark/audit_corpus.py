@@ -20,6 +20,9 @@ from ragnar.indexer import git, list_files, read_blobs
 from ragnar.languages import BY_EXTENSION, FORM_EXTENSIONS, grammar_for, is_denied, is_generated, language_for
 
 ROOT = Path(__file__).parent
+sys.path.insert(0, str(ROOT))
+from bench import REPOS  # noqa: E402
+
 SOURCE = set(BY_EXTENSION) | set(FORM_EXTENSIONS)
 
 
@@ -80,9 +83,9 @@ def audit(repo_dir: Path) -> dict:
 
 
 def main() -> None:
-    names = sys.argv[1:] or sorted(p.name for p in (ROOT / "repos").iterdir())
+    names = sys.argv[1:] or sorted(p.name for p in REPOS.iterdir())
     for name in names:
-        print(json.dumps(audit(ROOT / "repos" / name), indent=1))
+        print(json.dumps(audit(REPOS / name), indent=1))
 
 
 if __name__ == "__main__":

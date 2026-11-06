@@ -40,7 +40,7 @@ def resize_embeddings(dsn: str) -> int:
     dim = load_settings().embedding.dim
     with psycopg.connect(dsn) as conn:
         conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (MIGRATION_LOCK,))
-        conn.execute("TRUNCATE code_chunk, code_symbol, index_state")
+        conn.execute("TRUNCATE code_chunk, code_symbol, index_state, embedding_checkpoint")
         conn.execute("DROP INDEX IF EXISTS code_chunk_embedding_idx")
         conn.execute(f"ALTER TABLE code_chunk ALTER COLUMN embedding TYPE vector({int(dim)})")
         conn.execute("CREATE INDEX code_chunk_embedding_idx ON code_chunk USING hnsw (embedding vector_cosine_ops)")

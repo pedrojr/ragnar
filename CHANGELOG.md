@@ -22,6 +22,11 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - Whole-file list in the fusion (`retrieval.file_weight`), and references for hits beyond the token budget (`retrieval.reference_hits`).
 - `index.secret_action`, to leave files with findings out instead of stopping the run. Server scope only.
 - `benchmark/`: before and after comparison on pinned open source projects in Delphi, Java, C# and Go.
+- Binary Delphi forms (`TPF0`) are read as text, and image data in text forms stays out of chunks and the size limit.
+- `exclude` per repository in `repos.toml`.
+- An interrupted first index resumes from its embedding checkpoint (migration 006).
+- `RAGNAR_BENCH_SUITE` and `RAGNAR_BENCH_DSN` run the benchmark on a private suite, and `benchmark/summarize_suite.py` publishes its aggregates only.
+- `RAGNAR_EMBED_THREADS` and `RAGNAR_EMBED_MEMORY` in the example infrastructure.
 
 ### Changed
 
@@ -29,6 +34,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - The secret scan runs on normalized text, so it covers UTF-16 sources.
 - `index.max_file_kb` defaults to 2048, and runs report what they leave out and why.
 - Lexical ranking weighs terms by rarity, drops English and Portuguese stopwords, and matches by light stemming.
+- Portuguese suffixes and accents no longer split a word from its variants, in queries and in identifiers.
+- The whole-file list ranks files by BM25 over chunk counts, with a length penalty. `retrieval.file_weight` defaults to 2.0 and `retrieval.rrf_k` to 30.
+- The secret scan reads forms as indexed, so image data no longer raises findings.
+- History questions drop ticket prefixes and commit types from their subjects.
 - `balanced` now returns 5 hits within 2,000 tokens, and `economy` 3 hits within 1,000: in real agent sessions, 4,000 tokens cost more context than grep.
 - The agent note and the MCP instructions tell agents when to start with the index. With the previous wording, agents kept using grep.
 - Reindexing reuses the vectors of unchanged chunks, and texts reach the embedder sorted by length.

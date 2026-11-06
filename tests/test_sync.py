@@ -21,6 +21,21 @@ def test_load_repos(tmp_path):
     assert load_repos(path) == [RepoSource("a", "https://x/a.git"), RepoSource("b", "https://x/b.git", "develop", "T")]
 
 
+def test_repo_excludes_reach_the_indexer(tmp_path):
+    path = tmp_path / "repos.toml"
+    path.write_text('[[repo]]\nname = "a"\nurl = "u"\nexclude = ["vendor/*", "lib/*"]\n', encoding="utf-8")
+    repos = load_repos(path)
+    assert repos[0].exclude == ("vendor/*", "lib/*")
+    seen = []
+
+    def indexer(url, name, dsn, emb, settings, **_):
+        seen.append(settings.index.exclude)
+        return Result(name, "unchanged", "0" * 40, 0, 0, 0, 0.0)
+
+    sync_once(repos, "dsn", FakeEmbedder(), load_settings(environ={}), indexer=indexer)
+    assert seen == [("vendor/*", "lib/*")]
+
+
 @pytest.mark.parametrize("text", ['[[repo]]\nname = "a"\n', '[[repo]]\nname = "a"\nurl = "u"\ntoken = "secret"\n'])
 def test_load_repos_rejects_bad_entries(tmp_path, text):
     path = tmp_path / "repos.toml"

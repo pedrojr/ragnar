@@ -95,11 +95,11 @@ Um provedor hospedado recebe seu código-fonte. Escolha com isso em mente.
 | `mode` | `"hybrid"` | `hybrid`, `vector` ou `lexical` |
 | `default_k` | `5` | Resultados quando quem chama não define `k` |
 | `candidates` | `50` | Resultados por lista, antes da fusão |
-| `rrf_k` | `60` | Constante de suavização do RRF |
+| `rrf_k` | `30` | Constante de suavização do RRF |
 | `vector_weight` | `1.0` | Peso da lista vetorial |
 | `lexical_weight` | `1.0` | Peso da lista lexical |
 | `symbol_weight` | `1.0` | Peso de símbolos exatos. `0` desliga |
-| `file_weight` | `1.0` | Peso da lista por arquivo inteiro. `0` desliga |
+| `file_weight` | `2.0` | Peso da lista por arquivo inteiro. `0` desliga |
 | `ef_search` | `100` | Largura da busca HNSW |
 | `max_chunks_per_file` | `3` | Limite por arquivo. `0` desliga |
 | `diversity` | `0.0` | `0` é só relevância, `1` é só novidade |

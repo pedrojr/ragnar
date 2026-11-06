@@ -154,10 +154,12 @@ def _relative(file: str, root: Path) -> str:
     return rel
 
 
-def embed_all(emb: Embedder | FakeEmbedder, texts: list[str], repo: str, batch: int, concurrency: int) -> list[list[float]]:
+def embed_all(emb: Embedder | FakeEmbedder, texts: list[str], repo: str, batch: int, concurrency: int,
+              done_batch=None) -> list[list[float]]:
     """Parallel batches: with several embedder replicas behind a Service, all of them work.
 
     Texts go by length: a batch pads to its longest text, so similar lengths cost less on a CPU.
+    done_batch(indexes, vectors) runs as each batch arrives.
     """
     order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
     groups = [order[i : i + batch] for i in range(0, len(order), batch)]
@@ -166,8 +168,11 @@ def embed_all(emb: Embedder | FakeEmbedder, texts: list[str], repo: str, batch: 
     with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
         futures = {pool.submit(emb.embed_documents, [texts[i] for i in g]): g for g in groups}
         for f in as_completed(futures):
-            for i, vector in zip(futures[f], f.result()):
+            result = f.result()
+            for i, vector in zip(futures[f], result):
                 vectors[i] = vector
+            if done_batch:
+                done_batch(futures[f], result)
             done += len(futures[f])
             print(f"{repo}: embeddings {done}/{len(texts)}", file=sys.stderr, flush=True)
     return vectors
@@ -183,6 +188,31 @@ def reusable_vectors(dsn: str, repo: str, hashes: list[str]) -> dict[str, str]:
         rows = conn.execute("SELECT DISTINCT ON (content_hash) content_hash, embedding::text FROM code_chunk "
                             "WHERE repo = %s AND content_hash = ANY(%s)", (repo, hashes)).fetchall()
     return dict(rows)
+
+
+def checkpointed_vectors(dsn: str, model: str, hashes: list[str]) -> dict[str, str]:
+    """Vectors embedded by a run that stopped before it committed."""
+    with psycopg.connect(dsn) as conn:
+        rows = conn.execute("SELECT content_hash, embedding FROM embedding_checkpoint "
+                            "WHERE model = %s AND content_hash = ANY(%s)", (model, hashes)).fetchall()
+    return dict(rows)
+
+
+class Checkpoint:
+    """Saves each batch of vectors as it arrives, outside the run's transaction."""
+
+    def __init__(self, dsn: str, model: str, hashes: list[str]):
+        self.conn = psycopg.connect(dsn, autocommit=True)
+        self.model, self.hashes = model, hashes
+
+    def __call__(self, indexes: list[int], vectors: list[list[float]]) -> None:
+        with self.conn.cursor() as cur:
+            cur.executemany("INSERT INTO embedding_checkpoint (model, content_hash, embedding) VALUES (%s, %s, %s) "
+                            "ON CONFLICT DO NOTHING",
+                            [(self.model, self.hashes[i], to_pgvector(v)) for i, v in zip(indexes, vectors)])
+
+    def close(self) -> None:
+        self.conn.close()
 
 
 @dataclass
@@ -232,8 +262,9 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
     blobs = read_blobs(repo_dir, head, [p for p in paths if chunker.eligible(p)])
     skipped = Counter(reason for path, src in blobs.items() if (reason := chunker.skip_reason(path, src)))
     if scan and settings.index.secret_scan:
-        # normalized text: gitleaks does not read UTF-16 and would miss secrets in it
-        normalized = {p: normalize_source(b, settings.index.legacy_encoding) for p, b in blobs.items()}
+        # what gets indexed, as UTF-8: gitleaks does not read UTF-16, and form images look like tokens
+        normalized = {p: normalize_source(chunker.indexed_source(p, b), settings.index.legacy_encoding)
+                      for p, b in blobs.items()}
         found = secret_scan({p: b for p, b in normalized.items() if b is not None})
         if removed := apply_secret_policy(found, blobs, settings.index.secret_action):
             skipped["secret"] = removed
@@ -246,9 +277,16 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
         chunks = contextualize(chat, settings.contextual, chunks, blobs)
     hashes = [content_hash(c.content, settings.embedding.doc_prefix) for c in chunks]
     known = reusable_vectors(dsn, repo, hashes) if state is not None and state[1] == emb.model else {}
+    known |= checkpointed_vectors(dsn, emb.model, [h for h in hashes if h not in known])
     missing = [i for i, h in enumerate(hashes) if h not in known]
-    fresh = embed_all(emb, [chunks[i].content for i in missing], repo, settings.embedding.batch,
-                      settings.embedding.concurrency)
+    checkpoint = Checkpoint(dsn, emb.model, hashes) if missing else None
+    try:
+        fresh = embed_all(emb, [chunks[i].content for i in missing], repo, settings.embedding.batch,
+                          settings.embedding.concurrency,
+                          checkpoint and (lambda batch, vecs: checkpoint([missing[j] for j in batch], vecs)))
+    finally:
+        if checkpoint:
+            checkpoint.close()
     vectors = {i: to_pgvector(v) for i, v in zip(missing, fresh)}
     for i, h in enumerate(hashes):
         vectors.setdefault(i, known.get(h, ""))
@@ -276,5 +314,6 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
                fingerprint = EXCLUDED.fingerprint, skipped = EXCLUDED.skipped, indexed_at = now()""",
             (repo, head, emb.model, fingerprint, json.dumps(skipped)),
         )
+        conn.execute("DELETE FROM embedding_checkpoint WHERE model = %s AND content_hash = ANY(%s)", (emb.model, hashes))
     return Result(repo, mode, head, len(blobs), len(chunks), deleted, round(time.monotonic() - t0, 1),
                   len(chunks) - len(missing), dict(skipped))

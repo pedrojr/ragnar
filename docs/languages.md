@@ -56,7 +56,9 @@ Form1: TForm1 Caption=Customers OnCreate=FormCreate
 
 An agent can then go from a business question to the form, and from the form to the handler in the `.pas` file. Dropping geometry also lowers the embedding cost. Connection strings are dropped too, so passwords inside them stay out of the index.
 
-**Binary forms.** Old projects may store forms as binary (`TPF0`). Ragnar cannot read those, and it skips them. Convert them to text in the IDE, or with `convert.exe` from the Delphi `bin` folder.
+**Binary forms.** Old projects may store forms as binary (`TPF0`), bare or inside a resource header. Ragnar turns them into the text format first, as `convert.exe` does, so they are indexed like any other form. Their line numbers refer to that text, not to the file.
+
+**Forms with images.** Embedded pictures can make a form of several megabytes around a few kilobytes of SQL and events. Ragnar drops the image data before it applies `index.max_file_kb`, and before the secret scan: hex image data often looks like an access token.
 
 **Tests.** DUnit and DUnitX naming is recognized: `TestOrders.pas`, `OrderTests.pas`, and anything in a `test/` folder.
 

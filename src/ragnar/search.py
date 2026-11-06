@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 import psycopg
 
-from .chunker import split_identifiers
+from .chunker import split_identifiers, unaccent
 from .config import Retrieval, Settings
 from .embedder import Embedder, FakeEmbedder, to_pgvector
 from .llm import Chat, Reranker, expand_query
@@ -47,7 +47,9 @@ RANK_WEIGHTS = [0.1, 0.2, 0.4, 0.5]  # D (body) to A (path and symbol)
 RANK_NORMALIZATION = 1  # divides by 1 + log(length): a long chunk does not win by repetition
 MAX_TERMS = 12
 MIN_STEM = 4
-FILE_CANDIDATES = 20  # files considered by the whole-file list
+FILE_CANDIDATES = 40  # files considered by the whole-file list
+FILE_K1 = 1.2  # saturation of the chunks of a file that hold a term: 0 counts presence only
+FILE_B = 0.4  # length penalty of the whole-file list: a giant unit holds every word
 COMMON_SHARE = 0.25  # a term in more chunks than this share ranks results, but does not select them
 STOPWORDS = frozenset("""
 a about after all also an and any are as at be been but by can could did do does each either every find for from get got had has
@@ -59,6 +61,7 @@ foram há isso isto já lhe mais mas me mesmo meu minha muito na nas nem no nos 
 pela pelas pelo pelos por qual quais qualquer quando que quem se sem ser seu seus sobre sua suas são só também tem têm um
 uma umas uns vai você
 """.split())
+STOPWORDS |= frozenset(unaccent(w) for w in STOPWORDS)  # questions are often typed without accents
 OCCURRENCE_SQL = """SELECT repo, path, symbol, kind, language, start_line, content FROM code_chunk
 WHERE repo = ANY(%(repos)s) AND path LIKE %(prefix)s ESCAPE '\\' AND tsv @@ phraseto_tsquery('simple', %(words)s)
 ORDER BY kind = 'test', repo, path, start_line LIMIT %(limit)s"""
@@ -68,9 +71,16 @@ def like_prefix(prefix: str) -> str:
     return re.sub(r"([\\%_])", r"\\\1", prefix) + "%"
 
 
+# English and Portuguese endings, longest first: code mixes both, and names use the verb where
+# questions use the noun ("cancelamento" asks for Cancelar, "validacao" for ValidaCadastro)
+SUFFIXES = ("amentos", "imentos", "amento", "imento", "mentos", "mento", "acoes", "icoes", "acao", "icao", "coes",
+            "cao", "ados", "adas", "idos", "idas", "ando", "endo", "indo", "ado", "ada", "ido", "ida", "ing", "ar",
+            "er", "ir", "ed", "es", "s")
+
+
 def stem(term: str) -> str:
     """Light stemming as a tsquery prefix: 'escaped' also matches escape, escapes and escapeString."""
-    for suffix in ("ing", "ed", "es", "s"):
+    for suffix in SUFFIXES:
         if term.endswith(suffix) and len(term) - len(suffix) >= MIN_STEM:
             return f"{term.removesuffix(suffix)}:*"
     return f"{term}:*" if len(term) >= MIN_STEM + 1 else term
@@ -78,7 +88,7 @@ def stem(term: str) -> str:
 
 def query_terms(query: str) -> list[str]:
     """Lexical terms of a query, as tsquery operands. Stopwords go, unless the query is nothing else."""
-    terms = list(dict.fromkeys(re.findall(r"[^\W_]{2,}", split_identifiers(query).lower())))
+    terms = list(dict.fromkeys(unaccent(w) for w in re.findall(r"[^\W_]{2,}", split_identifiers(query).lower())))
     return [stem(t) for t in ([t for t in terms if t not in STOPWORDS] or terms)[:MAX_TERMS]]
 
 
@@ -113,6 +123,22 @@ def identifier_names(query: str) -> list[str]:
 
     names = dict.fromkeys(m.group().lower() for m in words if named(m))
     return sorted(names, key=lambda n: -len(n))
+
+
+def file_scores(hits: dict[str, dict[tuple[str, str], int]], sizes: dict[tuple[str, str], int],
+                weights: dict[str, float]) -> dict[tuple[str, str], float]:
+    """BM25 over files, with a chunk as the unit of text: hits[term][file] is how many chunks of the file hold the term.
+
+    A 20 000 line unit holds every word of a question, and that alone proves little. With
+    FILE_K1 = 0 only presence counts, and size does not matter.
+    """
+    mean_size = sum(sizes.values()) / len(sizes) if sizes else 1.0
+    held: dict[tuple[str, str], float] = {}
+    for term, found in hits.items():
+        for key, n in found.items():
+            norm = 1 - FILE_B + FILE_B * sizes.get(key, mean_size) / mean_size
+            held[key] = held.get(key, 0.0) + weights[term] * n * (FILE_K1 + 1) / (n + FILE_K1 * norm)
+    return held
 
 
 def fuse(ranked: list[tuple[float, list[int]]], rrf_k: int) -> list[int]:
@@ -227,11 +253,13 @@ class Pipeline:
         A chunk rarely holds every word of a question, and a 20 000 line unit is exactly where the
         words sit far apart. This is what makes grep strong on large files.
         """
-        held: dict[tuple[str, str], float] = {}
+        hits: dict[str, dict[tuple[str, str], int]] = {}
         for term in selective:
-            for key in conn.execute(f"SELECT DISTINCT repo, path FROM code_chunk WHERE {FILTERS} "
-                                    "AND tsv @@ to_tsquery('simple', %(term)s)", {**base, "term": term}):
-                held[key] = held.get(key, 0.0) + weights[term]
+            hits[term] = {(repo, path): n for repo, path, n in conn.execute(
+                f"SELECT repo, path, count(*) FROM code_chunk WHERE {FILTERS} "
+                "AND tsv @@ to_tsquery('simple', %(term)s) GROUP BY repo, path", {**base, "term": term})}
+        sizes = self._file_sizes(conn, base, {key for found in hits.values() for key in found}) if FILE_B and FILE_K1 else {}
+        held = file_scores(hits, sizes, weights)
         top = sorted(held, key=lambda key: (-held[key], key))[:FILE_CANDIDATES]
         if not top:
             return []
@@ -243,6 +271,15 @@ class Pipeline:
         ).fetchall()
         best = {(repo, path): chunk for repo, path, chunk in rows}
         return [best[key] for key in top if key in best]
+
+    @staticmethod
+    def _file_sizes(conn: psycopg.Connection, base: dict, keys: set[tuple[str, str]]) -> dict[tuple[str, str], int]:
+        """Chunks per file, for the files that hold some query term."""
+        if not keys:
+            return {}
+        rows = conn.execute("SELECT repo, path, count(*) FROM code_chunk WHERE repo = ANY(%s) AND path = ANY(%s) "
+                            "GROUP BY repo, path", (base["repos"], sorted({p for _, p in keys}))).fetchall()
+        return {(repo, path): n for repo, path, n in rows if (repo, path) in keys}
 
     def search(self, conn: psycopg.Connection, repos: list[str], query: str, k: int | None = None,
                path_prefix: str = "", kind: str | None = None) -> tuple[list[dict], dict[str, float]]:

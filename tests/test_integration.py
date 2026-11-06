@@ -99,6 +99,29 @@ def test_settings_change_reuses_vectors(dsn, tmp_path):
     assert r.mode == "full" and r.reused_vectors == r.chunks > 0
 
 
+def test_interrupted_build_resumes_from_its_checkpoint(dsn, tmp_path):
+    repo = make_repo(tmp_path)
+    settings = load_settings(tmp_path, overrides=["embedding.batch=1"], environ={})
+
+    class Failing(FakeEmbedder):
+        calls = 0
+
+        def embed_documents(self, texts):
+            Failing.calls += 1
+            if Failing.calls > 1:
+                raise RuntimeError("embedder died")
+            return super().embed_documents(texts)
+
+    with pytest.raises(RuntimeError):
+        index(str(repo), "resume", dsn, Failing(768), settings, scan=False)
+    with psycopg.connect(dsn) as conn:
+        assert conn.execute("SELECT count(*) FROM embedding_checkpoint").fetchone()[0] == 1
+    r = index(str(repo), "resume", dsn, FakeEmbedder(768), settings, scan=False)
+    assert r.mode == "full" and r.reused_vectors == 1
+    with psycopg.connect(dsn) as conn:
+        assert conn.execute("SELECT count(*) FROM embedding_checkpoint").fetchone()[0] == 0
+
+
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))

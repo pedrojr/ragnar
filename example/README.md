@@ -59,13 +59,29 @@ echo 'RAGNAR_GIT_TOKEN=<read-only token>' >> .env
 
 The token travels in a request header, so it stays out of URLs, the mirror and error messages. GitHub and GitLab accept this form.
 
+To leave folders out before the repository commits its own `ragnar.toml`, such as vendored libraries, add `exclude = ["vendor/*", "lib/*"]` to the entry. A `ragnar.toml` in the repository replaces this list.
+
+To follow a clone on this machine, mount it into the worker with a local override file, and use the mount point as `url`:
+
+```yaml
+# compose.local.yaml
+services:
+  indexer:
+    volumes:
+      - /path/to/myapp:/src/myapp:ro
+```
+
+```bash
+docker compose -f compose.yaml -f compose.local.yaml up -d --build --scale db-replica=2
+```
+
 **3. Start everything.** The first build downloads the embedding model, so it takes a few minutes.
 
 ```bash
 docker compose up -d --build --scale db-replica=2
 ```
 
-**4. Follow the first index.** On CPU, expect about one second per chunk.
+**4. Follow the first index.** On CPU, expect about one second per chunk with the default 4 embedder threads. For a large repository, set `RAGNAR_EMBED_THREADS` (and `RAGNAR_EMBED_MEMORY`, default `3g`) in `.env` before step 3. With 14 threads, a repository of 40 000 chunks took about 5 hours. If the run stops, the next one keeps the vectors already computed.
 
 ```bash
 docker compose logs -f indexer

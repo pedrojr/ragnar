@@ -95,11 +95,11 @@ A hosted provider receives your source code. Choose accordingly.
 | `mode` | `"hybrid"` | `hybrid`, `vector` or `lexical` |
 | `default_k` | `5` | Hits when the caller does not set `k` |
 | `candidates` | `50` | Hits per list, before fusion |
-| `rrf_k` | `60` | RRF smoothing constant |
+| `rrf_k` | `30` | RRF smoothing constant |
 | `vector_weight` | `1.0` | Weight of the vector list |
 | `lexical_weight` | `1.0` | Weight of the lexical list |
 | `symbol_weight` | `1.0` | Weight of exact symbol matches. `0` turns it off |
-| `file_weight` | `1.0` | Weight of the whole-file list. `0` turns it off |
+| `file_weight` | `2.0` | Weight of the whole-file list. `0` turns it off |
 | `ef_search` | `100` | HNSW search width |
 | `max_chunks_per_file` | `3` | Cap per file. `0` turns it off |
 | `diversity` | `0.0` | `0` is pure relevance, `1` is pure novelty |

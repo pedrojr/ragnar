@@ -10,6 +10,7 @@ from __future__ import annotations
 import codecs
 import fnmatch
 import re
+import unicodedata
 from bisect import bisect_right
 from dataclasses import dataclass, field
 from itertools import accumulate
@@ -68,7 +69,13 @@ def split_identifiers(text: str) -> str:
         out.append(w)
         if w.isascii():  # the case split below would cut accented words apart
             out += re.findall(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+", w)
+        elif (plain := unaccent(w)) != w:  # "configuração" in a comment, "Configuracao" in a name
+            out.append(plain)
     return " ".join(out)
+
+
+def unaccent(text: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
 
 
 def normalize_source(src: bytes, legacy_encoding: str = "cp1252") -> bytes | None:
@@ -217,6 +224,12 @@ class Chunker:
             return False
         return not is_denied(lang, path)
 
+    def indexed_source(self, path: str, src: bytes) -> bytes:
+        """Forms in text syntax, without their image data: the size limit applies to what gets indexed."""
+        if PurePosixPath(path).suffix.lower() in FORM_EXTENSIONS:
+            return delphi.form_source(src, self.index.legacy_encoding)
+        return src
+
     def _readable(self, path: str, src: bytes) -> bytes | None:
         if self.skip_reason(path, src) is not None:
             return None
@@ -226,6 +239,7 @@ class Chunker:
         """Why an eligible file stays out of the index. Runs report it: a silent skip looks like a search failure."""
         if not self.eligible(path):
             return "not eligible"
+        src = self.indexed_source(path, src)
         if len(src) > self.index.max_file_kb * 1024:
             return "too large"
         if is_generated(src):
@@ -236,6 +250,7 @@ class Chunker:
 
     def chunk_file(self, path: str, src: bytes) -> list[Chunk]:
         """Chunks of the file, or an empty list if it must not be indexed."""
+        src = self.indexed_source(path, src)
         text = self._readable(path, src)
         if text is None:
             return []
@@ -380,6 +395,7 @@ class Chunker:
 
     def extract_symbols(self, path: str, src: bytes) -> list[Symbol]:
         """Every named declaration (class, type, function, method), even the ones sharing a chunk."""
+        src = self.indexed_source(path, src)
         text = self._readable(path, src)
         if text is None:
             return []

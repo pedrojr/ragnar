@@ -47,6 +47,7 @@ PY = b"""class OrderService:
 
 def test_split_identifiers():
     assert chunker.split_identifiers("getUserById") == "getUserById get User By Id"
+    assert chunker.split_identifiers("muda a configuração") == "muda muda a a configuração configuracao"
     assert "HTTP" in chunker.split_identifiers("parseHTTPResponse").split()
     assert "situação" in chunker.split_identifiers("situação do pedido").split()
 

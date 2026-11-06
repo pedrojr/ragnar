@@ -18,6 +18,7 @@ REPOS_TEMPLATE = """# Repositories the index worker follows. Copy the block per 
 # url = "https://github.com/acme/myapp.git"
 # branch = "main"
 # token_env = "RAGNAR_GIT_TOKEN"                # for private repositories
+# exclude = ["vendor/*"]                        # until the repository commits its own ragnar.toml
 """
 
 

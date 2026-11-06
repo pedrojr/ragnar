@@ -8,11 +8,13 @@ indexed commit. Polling needs no inbound network, so it works behind a firewall.
     url = "https://github.com/acme/myapp.git"
     branch = "main"
     token_env = "RAGNAR_GIT_TOKEN"   # optional, for private repositories
+    exclude = ["vendor/*"]           # optional, until the repository commits its own ragnar.toml
 """
 
 from __future__ import annotations
 
 import base64
+import dataclasses
 import os
 import signal
 import sys
@@ -32,6 +34,7 @@ class RepoSource:
     url: str
     branch: str = "main"
     token_env: str = ""
+    exclude: tuple[str, ...] = ()  # index globs; the [index] of a ragnar.toml in the repository replaces them
 
 
 def load_repos(path: str | Path) -> list[RepoSource]:
@@ -43,10 +46,10 @@ def load_repos(path: str | Path) -> list[RepoSource]:
         raise RagnarError(f"invalid TOML in {path}: {exc}") from None
     repos = []
     for entry in data.get("repo", []):
-        unknown = sorted(set(entry) - {"name", "url", "branch", "token_env"})
+        unknown = sorted(set(entry) - {"name", "url", "branch", "token_env", "exclude"})
         if unknown or "name" not in entry or "url" not in entry:
-            raise RagnarError(f"each [[repo]] needs name and url, and only branch and token_env besides: {entry}")
-        repos.append(RepoSource(**entry))
+            raise RagnarError(f"each [[repo]] needs name and url, and only branch, token_env and exclude besides: {entry}")
+        repos.append(RepoSource(**{**entry, "exclude": tuple(entry.get("exclude", ()))}))
     return repos
 
 
@@ -72,7 +75,10 @@ def sync_once(repos: list[RepoSource], dsn: str, emb: Embedder | FakeEmbedder, s
     results, errors = [], []
     for source in repos:
         try:
-            result = indexer(source.url, source.name, dsn, emb, settings, ref=source.branch,
+            own = settings
+            if source.exclude:
+                own = dataclasses.replace(settings, index=dataclasses.replace(settings.index, exclude=source.exclude))
+            result = indexer(source.url, source.name, dsn, emb, own, ref=source.branch,
                              git_env=git_auth_env(source))
             results.append(result)
             print(f"{result.repo}: {result.mode} at {result.commit_sha[:12]}: {result.files} files, "

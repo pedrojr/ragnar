@@ -58,9 +58,9 @@ services:
       args:
         EMBED_MODEL: ${RAGNAR__EMBEDDING__MODEL:-jinaai/jina-embeddings-v2-base-code}
     environment:
-      RAGNAR_EMBED_THREADS: "4"
+      RAGNAR_EMBED_THREADS: ${RAGNAR_EMBED_THREADS:-4}   # raise it for a first build of a large repository
       RAGNAR__EMBEDDING__MODEL: ${RAGNAR__EMBEDDING__MODEL:-jinaai/jina-embeddings-v2-base-code}
-    mem_limit: 3g   # going over kills only the container, not the Docker VM
+    mem_limit: ${RAGNAR_EMBED_MEMORY:-3g}   # going over kills only the container, not the Docker VM
     ports: ["127.0.0.1:8001:8000"]   # only for manual indexing from the host
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]

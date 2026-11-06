@@ -48,9 +48,9 @@ Stages with an optional model are off by default.
 
 **Reciprocal Rank Fusion** ranks by position, not score, so vector and lexical results combine without calibration. A chunk scores `weight / (rrf_k + rank)` per list. Chunks found by several lists rise.
 
-**Lexical ranking** follows BM25 on plain Postgres. Each term weighs by its rarity, English and Portuguese stopwords drop out, words in the path and symbol score above the body, and light stemming lets "escaped" find `EscapeString`. A term in more than a quarter of the chunks ranks results, but it does not select them.
+**Lexical ranking** follows BM25 on plain Postgres. Each term weighs by its rarity, English and Portuguese stopwords drop out, words in the path and symbol score above the body, and light stemming lets "escaped" find `EscapeString` and "cancelamento" find `CancelarPedido`. Accents do not count: "configuração" and "configuracao" match the same code. A term in more than a quarter of the chunks ranks results, but it does not select them.
 
-**The whole-file list** covers what chunks cannot: a chunk rarely holds every word of a question. Files holding the most query weight across their chunks join the fusion through their best chunk. This gives Ragnar the strength grep has on large files.
+**The whole-file list** covers what chunks cannot: a chunk rarely holds every word of a question. Files holding the most query weight across their chunks join the fusion through their best chunk. This gives Ragnar the strength grep has on large files. Files are scored like BM25 documents, with chunks as the unit: a file gains from more chunks holding a term, and loses a little for its size. Without that penalty, a monorepo's utility units of 20 000 lines hold every word and win every question.
 
 **Symbol boost** reads identifiers from the question and adds chunks that define them, so "where is `TOrder.Cancel` used?" lands on the definition. In a sentence, only words that read like code count.
 

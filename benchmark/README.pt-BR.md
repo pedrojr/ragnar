@@ -60,6 +60,12 @@ git worktree add benchmark/work/v0-src <commit>
 PYTHONPATH=benchmark/work/v0-src/src uv run python benchmark/bench.py index --label v0
 ```
 
+O `RAGNAR_BENCH_SUITE` aponta os mesmos scripts para outra pasta, com seus próprios `repos.toml`, `questions/`, `repos/` e `work/`. Use para um repositório privado: o código, as perguntas e os resultados ficam fora deste repositório. O `RAGNAR_BENCH_DSN` aponta para outro banco, como o primário da infraestrutura de exemplo.
+
+```bash
+RAGNAR_BENCH_SUITE=/caminho/da/suite-privada uv run python benchmark/bench.py prepare
+```
+
 Para as execuções com agente, suba um servidor MCP no mesmo banco e defina um token. As execuções consomem uso de modelo, por isso o número de perguntas é explícito e cada execução tem um teto de gasto:
 
 ```bash

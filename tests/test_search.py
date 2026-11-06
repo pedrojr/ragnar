@@ -11,6 +11,7 @@ from ragnar.config import Contextual, Llm, RagnarError, Rerank, Retrieval
 from ragnar.mcp_server import render_hits
 from ragnar.search import (
     estimate_tokens,
+    file_scores,
     fit_budget,
     fuse,
     identifier_names,
@@ -78,6 +79,20 @@ def test_query_terms_drop_stopwords_but_never_everything():
     assert query_terms("como a senha é salva") == ["senha:*", "salva:*"]
     assert query_terms("how is it") == ["how", "is", "it"]
     assert query_terms("getUserById") == ["getuserbyid:*", "user", "id"]
+
+
+def test_portuguese_questions_reach_portuguese_names():
+    assert query_terms("cancelamento do contrato já emitido") == ["cancel:*", "contrato:*", "emit:*"]
+    assert query_terms("validação da configuração") == ["valid:*", "configur:*"]
+
+
+def test_giant_files_do_not_win_by_size_alone():
+    hits = {"contrato": {("r", "big.pas"): 1, ("r", "small.pas"): 1}, "prazo": {("r", "big.pas"): 1, ("r", "small.pas"): 1}}
+    held = file_scores(hits, {("r", "big.pas"): 400, ("r", "small.pas"): 4}, {"contrato": 1.0, "prazo": 1.0})
+    assert held[("r", "small.pas")] > held[("r", "big.pas")]
+    same_size = {("r", "big.pas"): 40, ("r", "small.pas"): 40}
+    focused = file_scores({"contrato": {("r", "big.pas"): 30, ("r", "small.pas"): 1}}, same_size, {"contrato": 1.0})
+    assert focused[("r", "big.pas")] > focused[("r", "small.pas")]
 
 
 def test_stem_keeps_short_words_exact():

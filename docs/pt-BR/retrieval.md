@@ -48,9 +48,9 @@ Etapas que usam um modelo opcional vêm desligadas.
 
 O **Reciprocal Rank Fusion** ordena por posição, não por pontuação, então listas vetoriais e lexicais se combinam sem calibração. Um chunk soma `peso / (rrf_k + posição)` por lista. Chunks achados em várias listas sobem.
 
-O **ranking lexical** segue o BM25 em Postgres puro. Cada termo pesa pela raridade, stopwords em inglês e português saem, palavras do path e do símbolo pontuam acima do corpo, e um stemming leve deixa "escaped" achar `EscapeString`. Um termo presente em mais de um quarto dos chunks ordena resultados, mas não os seleciona.
+O **ranking lexical** segue o BM25 em Postgres puro. Cada termo pesa pela raridade, stopwords em inglês e português saem, palavras do path e do símbolo pontuam acima do corpo, e um stemming leve deixa "escaped" achar `EscapeString` e "cancelamento" achar `CancelarPedido`. Acentos não contam: "configuração" e "configuracao" acham o mesmo código. Um termo presente em mais de um quarto dos chunks ordena resultados, mas não os seleciona.
 
-A **lista por arquivo** cobre o que chunks não alcançam: um chunk raramente tem todas as palavras de uma pergunta. Os arquivos com mais peso da consulta somado entre seus chunks entram na fusão pelo melhor chunk. Isso dá ao Ragnar a força que o grep tem em arquivos grandes.
+A **lista por arquivo** cobre o que chunks não alcançam: um chunk raramente tem todas as palavras de uma pergunta. Os arquivos com mais peso da consulta somado entre seus chunks entram na fusão pelo melhor chunk. Isso dá ao Ragnar a força que o grep tem em arquivos grandes. Os arquivos pontuam como documentos do BM25, com o chunk como unidade: um arquivo ganha com mais chunks que têm o termo e perde um pouco pelo tamanho. Sem essa penalidade, as units utilitárias de 20 000 linhas de um monorepo têm todas as palavras e ganham todas as perguntas.
 
 O **reforço por símbolo** lê identificadores na pergunta e adiciona os chunks que os definem, então "onde `TOrder.Cancel` é usado?" cai na definição. Numa frase, só contam as palavras que parecem código.
 

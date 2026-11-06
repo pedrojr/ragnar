@@ -54,8 +54,8 @@ def main() -> None:
     for item in ["base=", *args.variant]:
         name, _, changes = item.partition("=")
         overrides, constants = [], {}
-        for change in filter(None, re.split(r",(?=[A-Za-z_.]+[:=])", changes)):
-            if re.match(r"[A-Z_]+:", change):
+        for change in filter(None, re.split(r",(?=[A-Za-z0-9_.]+[:=])", changes)):
+            if re.match(r"[A-Z][A-Z0-9_]*:", change):
                 key, _, value = change.partition(":")
                 constants[key] = json.loads(value)
             else:

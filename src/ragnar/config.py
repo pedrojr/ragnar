@@ -21,7 +21,7 @@ from typing import Any
 
 CONFIG_FILE = "ragnar.toml"
 LOCAL_CONFIG_FILE = "ragnar.local.toml"
-CHUNKER_VERSION = 3  # bump when chunk boundaries change: forces a full reindex
+CHUNKER_VERSION = 4  # bump when chunk boundaries change: forces a full reindex
 
 
 class RagnarError(Exception):
@@ -85,11 +85,11 @@ class Retrieval:
     mode: str = "hybrid"  # hybrid | vector | lexical
     default_k: int = 5
     candidates: int = 50  # per list, before fusion
-    rrf_k: int = 60
+    rrf_k: int = 30
     vector_weight: float = 1.0
     lexical_weight: float = 1.0
     symbol_weight: float = 1.0  # exact symbol names in the query; 0 turns it off
-    file_weight: float = 1.0  # files holding the query words across chunks; 0 turns it off
+    file_weight: float = 2.0  # files holding the query words across chunks; 0 turns it off
     ef_search: int = 100
     max_chunks_per_file: int = 3  # 0 turns it off
     diversity: float = 0.0  # 0 = pure relevance, 1 = pure novelty (MMR)
