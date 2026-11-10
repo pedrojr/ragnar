@@ -7,11 +7,22 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .config import CONFIG_FILE, LOCAL_CONFIG_FILE, PRESETS, RagnarError, load_settings
+from .config import (
+    CONFIG_DIR,
+    CONFIG_FILE,
+    ENV_FILE,
+    LOCAL_CONFIG_FILE,
+    LOCAL_DIR,
+    PRESETS,
+    Index,
+    RagnarError,
+    load_settings,
+)
 from .languages import BY_EXTENSION, is_denied
 
 BEGIN, END = "# >>> ragnar >>>", "# <<< ragnar <<<"
-IGNORED = (".ragnar/", LOCAL_CONFIG_FILE)
+IGNORED = (f"{LOCAL_DIR}/",)
+LEGACY_FILES = {"ragnar.toml": CONFIG_FILE, "ragnar.local.toml": LOCAL_CONFIG_FILE}  # doctor flags them
 AGENT_NOTE = """
 ## Code search (Ragnar)
 
@@ -20,23 +31,73 @@ This project is indexed by Ragnar. For any question about where or how something
 for a known name, `find_references` for its callers, and `file_outline` before reading a large file.
 Use grep for exact strings and for files changed locally: the index covers the tracked branch.
 """
-CONFIG_TEMPLATE = """# Ragnar settings. Full reference: docs/configuration.md
-# Keep secrets out of this file: each section names the environment variable that holds its key.
+# One line per [index] key a repository owns. A test checks that every key in REPO_OWNED has one.
+INDEX_HELP = {
+    "include": 'extra globs indexed by line windows, for example "*.vue"',
+    "exclude": 'globs left out of the index, for example "legacy/thirdparty/*"',
+    "max_file_kb": "larger files are left out",
+    "chunk_budget": "non-whitespace characters per chunk",
+    "window_lines": "chunk size, in lines, for files without a grammar",
+    "window_overlap": "lines shared by consecutive line windows",
+    "index_tests": "index test files",
+    "index_docs": "index documentation files",
+    "index_agent_notes": "index AGENTS.md, CLAUDE.md and similar agent notes",
+    "legacy_encoding": "fallback encoding for sources that are not UTF-8",
+}
+CONFIG_HEADER = """# Ragnar settings for this repository. Commit this file.
+# Full reference: https://github.com/pedrojr/ragnar/blob/main/docs/configuration.md
+# Never put secrets here: keep them in {env}, which git ignores.
+# Personal overrides go in {local}.
 
 [project]
-name = "{name}"
-branch = "{branch}"       # branch the index follows
-preset = "{preset}"       # economy | balanced | precise
-languages = [{languages}]
+name = "{name}"  # repository name in the index
+branch = "{branch}"  # branch the index follows
+preset = "{preset}"  # economy | balanced | precise
+languages = [{languages}]  # languages to index; empty means every supported language
 
+# The index worker reads this section from the tracked branch. Uncomment a key to change it.
+# A change here rebuilds the repository's index on the next run.
 [index]
-exclude = []             # globs, for example "legacy/thirdparty/*"
-include = []             # extra globs indexed by line windows, for example "*.vue"
-# index_tests = true
-# index_docs = true
-# chunk_budget = 1800
-# legacy_encoding = "cp1252"
 """
+LOCAL_CONFIG_TEMPLATE = f"""# Personal Ragnar overrides for this machine. Git ignores the {LOCAL_DIR}/ folder.
+# Same sections and keys as {CONFIG_FILE}; values here win over it.
+# RAGNAR__SECTION__KEY environment variables and --set win over both.
+#
+# [retrieval]
+# default_k = 5
+# max_context_tokens = 2000
+"""
+ENV_TEMPLATE = f"""# Environment for the ragnar CLI in this project. Git ignores the {LOCAL_DIR}/ folder: never commit it.
+# Uncomment and fill in what you use. Variables already set in your shell win over these.
+# The mcp and embedder server commands never read this file.
+#
+# RAGNAR_DSN_READ=postgresql://<user>:<password>@<host>:5432/ragnar
+# RAGNAR_MCP_TOKEN=<token created with `ragnar token`>
+# RAGNAR_EMBEDDING_API_KEY=<key>
+# RAGNAR_RERANK_API_KEY=<key>
+# RAGNAR_LLM_API_KEY=<key>
+"""
+
+
+def _toml_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return f'"{value}"'
+    if isinstance(value, tuple):
+        return "[" + ", ".join(_toml_value(v) for v in value) + "]"
+    return str(value)
+
+
+def config_template(name: str, branch: str, preset: str, languages: list[str]) -> str:
+    """The .ragnar/config.toml that `ragnar init` writes: every repository-owned key, with its default."""
+    head = CONFIG_HEADER.format(env=ENV_FILE, local=LOCAL_CONFIG_FILE, name=name, branch=branch, preset=preset,
+                                languages=", ".join(f'"{lang}"' for lang in languages))
+    defaults = Index()
+    lines = [f"# {key} = {_toml_value(getattr(defaults, key))}" for key in INDEX_HELP]
+    width = max(map(len, lines))
+    body = "".join(f"{line.ljust(width)}  # {INDEX_HELP[key]}\n" for line, key in zip(lines, INDEX_HELP))
+    return head + body
 
 
 def _git(root: Path, *args: str) -> str | None:
@@ -95,23 +156,34 @@ class InitReport:
     name: str
     branch: str
     languages: Counter = field(default_factory=Counter)
+    local_written: list[str] = field(default_factory=list)  # files created in .rag/
+
+
+def _write_once(path: Path, text: str) -> bool:
+    if path.exists():
+        return False
+    path.write_text(text, encoding="utf-8")
+    return True
 
 
 def init_project(root: Path, preset: str = "balanced", branch: str | None = None, name: str | None = None,
                  agents_md: bool = False, force: bool = False) -> InitReport:
-    """Idempotent: an existing ragnar.toml stays unless force is set."""
+    """Idempotent. An existing .ragnar/config.toml stays unless force is set; files in .rag/ always stay."""
     if preset not in PRESETS:
         raise RagnarError(f"unknown preset {preset!r}; use one of {', '.join(PRESETS)}")
     root = root.resolve()
     languages = detect_languages(root)
     project = name or root.name.lower()
     tracked = branch or default_branch(root)
+    (root / CONFIG_DIR).mkdir(exist_ok=True)
     config = root / CONFIG_FILE
     write = force or not config.exists()
     if write:
-        names = ", ".join(f'"{lang}"' for lang, _ in languages.most_common())
-        config.write_text(CONFIG_TEMPLATE.format(name=project, branch=tracked, preset=preset, languages=names),
-                          encoding="utf-8")
+        text = config_template(project, tracked, preset, [lang for lang, _ in languages.most_common()])
+        config.write_text(text, encoding="utf-8")
+    (root / LOCAL_DIR).mkdir(exist_ok=True)
+    local_written = [rel for rel, text in ((ENV_FILE, ENV_TEMPLATE), (LOCAL_CONFIG_FILE, LOCAL_CONFIG_TEMPLATE))
+                     if _write_once(root / rel, text)]
     agents_changed = False
     if agents_md:
         path = root / "AGENTS.md"
@@ -119,7 +191,7 @@ def init_project(root: Path, preset: str = "balanced", branch: str | None = None
         if "Code search (Ragnar)" not in text:
             path.write_text(text + AGENT_NOTE, encoding="utf-8")
             agents_changed = True
-    return InitReport(write, ensure_gitignore(root), agents_changed, project, tracked, languages)
+    return InitReport(write, ensure_gitignore(root), agents_changed, project, tracked, languages, local_written)
 
 
 @dataclass
@@ -142,9 +214,13 @@ def doctor(root: Path, indexed_commit: str | None = None) -> list[Check]:
     else:
         checks.append(Check("fail", CONFIG_FILE, "missing; run `ragnar init`"))
 
-    ignore = root / ".gitignore"
-    managed = ignore.exists() and BEGIN in ignore.read_text(encoding="utf-8")
-    checks.append(Check("ok" if managed else "warn", ".gitignore", "managed block found" if managed else "run `ragnar init`"))
+    for legacy, target in LEGACY_FILES.items():
+        if (root / legacy).is_file():
+            checks.append(Check("warn", legacy, f"Ragnar no longer reads this file; move it to {target}"))
+
+    ignored = _git(root, "check-ignore", "-q", "--no-index", f"{LOCAL_DIR}/{Path(ENV_FILE).name}") is not None
+    checks.append(Check("ok" if ignored else "warn", f"{LOCAL_DIR}/",
+                        "ignored by git" if ignored else "not ignored by git; run `ragnar init`"))
 
     branch = settings.project.branch if settings else "main"
     head = _git(root, "rev-parse", "--verify", "--quiet", f"{branch}^{{commit}}")

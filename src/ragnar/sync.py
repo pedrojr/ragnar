@@ -8,7 +8,7 @@ indexed commit. Polling needs no inbound network, so it works behind a firewall.
     url = "https://github.com/acme/myapp.git"
     branch = "main"
     token_env = "RAGNAR_GIT_TOKEN"   # optional, for private repositories
-    exclude = ["vendor/*"]           # optional, until the repository commits its own ragnar.toml
+    exclude = ["vendor/*"]           # optional, until the repository commits its own .ragnar/config.toml
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ class RepoSource:
     url: str
     branch: str = "main"
     token_env: str = ""
-    exclude: tuple[str, ...] = ()  # index globs; the [index] of a ragnar.toml in the repository replaces them
+    exclude: tuple[str, ...] = ()  # index globs; the [index] of a .ragnar/config.toml in the repository replaces them
 
 
 def load_repos(path: str | Path) -> list[RepoSource]:

@@ -23,7 +23,7 @@ IDENTIFIERS = {"identifier", "type_identifier", "simple_identifier", "field_iden
                "word", "property_identifier", "name", "namespace_identifier"}
 COMMON_TESTS = re.compile(r"(^|/)(tests?|specs?|__tests__|testing|unittests?)/|(^|/)[^/]+\.(Unit|Integration)?(Tests?|Specs)/")
 COMMON_DENY = re.compile(
-    r"(^|/)(vendor|node_modules|third_party|__pycache__|\.venv|venv|\.git|\.ragnar|migrations/snapshots)/"
+    r"(^|/)(vendor|node_modules|third_party|__pycache__|\.venv|venv|\.git|\.ragnar|\.rag|migrations/snapshots)/"
     r"|\.min\.(js|css)$"
 )
 BUILD_OUTPUT = re.compile(r"(^|/)(bin|obj|target|build|dist|out)/")  # real packages have these names too, see is_denied

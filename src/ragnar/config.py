@@ -1,6 +1,9 @@
 """Settings, resolved in this order (last wins):
 
-defaults < preset < ragnar.toml < ragnar.local.toml < RAGNAR__SECTION__KEY environment variables.
+defaults < preset < .ragnar/config.toml < .rag/config.local.toml < RAGNAR__SECTION__KEY environment variables.
+
+A project keeps what the team versions in .ragnar/ and what stays on one machine in .rag/,
+which git ignores: personal overrides, the .env file the CLI loads, and generated reports.
 
 Secrets never live in the files: a section names the environment variable that holds
 the key (api_key_env). Reads and writes use separate DSNs: only the indexer and the
@@ -19,8 +22,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-CONFIG_FILE = "ragnar.toml"
-LOCAL_CONFIG_FILE = "ragnar.local.toml"
+CONFIG_DIR = ".ragnar"  # versioned with the project
+LOCAL_DIR = ".rag"  # git-ignored: personal overrides, secrets, generated output
+CONFIG_FILE = f"{CONFIG_DIR}/config.toml"  # a posix path: the indexer also reads it from a commit
+LOCAL_CONFIG_FILE = f"{LOCAL_DIR}/config.local.toml"
+ENV_FILE = f"{LOCAL_DIR}/.env"
 CHUNKER_VERSION = 5  # bump when chunk boundaries or chunk fields change: forces a full reindex
 
 
@@ -280,6 +286,42 @@ def _env_overrides(environ: dict[str, str]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def parse_env_file(text: str) -> dict[str, str]:
+    """KEY=VALUE lines. Skips blanks and comments, accepts `export KEY=...` and strips matching quotes."""
+    values: dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        name, sep, value = line.removeprefix("export ").partition("=")
+        name, value = name.strip(), value.strip()
+        if not sep or not name.isidentifier():
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        elif " #" in value:
+            value = value.split(" #", 1)[0].rstrip()
+        values[name] = value
+    return values
+
+
+def load_env_file(root: str | Path | None = None, environ: dict[str, str] | None = None) -> list[str]:
+    """Copies .rag/.env into the environment without replacing variables that are already set.
+
+    Returns the names it set. Server commands never call this: see cli.SERVER_COMMANDS.
+    """
+    environ = os.environ if environ is None else environ
+    path = (Path(root) if root is not None else Path.cwd()) / ENV_FILE
+    if not path.is_file():
+        return []
+    added = []
+    for name, value in parse_env_file(path.read_text(encoding="utf-8")).items():
+        if name not in environ:
+            environ[name] = value
+            added.append(name)
+    return added
+
+
 def load_settings(root: str | Path | None = None, overrides: list[str] | None = None,
                   environ: dict[str, str] | None = None) -> Settings:
     environ = dict(os.environ) if environ is None else environ
@@ -292,7 +334,7 @@ def load_settings(root: str | Path | None = None, overrides: list[str] | None = 
     layers: list[dict[str, Any]] = []
     if main_file.is_file():
         layers.append(_read_toml(main_file))
-    local = main_file.parent / LOCAL_CONFIG_FILE
+    local = base / LOCAL_CONFIG_FILE
     if local.is_file():
         layers.append(_read_toml(local))
     layers.append(_env_overrides(environ))
@@ -314,7 +356,7 @@ def load_settings(root: str | Path | None = None, overrides: list[str] | None = 
 
 
 def with_repo_config(settings: Settings, toml_text: str | None) -> Settings:
-    """Applies the [index] section of a repository's own ragnar.toml, and nothing else."""
+    """Applies the [index] section of a repository's own .ragnar/config.toml, and nothing else."""
     if not toml_text:
         return settings
     try:

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import RagnarError, load_settings, read_dsn, write_dsn
+from .config import CONFIG_FILE, ENV_FILE, LOCAL_CONFIG_FILE, RagnarError, load_env_file, load_settings, read_dsn, write_dsn
 
 REPOS_TEMPLATE = """# Repositories the index worker follows. Copy the block per repository.
 # [[repo]]
@@ -18,8 +18,10 @@ REPOS_TEMPLATE = """# Repositories the index worker follows. Copy the block per 
 # url = "https://github.com/acme/myapp.git"
 # branch = "main"
 # token_env = "RAGNAR_GIT_TOKEN"                # for private repositories
-# exclude = ["vendor/*"]                        # until the repository commits its own ragnar.toml
+# exclude = ["vendor/*"]                        # until the repository commits its own .ragnar/config.toml
 """
+# Server processes never read .rag/.env: a developer's file must not hand RAGNAR_DSN_WRITE to the MCP server.
+SERVER_COMMANDS = {"mcp", "embedder", "embed-preload"}
 
 
 def cmd_init(args) -> None:
@@ -29,7 +31,9 @@ def cmd_init(args) -> None:
     found = ", ".join(f"{name} ({count})" for name, count in r.languages.most_common()) or "none"
     print(f"project: {r.name}, branch: {r.branch}")
     print(f"languages: {found}")
-    print("ragnar.toml: " + ("written" if r.config_written else "kept (use --force to rewrite)"))
+    print(f"{CONFIG_FILE}: " + ("written" if r.config_written else "kept (use --force to rewrite)"))
+    for rel in (ENV_FILE, LOCAL_CONFIG_FILE):
+        print(f"{rel}: " + ("written" if rel in r.local_written else "kept"))
     print(".gitignore: " + ("updated" if r.gitignore_changed else "already up to date"))
     if args.agents_md:
         print("AGENTS.md: " + ("updated" if r.agents_changed else "already up to date"))
@@ -227,13 +231,13 @@ def main(argv: list[str] | None = None) -> None:
         s.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE",
                        help="overrides one setting for this run; repeatable")
 
-    s = sub.add_parser("init", help="ragnarizes a project: ragnar.toml and .gitignore")
+    s = sub.add_parser("init", help="ragnarizes a project: .ragnar/, .rag/ and .gitignore")
     s.add_argument("--dir", default=".")
     s.add_argument("--preset", default="balanced", help="economy, balanced or precise")
     s.add_argument("--branch", help="branch the index follows (default: the repository's default branch)")
     s.add_argument("--name", help="repository name in the index (default: folder name)")
     s.add_argument("--agents-md", action="store_true", help="adds a search note to AGENTS.md")
-    s.add_argument("--force", action="store_true", help="rewrites an existing ragnar.toml")
+    s.add_argument("--force", action="store_true", help="rewrites an existing .ragnar/config.toml")
     s.set_defaults(fn=cmd_init)
 
     s = sub.add_parser("stats", help="usage report from the MCP server's audit lines")
@@ -301,7 +305,7 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--golden", default=".ragnar/eval/golden.jsonl")
     s.add_argument("--variant", action="append", default=[], metavar="NAME:SECTION.KEY=VALUE[,...]",
                    help="another configuration to score; repeatable")
-    s.add_argument("--out", help="writes the report as JSON")
+    s.add_argument("--out", default=".rag/eval/report.json", help="writes the report as JSON")
     with_overrides(s)
     s.set_defaults(fn=cmd_eval_run)
 
@@ -328,6 +332,8 @@ def main(argv: list[str] | None = None) -> None:
     s.set_defaults(fn=cmd_load)
 
     args = p.parse_args(argv)
+    if args.cmd not in SERVER_COMMANDS:
+        load_env_file()
     try:
         args.fn(args)
     except RagnarError as exc:

@@ -95,6 +95,8 @@ def test_is_test(path, expected):
     ("src/Excel_TLB.pas", True), ("__history/Orders.pas", True), ("Win32/Debug/x.pas", True),
     ("src/types.d.ts", True), ("dist/app.js", True), ("api/order.pb.go", True), ("node_modules/x/y.js", True),
     ("Form.Designer.cs", True), ("src/orders.pas", False), ("src/orders.ts", False),
+    (".ragnar/eval/check.py", True), (".rag/cache/x.py", True), ("app/.rag/x.py", True),
+    ("app/x.rag/y.py", False), (".ragged/x.py", False), (".rag.py", False),
 ])
 def test_is_denied(path, expected):
     assert is_denied(language_for(path), path) is expected
