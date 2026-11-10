@@ -9,7 +9,7 @@ The index worker keeps a repository current once it is listed in `repos.toml`. U
 
 ## Inputs
 
-- Local path or git URL of the repository, and its name in the index. The name defaults to `project.name` in `ragnar.toml`.
+- Local path or git URL of the repository, and its name in the index. The name defaults to `project.name` in `.ragnar/config.toml`.
 - Target: `compose` or `k8s`. Find it with `docker compose -f "$RAGNAR_HOME/example/compose.yaml" ps -q ragnar-mcp` (output means Compose) or `kubectl -n ragnar get deploy ragnar-mcp`.
 - `RAGNAR_HOME`: the folder of a Ragnar clone. If it is not set, ask the user where the infrastructure lives.
 

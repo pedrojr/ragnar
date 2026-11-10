@@ -56,7 +56,7 @@ The complete walkthrough is in [Getting started](docs/getting-started.md). For C
 
 | Skill | Purpose |
 | --- | --- |
-| `ragnarize` | Sets a project up: `ragnar.toml`, `.gitignore`, MCP connection |
+| `ragnarize` | Sets a project up: `.ragnar/`, `.rag/`, `.gitignore`, MCP connection |
 | `search` | Picks the cheapest way to find code: local tools or the index |
 | `index` | First build, on-demand refresh, and team access |
 | `evaluate` | Measures recall, cost and confidence against a grep baseline |
@@ -74,7 +74,7 @@ Each language has its own rules for symbols, tests and generated files. Delphi g
 
 ## Retrieval techniques
 
-Everything is a setting in `ragnar.toml`: AST-aware chunking, hybrid search with weighted RRF, exact symbol boost, reranking, multi-query, HyDE, contextual retrieval, MMR diversity, neighbor chunks and a token budget. Presets cover the common cases. See [Retrieval techniques](docs/retrieval.md) and [Configuration](docs/configuration.md).
+Everything is a setting in `.ragnar/config.toml`: AST-aware chunking, hybrid search with weighted RRF, exact symbol boost, reranking, multi-query, HyDE, contextual retrieval, MMR diversity, neighbor chunks and a token budget. Presets cover the common cases. See [Retrieval techniques](docs/retrieval.md) and [Configuration](docs/configuration.md).
 
 ## Documentation
 

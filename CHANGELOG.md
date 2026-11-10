@@ -9,7 +9,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 ### Added
 
 - Claude Code plugin at the repository root, with the `ragnarize`, `search`, `index`, `evaluate`, `tune`, `maintain` and `infra` skills.
-- `ragnar.toml` settings with presets, validation and per-layer overrides.
+- `.ragnar/config.toml` settings with presets, validation and per-layer overrides.
 - Language profiles for Python, JavaScript, TypeScript, Java, Kotlin, C#, Go, Rust, C, C++, PHP, Ruby, Swift, Scala, Bash, SQL and Delphi.
 - Delphi support: UTF-16 and CP-1252 sources, unit and method symbols, and form parsing.
 - Configurable retrieval: weighted fusion, symbol boost, reranking, multi-query, HyDE, contextual retrieval, diversity, neighbor chunks and a token budget.
@@ -40,6 +40,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Changed
 
+- **Breaking:** a project keeps Ragnar's files in two folders. `.ragnar/` is committed and holds `config.toml` (formerly the root `ragnar.toml`) and the golden questions in `eval/`. `.rag/` is ignored by git and holds `config.local.toml` (formerly `ragnar.local.toml`), a `.env` file the CLI loads, and generated reports. Ragnar no longer reads the root files, and `ragnar doctor` points them out. The `mcp` and `embedder` commands never load `.rag/.env`.
+- `ragnar init` writes every key a repository can set into `.ragnar/config.toml`, commented out with its default, and creates the `.rag/` templates. `ragnar eval run` saves its report to `.rag/eval/report.json` by default.
 - **Breaking:** renamed the project from `raglib` to Ragnar, including the CLI, environment variables, database, roles and images. Indexes built by the prototype must be rebuilt.
 - The secret scan runs on normalized text, so it covers UTF-16 sources.
 - `index.max_file_kb` defaults to 2048, and runs report what they leave out and why.

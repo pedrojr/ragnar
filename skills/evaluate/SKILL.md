@@ -35,7 +35,7 @@ The commands need access to the primary, the replicas and the embedder. Run the 
    ```
 3. Comparison:
    ```bash
-   ragnar eval run <repo> "$SNAP" <name>-snap --out .ragnar/eval/report.json
+   ragnar eval run <repo> "$SNAP" <name>-snap --out .rag/eval/report.json
    ```
 4. Report a table: questions, Recall@10, MRR and tokens per system, the gain with its interval, and the decision under the rule.
 

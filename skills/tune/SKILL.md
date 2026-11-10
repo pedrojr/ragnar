@@ -21,7 +21,7 @@ A golden set and a snapshot index must exist. If they do not, run the `evaluate`
      --variant vector:retrieval.mode=vector \
      --variant lexical:retrieval.mode=lexical \
      --variant wide:retrieval.candidates=100,retrieval.neighbor_chunks=1 \
-     --out .ragnar/eval/tune.json
+     --out .rag/eval/tune.json
    ```
 3. Read each `vs_configured` line. It shows the gain over the current settings, with its interval.
 4. Try the options that need a model only if the simple ones fall short, since they add latency and cost on every search:
@@ -29,7 +29,7 @@ A golden set and a snapshot index must exist. If they do not, run the `evaluate`
    - Query expansion: `query.strategy=multi_query` or `hyde`, with `[llm]`.
    - Contextual retrieval: `contextual.enabled=true`, with `[llm]`. It changes the index, so it needs a new snapshot built with that setting. It costs one model call per chunk: estimate that with the user first.
 5. Recommend one configuration, with the table that supports it.
-6. Apply it after the user agrees. Retrieval settings go in the server's `server.toml`, and chunking settings in the project's `ragnar.toml`. Restart the MCP server for the first; the second causes a full reindex.
+6. Apply it after the user agrees. Retrieval settings go in the server's `server.toml`, and chunking settings in the project's `.ragnar/config.toml`. Restart the MCP server for the first; the second causes a full reindex.
 
 ## Rules
 

@@ -10,8 +10,8 @@ As camadas seguintes têm prioridade:
 
 1. Valores padrão.
 2. O preset indicado em `project.preset`.
-3. `ragnar.toml`, versionado com o projeto. `RAGNAR_CONFIG` pode apontar para outro arquivo.
-4. `ragnar.local.toml`, ao lado dele. O git ignora esse arquivo, então use-o para ajustes pessoais.
+3. `.ragnar/config.toml`, versionado com o projeto. `RAGNAR_CONFIG` pode apontar para outro arquivo.
+4. `.rag/config.local.toml`. O git ignora a pasta `.rag/`, então use esse arquivo para ajustes pessoais.
 5. Variáveis de ambiente `RAGNAR__SECAO__CHAVE`, como `RAGNAR__RETRIEVAL__MODE=vector`.
 6. `--set secao.chave=valor`, nos comandos que aceitam.
 
@@ -23,14 +23,16 @@ O projeto e o servidor são donos de configurações diferentes.
 
 | Escopo | Arquivo | Vale para |
 | --- | --- | --- |
-| Projeto | `ragnar.toml` no repositório | `[index]` e `project.languages` |
+| Projeto | `.ragnar/config.toml` no repositório | `[index]` e `project.languages` |
 | Servidor | `example/server.toml` na infraestrutura | Todo o resto |
 
-O worker lê o `ragnar.toml` do repositório no commit acompanhado e usa só esses dois escopos. Um repositório não muda endpoints nem desliga a varredura de segredos, então um commit malicioso não desvia seu código nem esconde uma credencial.
+O worker lê o `.ragnar/config.toml` do repositório no commit acompanhado e usa só esses dois escopos. Um repositório não muda endpoints nem desliga a varredura de segredos, então um commit malicioso não desvia seu código nem esconde uma credencial.
 
 ## Segredos
 
 Segredos nunca vão nesses arquivos. Cada seção indica, em `api_key_env`, a variável de ambiente que guarda a chave.
+
+Na máquina de quem desenvolve, coloque essas variáveis em `.rag/.env`. A CLI carrega esse arquivo ao iniciar e nunca substitui uma variável que já existe. Os comandos `mcp` e `embedder` nunca o leem.
 
 ## Presets
 

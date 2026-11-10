@@ -56,7 +56,7 @@ O passo a passo completo está em [Primeiros passos](docs/pt-BR/getting-started.
 
 | Skill | Finalidade |
 | --- | --- |
-| `ragnarize` | Prepara o projeto: `ragnar.toml`, `.gitignore`, conexão MCP |
+| `ragnarize` | Prepara o projeto: `.ragnar/`, `.rag/`, `.gitignore`, conexão MCP |
 | `search` | Escolhe o jeito mais barato de achar código: ferramentas locais ou índice |
 | `index` | Primeira indexação, atualização sob demanda e acesso de times |
 | `evaluate` | Mede recall, custo e confiança contra um baseline de grep |
@@ -74,7 +74,7 @@ Cada linguagem tem regras próprias para símbolos, testes e arquivos gerados. D
 
 ## Técnicas de recuperação
 
-Tudo é configuração no `ragnar.toml`: chunking por AST, busca híbrida com RRF ponderado, reforço por símbolo exato, reranking, multi-query, HyDE, recuperação contextual, diversidade MMR, chunks vizinhos e orçamento de tokens. Presets cobrem os casos comuns. Veja [Técnicas de recuperação](docs/pt-BR/retrieval.md) e [Configuração](docs/pt-BR/configuration.md).
+Tudo é configuração no `.ragnar/config.toml`: chunking por AST, busca híbrida com RRF ponderado, reforço por símbolo exato, reranking, multi-query, HyDE, recuperação contextual, diversidade MMR, chunks vizinhos e orçamento de tokens. Presets cobrem os casos comuns. Veja [Técnicas de recuperação](docs/pt-BR/retrieval.md) e [Configuração](docs/pt-BR/configuration.md).
 
 ## Documentação
 

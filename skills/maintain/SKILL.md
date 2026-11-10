@@ -17,8 +17,9 @@ description: Checks the health of a ragnarized project and its index, and fixes 
 
    | Result | Action |
    | --- | --- |
-   | `[fail] ragnar.toml` | Run the `ragnarize` skill, or fix the setting the message names |
-   | `[warn] .gitignore` | Run `ragnar init`: it keeps the settings and restores the block |
+   | `[fail] .ragnar/config.toml` | Run the `ragnarize` skill, or fix the setting the message names |
+   | `[warn] .rag/` | Run `ragnar init`: it keeps the settings and restores the `.gitignore` block |
+   | `[warn] ragnar.toml` or `ragnar.local.toml` | Ragnar no longer reads it. Move it to the path the message names |
    | `[fail] branch` | `project.branch` does not exist here; fix it or fetch |
    | `[warn] index ... behind` | Check the worker (below) |
    | `[warn] index ... not in this clone` | Fetch. If it persists, the branch was rewritten, and the next pass does a full reindex by itself |
@@ -45,4 +46,4 @@ description: Checks the health of a ragnarized project and its index, and fixes 
 
 - After the first month, run the `evaluate` skill on recent commits. Codebases drift, and so does retrieval quality.
 - Run the `tune` skill after a large refactor or a model change.
-- Review `index.exclude` when the language mix changes: `ragnar init --force` shows the new detection, but it rewrites `ragnar.toml`, so confirm with the user first.
+- Review `index.exclude` when the language mix changes: `ragnar init --force` shows the new detection, but it rewrites `.ragnar/config.toml`, so confirm with the user first.

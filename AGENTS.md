@@ -22,7 +22,7 @@ claude plugin validate .   # plugin manifests
 ## Boundaries
 
 - The MCP server stays read-only. It never receives `RAGNAR_DSN_WRITE`.
-- A repository's `ragnar.toml` must never reach endpoints, keys or `secret_scan`. See `REPO_OWNED` in `src/ragnar/config.py`.
+- A repository's `.ragnar/config.toml` must never reach endpoints, keys or `secret_scan`. See `REPO_OWNED` in `src/ragnar/config.py`.
 - Never index the working tree: the indexer reads commits.
 - A new language needs a profile in `languages.py` and a case in `tests/test_languages.py`.
 - Bump `CHUNKER_VERSION` in `config.py` when chunk boundaries change, so indexes rebuild.

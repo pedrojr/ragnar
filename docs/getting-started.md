@@ -47,10 +47,11 @@ Inside your project:
 The skill runs `ragnar init`, which:
 
 1. detects the languages and the default branch;
-2. writes `ragnar.toml`;
-3. adds a managed block to `.gitignore`, covering `.ragnar/` and `ragnar.local.toml`.
+2. writes `.ragnar/config.toml`, with every key a repository can set commented out;
+3. creates `.rag/` with commented `.env` and `config.local.toml` templates;
+4. adds a managed block to `.gitignore`, covering `.rag/`.
 
-Commit `ragnar.toml` and `.gitignore`. They belong to the project. See [Configuration](configuration.md).
+Commit `.ragnar/` and `.gitignore`. They belong to the project. Never commit `.rag/`: it holds secrets and local output. See [Configuration](configuration.md).
 
 ## 4. Build the first index
 

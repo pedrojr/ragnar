@@ -9,7 +9,7 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 ### Adicionado
 
 - Plugin para Claude Code na raiz do repositório, com as skills `ragnarize`, `search`, `index`, `evaluate`, `tune`, `maintain` e `infra`.
-- Configuração por `ragnar.toml`, com presets, validação e sobrescrita por camadas.
+- Configuração por `.ragnar/config.toml`, com presets, validação e sobrescrita por camadas.
 - Perfis de linguagem para Python, JavaScript, TypeScript, Java, Kotlin, C#, Go, Rust, C, C++, PHP, Ruby, Swift, Scala, Bash, SQL e Delphi.
 - Suporte a Delphi: fontes em UTF-16 e CP-1252, símbolos de units e métodos, e leitura de formulários.
 - Recuperação configurável: fusão ponderada, reforço por símbolo, reranking, multi-query, HyDE, recuperação contextual, diversidade, chunks vizinhos e orçamento de tokens.
@@ -40,6 +40,8 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 
 ### Alterado
 
+- **Incompatível:** o projeto guarda os arquivos do Ragnar em duas pastas. `.ragnar/` é versionada e guarda o `config.toml` (antes o `ragnar.toml` na raiz) e as perguntas de referência em `eval/`. `.rag/` fica fora do git e guarda o `config.local.toml` (antes `ragnar.local.toml`), um arquivo `.env` que a CLI carrega e os relatórios gerados. O Ragnar não lê mais os arquivos da raiz, e o `ragnar doctor` aponta quando eles existem. Os comandos `mcp` e `embedder` nunca carregam o `.rag/.env`.
+- `ragnar init` escreve no `.ragnar/config.toml` todas as chaves que um repositório pode definir, comentadas e com o valor padrão, e cria os modelos em `.rag/`. `ragnar eval run` salva o relatório em `.rag/eval/report.json` por padrão.
 - **Incompatível:** o projeto mudou de `raglib` para Ragnar, incluindo CLI, variáveis de ambiente, banco, papéis e imagens. Índices montados pelo protótipo precisam ser refeitos.
 - A varredura de segredos roda no texto normalizado, então cobre fontes em UTF-16.
 - `index.max_file_kb` agora vale 2048 por padrão, e as execuções informam o que deixaram de fora e por quê.

@@ -24,6 +24,8 @@ ragnar eval run /path/to/myapp "$SNAP" myapp-snap
 
 `ragnar eval run` needs `RAGNAR_DSN_READ` and the embedding settings.
 
+Questions go to `.ragnar/eval/golden.jsonl`, which the team commits. The report goes to `.rag/eval/report.json`, which git ignores.
+
 ## Reading the report
 
 ```text

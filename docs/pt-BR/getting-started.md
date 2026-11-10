@@ -47,10 +47,11 @@ Dentro do seu projeto:
 A skill roda `ragnar init`, que:
 
 1. detecta as linguagens e o branch padrão;
-2. grava o `ragnar.toml`;
-3. adiciona um bloco gerenciado ao `.gitignore`, cobrindo `.ragnar/` e `ragnar.local.toml`.
+2. grava o `.ragnar/config.toml`, com todas as chaves que um repositório pode definir, comentadas;
+3. cria `.rag/` com os modelos comentados de `.env` e `config.local.toml`;
+4. adiciona um bloco gerenciado ao `.gitignore`, cobrindo `.rag/`.
 
-Faça commit de `ragnar.toml` e `.gitignore`. Eles pertencem ao projeto. Veja [Configuração](configuration.md).
+Faça commit de `.ragnar/` e `.gitignore`. Eles pertencem ao projeto. Nunca faça commit de `.rag/`: ela guarda segredos e arquivos locais. Veja [Configuração](configuration.md).
 
 ## 4. Monte o primeiro índice
 

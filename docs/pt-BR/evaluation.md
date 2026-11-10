@@ -24,6 +24,8 @@ ragnar eval run /caminho/do/myapp "$SNAP" myapp-snap
 
 `ragnar eval run` precisa de `RAGNAR_DSN_READ` e das configurações de embedding.
 
+As perguntas vão para `.ragnar/eval/golden.jsonl`, que o time versiona. O relatório vai para `.rag/eval/report.json`, que o git ignora.
+
 ## Como ler o relatório
 
 ```text

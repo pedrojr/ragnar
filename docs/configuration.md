@@ -10,8 +10,8 @@ Later layers win:
 
 1. Built-in defaults.
 2. The preset named in `project.preset`.
-3. `ragnar.toml`, committed with the project. `RAGNAR_CONFIG` can point to another file.
-4. `ragnar.local.toml`, next to it. Git ignores this file, so use it for personal overrides.
+3. `.ragnar/config.toml`, committed with the project. `RAGNAR_CONFIG` can point to another file.
+4. `.rag/config.local.toml`. Git ignores the `.rag/` folder, so use this file for personal overrides.
 5. Environment variables named `RAGNAR__SECTION__KEY`, such as `RAGNAR__RETRIEVAL__MODE=vector`.
 6. `--set section.key=value`, on commands that accept it.
 
@@ -23,14 +23,16 @@ The project and the server own different settings.
 
 | Scope | File | Applies to |
 | --- | --- | --- |
-| Project | `ragnar.toml` in the repository | `[index]` and `project.languages` |
+| Project | `.ragnar/config.toml` in the repository | `[index]` and `project.languages` |
 | Server | `example/server.toml` on the infrastructure | Everything else |
 
-The worker reads a repository's `ragnar.toml` from the tracked commit, and it uses only those two scopes. A repository cannot change an endpoint or turn off the secret scan, so a hostile commit cannot redirect your code or hide a credential.
+The worker reads a repository's `.ragnar/config.toml` from the tracked commit, and it uses only those two scopes. A repository cannot change an endpoint or turn off the secret scan, so a hostile commit cannot redirect your code or hide a credential.
 
 ## Secrets
 
 Secrets never go in these files. Each section names the environment variable that holds its key, in `api_key_env`.
+
+On a developer machine, put those variables in `.rag/.env`. The CLI loads that file at startup and never replaces a variable that is already set. The `mcp` and `embedder` commands never read it.
 
 ## Presets
 
