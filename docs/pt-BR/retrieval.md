@@ -78,6 +78,8 @@ O **orçamento de tokens** é uma estimativa de quatro caracteres por token. Man
 | Recuperação contextual | `contextual.enabled` | Uma chamada de chat por chunk | Chunks sem sentido isolados |
 | Resumos de arquivo | `summaries.enabled` | Uma chamada de chat por arquivo novo ou alterado | Perguntas de negócio com palavras que o código não usa |
 
+Embeddings estão sempre ligados e resumos são opcionais: veja [Embeddings e resumos](configuration.md#embeddings-e-resumos).
+
 A recuperação contextual é a técnica mais cara aqui, e vale para todo chunk numa reindexação completa. Use um modelo barato e meça uma amostra antes.
 
 ## Por onde começar

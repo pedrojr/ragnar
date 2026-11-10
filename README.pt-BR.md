@@ -1,6 +1,6 @@
 # Ragnar
 
-**Ragnarize sua base de código.** Ragnar é um plugin que ajuda agentes de IA a achar o código certo gastando menos tokens. Ele monta, ajusta e mantém um índice RAG do seu código, na sua própria infraestrutura.
+**Ragnarize sua base de código.** O Ragnar ajuda agentes de IA a achar o código certo gastando menos tokens. Ele indexa os commits dos seus branches no Postgres, na sua própria infraestrutura, e serve uma busca somente leitura por MCP. Um plugin do Claude Code configura o projeto, mede o resultado e mantém o índice saudável.
 
 [English](README.md) · [Licença MIT](LICENSE) · [Changelog](CHANGELOG.pt-BR.md)
 
@@ -10,11 +10,11 @@ Agentes acham código com greps e leituras parciais. Isso funciona quando as pal
 
 Em um [benchmark](benchmark/README.pt-BR.md) com 8 projetos open source em Delphi, Java, C# e Go, o arquivo certo apareceu bem mais alto que com grep: MRR 0,67 contra 0,36 em 350 perguntas mantidas fora de todo ajuste. Em sessões reais de agente, as respostas acertaram igual, com 22% menos turnos, mas não custaram menos tokens. Esses projetos são de pequeno a médio porte. Veja o [relatório](benchmark/report.pt-BR.html).
 
-- **Resultados limitados.** Cada busca devolve trechos dentro de um orçamento, com `path:linha`, e referências para o que não coube.
-- **Resultados melhores.** A busca híbrida entende conceitos de negócio e nomes exatos de símbolos.
-- **Seu código fica com você.** O índice roda na sua infraestrutura. O servidor MCP é somente leitura.
-- **Qualquer modelo.** Agentes conectam por MCP. Embeddings, reranking e chat usam qualquer endpoint compatível, local ou hospedado.
-- **Medido, não presumido.** `ragnar eval` compara a recuperação com um baseline de grep no seu próprio histórico do git.
+- Resultados limitados: cada busca devolve trechos dentro de um orçamento, com `path:linha`, e referências para o que não coube.
+- Resultados melhores: a busca híbrida entende conceitos de negócio e nomes exatos de símbolos.
+- Seu código fica com você: o índice roda na sua infraestrutura. O servidor MCP é somente leitura.
+- Qualquer modelo: agentes conectam por MCP. Embeddings, reranking e chat usam qualquer endpoint compatível, local ou hospedado.
+- Medido: `ragnar eval` compara a recuperação com um baseline de grep no seu próprio histórico do git.
 
 ## Como funciona
 
@@ -33,7 +33,7 @@ Você sobe o lado servidor a partir de [`example/`](example/README.pt-BR.md). O 
 
 ## Início rápido
 
-Você precisa de [uv](https://docs.astral.sh/uv/getting-started/installation/), git e Docker para o lado servidor.
+Você precisa de [uv](https://docs.astral.sh/uv/getting-started/installation/), git e Docker para o lado servidor. O resto é opcional: veja [Requisitos](docs/pt-BR/getting-started.md#requisitos).
 
 1. Instale o plugin no Claude Code:
 
@@ -48,7 +48,6 @@ Você precisa de [uv](https://docs.astral.sh/uv/getting-started/installation/), 
    ```text
    /ragnar:ragnarize
    ```
-
 
 O passo a passo completo está em [Primeiros passos](docs/pt-BR/getting-started.md). Para Cursor, Codex e outros clientes MCP, veja [Outros agentes](docs/pt-BR/agents.md).
 
@@ -74,7 +73,7 @@ Cada linguagem tem regras próprias para símbolos, testes e arquivos gerados. D
 
 ## Técnicas de recuperação
 
-Tudo é configuração no `.ragnar/config.toml`: chunking por AST, busca híbrida com RRF ponderado, reforço por símbolo exato, reranking, multi-query, HyDE, recuperação contextual, diversidade MMR, chunks vizinhos e orçamento de tokens. Presets cobrem os casos comuns. Veja [Técnicas de recuperação](docs/pt-BR/retrieval.md) e [Configuração](docs/pt-BR/configuration.md).
+Toda técnica é uma configuração. O `server.toml` do servidor é dono da maioria, e um repositório define só as chaves de `[index]`. São elas: chunking por AST, busca híbrida com RRF ponderado, reforço por símbolo exato, reranking, multi-query, HyDE, recuperação contextual, diversidade MMR, chunks vizinhos e orçamento de tokens. Presets cobrem os casos comuns. Os embeddings estão sempre ligados; os resumos por LLM são opcionais. Veja [Técnicas de recuperação](docs/pt-BR/retrieval.md) e [Configuração](docs/pt-BR/configuration.md).
 
 ## Documentação
 

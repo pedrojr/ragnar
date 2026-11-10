@@ -78,6 +78,8 @@ Stages with an optional model are off by default.
 | Contextual retrieval | `contextual.enabled` | One chat call per chunk | Chunks that make no sense alone |
 | File summaries | `summaries.enabled` | One chat call per new or changed file | Business questions whose words the code does not use |
 
+Embeddings are always on and summaries are optional: see [Embeddings and summaries](configuration.md#embeddings-and-summaries).
+
 Contextual retrieval has the highest cost here, and it applies to every chunk in a full reindex. Use a cheap model, and measure a sample first.
 
 ## Starting points

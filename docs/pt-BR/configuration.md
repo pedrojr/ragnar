@@ -34,6 +34,39 @@ Segredos nunca vão nesses arquivos. Cada seção indica, em `api_key_env`, a va
 
 Na máquina de quem desenvolve, coloque essas variáveis em `.rag/.env`. A CLI carrega esse arquivo ao iniciar e nunca substitui uma variável que já existe. Os comandos `mcp` e `embedder` nunca o leem.
 
+## Embeddings e resumos
+
+Duas etapas tornam o código pesquisável. Uma está sempre ligada. A outra é opcional.
+
+| | Embeddings | Resumos |
+| --- | --- | --- |
+| Padrão | Ligados, sempre | Desligados |
+| O que faz | Transforma cada chunk de código em um vetor. A busca compara o vetor da pergunta com o dos chunks, então acha código pelo sentido | Um modelo de chat escreve uma descrição curta de cada arquivo de código. A descrição é buscada como um chunk extra do tipo `summary` |
+| Quando roda | Ao indexar, para todo chunk, e ao buscar, para a pergunta | Só ao indexar |
+| Modelo | `jinaai/jina-embeddings-v2-base-code`, 768 dimensões, incluído e executado em CPU | Qualquer modelo de chat compatível com a API da OpenAI, à sua escolha |
+| Custo | Tempo de CPU, cerca de um segundo por chunk. Sem tarifa com o embedder incluído | Uma chamada de chat por arquivo de 30 linhas ou mais, enviando até 12.000 caracteres e recebendo até 300 tokens. Fica em cache pelo conteúdo do arquivo, então só arquivos novos ou alterados custam uma chamada |
+| Melhora | Achar código a partir de uma pergunta em linguagem natural | Perguntas em termos de negócio que o código nunca usa, como em código legado com nomes ruins |
+| Configuração | `[embedding]` | `[summaries]` e `[llm]` |
+| Chave | `RAGNAR_EMBEDDING_API_KEY`, só para uma API hospedada | `RAGNAR_LLM_API_KEY`, se o endpoint exigir |
+| Envia código para | Ninguém, com o embedder incluído. O provedor, com uma API hospedada | O provedor do chat |
+
+Para ligar os resumos, em `example/server.toml`:
+
+```toml
+[llm]
+url = "http://ollama:11434/v1"
+model = "qwen3:8b"
+
+[summaries]
+enabled = true
+```
+
+Depois reinicie com `docker compose restart ragnar-mcp indexer`. A execução seguinte reindexa o repositório, e os chunks sem mudança mantêm seus vetores. Para desligar os resumos, use `enabled = false`. Resumos são uma configuração do servidor: um repositório não os liga pelo próprio `.ragnar/config.toml`. Ligá-los sem `llm.url` e `llm.model` interrompe o programa com um erro.
+
+A mesma seção `[llm]` atende multi-query, HyDE e recuperação contextual. Veja [Técnicas de recuperação](retrieval.md).
+
+No Compose, uma chave só chega ao contêiner se o `compose.yaml` a repassar. O arquivo repassa `RAGNAR_EMBEDDING_API_KEY` e mais nada. Para um modelo de chat ou reranker hospedado, adicione `RAGNAR_LLM_API_KEY` ou `RAGNAR_RERANK_API_KEY` em `environment` do `indexer` (resumos e recuperação contextual) e do `ragnar-mcp` (estratégias de consulta e reranking) e defina o valor em `example/.env`.
+
 ## Presets
 
 | Preset | Use para | Muda |
@@ -72,7 +105,7 @@ Mudar qualquer uma delas, exceto `secret_scan` e `secret_action`, reindexa o rep
 
 ## `[embedding]`
 
-Qualquer endpoint compatível com `/v1/embeddings` funciona: o embedder incluído, Ollama, vLLM, LiteLLM ou um provedor hospedado.
+Qualquer endpoint compatível com `/v1/embeddings` funciona: o embedder incluído, Ollama, vLLM, LiteLLM ou um provedor hospedado. Veja [Embeddings e resumos](#embeddings-e-resumos).
 
 | Chave | Padrão | Significado |
 | --- | --- | --- |
@@ -147,7 +180,7 @@ Qualquer endpoint no formato de `/rerank` usado por Jina, Cohere e TEI funciona.
 
 | Chave | Padrão | Significado |
 | --- | --- | --- |
-| `enabled` | `false` | Escreve um resumo de cada arquivo de código ao indexar, buscado como chunk do tipo `summary`. Exige `[llm]`. Os resumos ficam em cache pelo conteúdo do arquivo, então só arquivos novos ou alterados custam uma chamada ao modelo |
+| `enabled` | `false` | Escreve um resumo de cada arquivo de código ao indexar. Exige `[llm]`. Veja [Embeddings e resumos](#embeddings-e-resumos) |
 | `min_lines` | `30` | Arquivos menores ficam sem resumo |
 | `max_chars` | `12000` | Texto do arquivo enviado ao modelo |
 | `concurrency` | `4` | Chamadas paralelas ao modelo |

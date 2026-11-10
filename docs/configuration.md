@@ -34,6 +34,39 @@ Secrets never go in these files. Each section names the environment variable tha
 
 On a developer machine, put those variables in `.rag/.env`. The CLI loads that file at startup and never replaces a variable that is already set. The `mcp` and `embedder` commands never read it.
 
+## Embeddings and summaries
+
+Two steps turn code into something searchable. One is always on. The other is optional.
+
+| | Embeddings | Summaries |
+| --- | --- | --- |
+| Default | On, always | Off |
+| What it does | Turns each code chunk into a vector. Search compares the vector of your question with those of the chunks, so it finds code by meaning | A chat model writes a short description of each code file. The description is searched as an extra chunk of kind `summary` |
+| When it runs | At index time for every chunk, and at search time for the question | At index time only |
+| Model | `jinaai/jina-embeddings-v2-base-code`, 768 dimensions, bundled and run on CPU | Any OpenAI-compatible chat model you choose |
+| Cost | CPU time, about one second per chunk. No fee with the bundled embedder | One chat call per file of 30 lines or more, sending up to 12,000 characters and getting up to 300 tokens back. Cached by file content, so only new or changed files cost a call |
+| Improves | Finding code from a question in natural language | Questions in business words that the code never uses, as in legacy code with poor names |
+| Settings | `[embedding]` | `[summaries]` and `[llm]` |
+| Key | `RAGNAR_EMBEDDING_API_KEY`, only for a hosted API | `RAGNAR_LLM_API_KEY`, if the endpoint needs one |
+| Sends code to | Nobody with the bundled embedder. The provider, with a hosted API | The chat provider |
+
+To turn summaries on, in `example/server.toml`:
+
+```toml
+[llm]
+url = "http://ollama:11434/v1"
+model = "qwen3:8b"
+
+[summaries]
+enabled = true
+```
+
+Then restart with `docker compose restart ragnar-mcp indexer`. The next run reindexes the repository, and unchanged chunks keep their vectors. To turn summaries off, set `enabled = false`. Summaries are a server setting: a repository cannot turn them on from its own `.ragnar/config.toml`. Enabling them without `llm.url` and `llm.model` stops the program with an error.
+
+The same `[llm]` section serves multi-query, HyDE and contextual retrieval. See [Retrieval techniques](retrieval.md).
+
+Under Compose, a key reaches a container only if `compose.yaml` passes it. The file forwards `RAGNAR_EMBEDDING_API_KEY` and nothing else. For a hosted chat model or reranker, add `RAGNAR_LLM_API_KEY` or `RAGNAR_RERANK_API_KEY` under `environment` of `indexer` (summaries and contextual retrieval) and of `ragnar-mcp` (query strategies and reranking), and set the value in `example/.env`.
+
 ## Presets
 
 | Preset | Use it for | Changes |
@@ -72,7 +105,7 @@ Changing any of these, except `secret_scan` and `secret_action`, reindexes the r
 
 ## `[embedding]`
 
-Any endpoint compatible with `/v1/embeddings` works: the bundled embedder, Ollama, vLLM, LiteLLM, or a hosted provider.
+Any endpoint compatible with `/v1/embeddings` works: the bundled embedder, Ollama, vLLM, LiteLLM, or a hosted provider. See [Embeddings and summaries](#embeddings-and-summaries).
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -147,7 +180,7 @@ Any endpoint with the `/rerank` request shape used by Jina, Cohere and TEI works
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `false` | Writes a summary of each code file at index time, searched as a chunk of kind `summary`. Needs `[llm]`. Summaries are cached by file content, so only new or changed files cost a model call |
+| `enabled` | `false` | Writes a summary of each code file at index time. Needs `[llm]`. See [Embeddings and summaries](#embeddings-and-summaries) |
 | `min_lines` | `30` | Shorter files get no summary |
 | `max_chars` | `12000` | File text sent to the model |
 | `concurrency` | `4` | Parallel model calls |

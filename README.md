@@ -1,6 +1,6 @@
 # Ragnar
 
-**Ragnarize your codebase.** Ragnar is a plugin that helps AI coding agents find the right code with fewer tokens. It builds, tunes and maintains a RAG index of your code, on your own infrastructure.
+**Ragnarize your codebase.** Ragnar helps AI coding agents find the right code with fewer tokens. It indexes the commits of your branches in Postgres, on your own infrastructure, and serves a read-only search over MCP. A Claude Code plugin sets the project up, measures the result and keeps the index healthy.
 
 [Português (Brasil)](README.pt-BR.md) · [MIT License](LICENSE) · [Changelog](CHANGELOG.md)
 
@@ -10,11 +10,11 @@ Agents find code with greps and partial reads. That works when the words of the 
 
 In a [benchmark](benchmark/README.md) on 8 open source projects in Delphi, Java, C# and Go, the right file ranked much higher than with grep: MRR 0.67 against 0.36 on 350 questions kept out of all tuning. In real agent sessions, answers were just as correct in 22% fewer turns, but they did not cost fewer tokens. Those projects are small to medium. See the [report](benchmark/report.html).
 
-- **Bounded results.** Each search returns a budgeted set of snippets with `path:line`, and references to what did not fit.
-- **Better results.** Hybrid search understands both business concepts and exact symbol names.
-- **Your code stays with you.** The index runs on your infrastructure. The MCP server is read-only.
-- **Any model.** Agents connect over MCP. Embeddings, reranking and chat use any compatible endpoint, local or hosted.
-- **Measured, not assumed.** `ragnar eval` compares retrieval with a grep baseline on your own git history.
+- Bounded results: each search returns a budgeted set of snippets with `path:line`, and references to what did not fit.
+- Better results: hybrid search understands both business concepts and exact symbol names.
+- Your code stays with you: the index runs on your infrastructure. The MCP server is read-only.
+- Any model: agents connect over MCP. Embeddings, reranking and chat use any compatible endpoint, local or hosted.
+- Measured: `ragnar eval` compares retrieval with a grep baseline on your own git history.
 
 ## How it works
 
@@ -33,7 +33,7 @@ You run the server side from [`example/`](example/README.md). The worker follows
 
 ## Quick start
 
-You need [uv](https://docs.astral.sh/uv/getting-started/installation/), git, and Docker for the server side.
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/), git, and Docker for the server side. Everything else is optional: see [Requirements](docs/getting-started.md#requirements).
 
 1. Install the plugin in Claude Code:
 
@@ -49,8 +49,7 @@ You need [uv](https://docs.astral.sh/uv/getting-started/installation/), git, and
    /ragnar:ragnarize
    ```
 
-
-The complete walkthrough is in [Getting started](docs/getting-started.md). For Cursor, Codex and other MCP clients, see [Other agents](docs/agents.md).
+The walkthrough, with what you should see at each step, is in [Getting started](docs/getting-started.md). For Cursor, Codex and other MCP clients, see [Other agents](docs/agents.md).
 
 ## What you get
 
@@ -74,7 +73,7 @@ Each language has its own rules for symbols, tests and generated files. Delphi g
 
 ## Retrieval techniques
 
-Everything is a setting in `.ragnar/config.toml`: AST-aware chunking, hybrid search with weighted RRF, exact symbol boost, reranking, multi-query, HyDE, contextual retrieval, MMR diversity, neighbor chunks and a token budget. Presets cover the common cases. See [Retrieval techniques](docs/retrieval.md) and [Configuration](docs/configuration.md).
+Every technique is a setting. The server's `server.toml` owns most of them, and a repository sets only its `[index]` keys. They are AST-aware chunking, hybrid search with weighted RRF, exact symbol boost, reranking, multi-query, HyDE, contextual retrieval, MMR diversity, neighbor chunks and a token budget. Presets cover the common cases. Embeddings are always on; LLM summaries are optional. See [Retrieval techniques](docs/retrieval.md) and [Configuration](docs/configuration.md).
 
 ## Documentation
 

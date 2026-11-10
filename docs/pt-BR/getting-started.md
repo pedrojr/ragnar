@@ -4,13 +4,40 @@ Este guia leva um projeto do zero até um agente buscando no índice. Reserve ce
 
 [English](../getting-started.md)
 
-## O que você precisa
+## Requisitos
 
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) e git na sua máquina.
-- Docker na máquina que roda o servidor. Para a maioria dos times, comece com uma máquina.
-- Cerca de 6 GB de memória livre para o Docker. O embedder incluído usa até 3 GB ao indexar.
+| Necessidade | Onde | Observações |
+| --- | --- | --- |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Sua máquina | Roda o comando `ragnar`. Ele baixa o Python 3.11 ou mais novo se você não tiver |
+| git | Sua máquina | O Ragnar lê commits, nunca a árvore de trabalho |
+| Docker com Compose | A máquina do servidor | Roda o Postgres com pgvector, o embedder, o servidor MCP e o worker. Comece com uma máquina |
+| Cerca de 6 GB de memória livre | A máquina do servidor | O embedder incluído usa até 3 GB ao indexar |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | Sua máquina, só para indexar a partir de um clone local | A imagem do worker já o inclui. Sem ele, o `ragnar index` roda o gitleaks pelo Docker |
 
-## 1. Instale o plugin
+Opcional:
+
+- Uma API de embeddings no lugar do embedder incluído. Ela exige uma chave e recebe seu código-fonte.
+- Um endpoint de modelo de chat (`[llm]`) para resumos de arquivos, multi-query, HyDE e recuperação contextual. Tudo isso vem desligado.
+- Um endpoint de reranker.
+- `uv sync --extra embed`, que instala o fastembed, a biblioteca por trás do embedder incluído. A imagem Docker já o traz. Você só precisa dele para rodar `ragnar embedder` fora do Docker.
+
+Os embeddings estão sempre ligados, e os resumos são opcionais. [Embeddings e resumos](configuration.md#embeddings-e-resumos) explica a diferença.
+
+## 1. Suba o servidor
+
+Siga o [`example/README.pt-BR.md`](../../example/README.pt-BR.md) ou peça ao agente:
+
+> Use a skill infra do Ragnar para subir o servidor.
+
+Quando deu certo:
+
+- `docker compose ps` mostra todos os serviços saudáveis.
+- `docker compose logs -f indexer` termina a primeira montagem com uma linha como `myapp: full at 3f2a9c1b7d10: 412 files, 1830 chunks, 1902.4s`.
+- `./scripts/smoke.sh myapp` passa em todas as verificações.
+
+Agora você tem uma URL do MCP (por padrão `http://127.0.0.1:8080/mcp`), um token (`RAGNAR_MCP_TOKEN` em `example/.env`) e um worker que acompanha os branches de `example/repos.toml`.
+
+## 2. Conecte o plugin
 
 No Claude Code:
 
@@ -18,23 +45,11 @@ No Claude Code:
 /plugin install ragnar --marketplace pedrojr/ragnar
 ```
 
-O Claude Code pede a URL e o token do MCP. Se ainda não tem servidor, mantenha a URL padrão e informe o token depois do passo 2.
+O Claude Code pede a URL e o token do MCP. Informe os valores do passo 1. Você pode mudá-los depois em `/plugin`, nas opções do Ragnar.
 
 Usa outro agente? Siga [Outros agentes](agents.md) e volte para cá.
 
-## 2. Suba o servidor
-
-Siga o [`example/README.pt-BR.md`](../../example/README.pt-BR.md) ou peça ao agente:
-
-> Use a skill infra do Ragnar para subir o servidor.
-
-No fim você tem:
-
-- uma URL do MCP, por padrão `http://127.0.0.1:8080/mcp`;
-- um token, `RAGNAR_MCP_TOKEN` em `example/.env`;
-- um worker que acompanha os branches de `example/repos.toml`.
-
-Informe o token em `/plugin`, nas opções do Ragnar.
+Quando deu certo, pedir ao agente que chame `list_repos` devolve seu repositório e o commit indexado.
 
 ## 3. Ragnarize o projeto
 
@@ -44,14 +59,22 @@ Dentro do seu projeto:
 /ragnar:ragnarize
 ```
 
-A skill roda `ragnar init`, que:
+A skill roda `ragnar init`, que detecta as linguagens e o branch padrão, cria os arquivos abaixo e adiciona um bloco gerenciado ao `.gitignore`.
 
-1. detecta as linguagens e o branch padrão;
-2. grava o `.ragnar/config.toml`, com todas as chaves que um repositório pode definir, comentadas;
-3. cria `.rag/` com os modelos comentados de `.env` e `config.local.toml`;
-4. adiciona um bloco gerenciado ao `.gitignore`, cobrindo `.rag/`.
+| Caminho | Commitar? | Conteúdo |
+| --- | --- | --- |
+| `.ragnar/config.toml` | Sim | Nome do projeto, branch, preset, linguagens e as chaves de `[index]` que um repositório pode definir, comentadas com os valores padrão |
+| `.ragnar/eval/golden.jsonl` | Sim | Perguntas de avaliação. Criado por `/ragnar:evaluate` |
+| `.gitignore` | Sim | O bloco gerenciado que ignora `.rag/` |
+| `.rag/.env` | Nunca | Segredos do comando `ragnar`, comentados: `RAGNAR_DSN_READ`, `RAGNAR_MCP_TOKEN` e as chaves de API de embedding, rerank e LLM |
+| `.rag/config.local.toml` | Nunca | Seus ajustes pessoais |
+| `.rag/eval/` | Nunca | Relatórios de avaliação |
 
-Faça commit de `.ragnar/` e `.gitignore`. Eles pertencem ao projeto. Nunca faça commit de `.rag/`: ela guarda segredos e arquivos locais. Veja [Configuração](configuration.md).
+O comando carrega `.rag/.env` ao iniciar e nunca substitui uma variável já definida no seu shell. O servidor nunca o lê. O Compose lê as chaves do servidor em `example/.env`.
+
+Quando deu certo, o `ragnar init` imprime `.ragnar/config.toml: written`, `.rag/.env: written`, `.rag/config.local.toml: written` e `.gitignore: updated`. Rodar de novo é seguro: ele mantém os arquivos existentes.
+
+Faça commit de `.ragnar/` e `.gitignore`. O worker lê o `.ragnar/config.toml` do branch acompanhado, então mudanças em `[index]` valem quando chegam a esse branch. Veja [Configuração](configuration.md).
 
 ## 4. Monte o primeiro índice
 
@@ -65,15 +88,19 @@ Para indexar agora, a partir de um clone local:
 
 Em CPU, o embedder incluído leva cerca de um segundo por chunk, então um repositório grande demora. As execuções seguintes tratam só o que mudou.
 
-Antes, o indexador procura segredos com o [gitleaks](https://github.com/gitleaks/gitleaks). Um achado interrompe a execução. Troque a credencial, remova-a do repositório e rode de novo.
+Antes, o indexador procura segredos com o gitleaks. Um achado interrompe a execução. Troque a credencial, remova-a do repositório e rode de novo.
+
+Quando deu certo, o log mostra uma linha como `myapp: full at <sha>`, e o `list_repos` mostra o mesmo commit.
 
 ## 5. Busque
 
 Pergunte ao agente sobre o código. A skill `search` escolhe a ferramenta para cada pergunta: ferramentas locais para textos exatos e mudanças recentes, e o índice para conceitos e símbolos.
 
-A skill entra sozinha quando se aplica. Para forçar um primeiro teste:
+Para forçar um primeiro teste:
 
 > Use a skill search do Ragnar: onde tratamos pagamentos que falharam?
+
+Quando deu certo, a resposta cita locais `path:linha` do seu repositório.
 
 ## 6. Meça
 

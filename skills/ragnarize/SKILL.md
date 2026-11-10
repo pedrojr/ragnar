@@ -1,6 +1,6 @@
 ---
 name: ragnarize
-description: Sets a project up for Ragnar. Detects languages and the default branch, writes .ragnar/config.toml, creates .rag/, protects .gitignore, connects the MCP server and plans the first index. Use when the user says "ragnarize this project", "ragnarizar", "set up Ragnar", "install the code RAG here", or opens Ragnar in a project with no ragnar.toml.
+description: Sets a project up for Ragnar. Detects languages and the default branch, writes .ragnar/config.toml, creates .rag/, protects .gitignore, connects the MCP server and plans the first index. Use when the user says "ragnarize this project", "ragnarizar", "set up Ragnar", "install the code RAG here", or opens Ragnar in a project with no .ragnar/config.toml.
 ---
 
 # Ragnarize a project
