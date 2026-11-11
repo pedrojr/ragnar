@@ -109,6 +109,8 @@ services:
       RAGNAR_GIT_TOKEN: ${RAGNAR_GIT_TOKEN:-}
       RAGNAR_LLM_API_KEY: ${RAGNAR_LLM_API_KEY:-}   # hosted chat model: summaries, contextual retrieval
       HOME: /cache
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reaches an Ollama running on the host, on Linux too
     volumes:
       - ./repos.toml:/etc/ragnar/repos.toml:ro
       - ./server.toml:/etc/ragnar/server.toml:ro

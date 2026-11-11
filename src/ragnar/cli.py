@@ -147,6 +147,34 @@ def cmd_search(args) -> None:
     print(", ".join(f"{phase} {seconds * 1000:.0f} ms" for phase, seconds in timing.items()), file=sys.stderr)
 
 
+def cmd_summarize(args) -> None:
+    """Previews file summaries with the configured model. Reads local files and writes nothing."""
+    from .config import matches_path, summary_settings
+    from .llm import Chat, summarize
+
+    settings = load_settings(overrides=args.set)
+    model = summary_settings(settings)
+    if not (model.url and model.model):
+        raise RagnarError("no summary model: set summaries.provider (ollama | anthropic), "
+                          "or summaries.url and summaries.model, or the same keys in [llm]")
+    print(f"provider: {model.provider}, model: {model.model}, url: {model.url}", file=sys.stderr)
+    excluded = settings.summaries.exclude + settings.index.summary_exclude
+    files = []
+    for name in args.files:
+        path = Path(name)
+        rel = path.as_posix().removeprefix("./")
+        if matches_path(excluded, rel):
+            print(f"{rel}: excluded by summaries.exclude or index.summary_exclude (summarized anyway)", file=sys.stderr)
+        raw = path.read_bytes()
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode(settings.index.legacy_encoding, errors="replace")
+        files.append({"path": rel, "text": text, "declarations": "", "refers": ""})
+    for f, summary in zip(files, summarize(Chat(model), settings.summaries, files)):
+        print(f"## {f['path']}\n{summary}\n")
+
+
 def cmd_eval_golden(args) -> None:
     from .evaluation import build_golden
 
@@ -289,6 +317,11 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--path-prefix", default="")
     with_overrides(s)
     s.set_defaults(fn=cmd_search)
+
+    s = sub.add_parser("summarize", help="previews file summaries with the configured model; writes nothing")
+    s.add_argument("files", nargs="+", help="local files, paths relative to the repository root")
+    with_overrides(s)
+    s.set_defaults(fn=cmd_summarize)
 
     evaluation = sub.add_parser("eval", help="measures retrieval against the git history")
     evaluation = evaluation.add_subparsers(dest="eval_cmd", required=True)

@@ -21,3 +21,11 @@ preset = "balanced"       # economy | balanced | precise
 # model = "qwen3:8b"
 # [query]
 # strategy = "multi_query"  # none | multi_query | hyde
+
+# Optional file summaries in business language, written at index time. Step by step: docs/summaries.md
+# [summaries]
+# enabled = true
+# provider = "ollama"                           # ollama | anthropic (Claude Haiku, key in RAGNAR_LLM_API_KEY) | openai
+# url = "http://host.docker.internal:11434/v1"  # Ollama on the host; leave out for anthropic
+# language = "Brazilian Portuguese"
+# exclude = ["vendor/", "generated/"]           # folders that get no summary

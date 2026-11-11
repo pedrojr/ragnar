@@ -43,27 +43,28 @@ Duas etapas tornam o código pesquisável. Uma está sempre ligada. A outra é o
 | Padrão | Ligados, sempre | Desligados |
 | O que faz | Transforma cada chunk de código em um vetor. A busca compara o vetor da pergunta com o dos chunks, então acha código pelo sentido | Um modelo de chat escreve uma descrição curta de cada arquivo de código. A descrição é buscada como um chunk extra do tipo `summary` |
 | Quando roda | Ao indexar, para todo chunk, e ao buscar, para a pergunta | Só ao indexar |
-| Modelo | `jinaai/jina-embeddings-v2-base-code`, 768 dimensões, incluído e executado em CPU | Qualquer modelo de chat compatível com a API da OpenAI, à sua escolha |
+| Modelo | `jinaai/jina-embeddings-v2-base-code`, 768 dimensões, incluído e executado em CPU | Ollama, Claude Haiku ou qualquer modelo de chat compatível com a API da OpenAI, à sua escolha |
 | Custo | Tempo de CPU, cerca de um segundo por chunk. Sem tarifa com o embedder incluído | Uma chamada de chat por arquivo de 30 linhas ou mais, enviando até 12.000 caracteres e recebendo até 300 tokens. Fica em cache pelo conteúdo do arquivo, então só arquivos novos ou alterados custam uma chamada |
 | Melhora | Achar código a partir de uma pergunta em linguagem natural | Perguntas em termos de negócio que o código nunca usa, como em código legado com nomes ruins |
 | Configuração | `[embedding]` | `[summaries]` e `[llm]` |
-| Chave | `RAGNAR_EMBEDDING_API_KEY`, só para uma API hospedada | `RAGNAR_LLM_API_KEY`, se o endpoint exigir |
-| Envia código para | Ninguém, com o embedder incluído. O provedor, com uma API hospedada | O provedor do chat |
+| Chave | `RAGNAR_EMBEDDING_API_KEY`, só para uma API hospedada | `RAGNAR_LLM_API_KEY`, para a Anthropic ou outra API hospedada |
+| Envia código para | Ninguém, com o embedder incluído. O provedor, com uma API hospedada | Ninguém, com o Ollama. O provedor, com uma API hospedada |
 
-Para ligar os resumos, em `example/server.toml`:
+Para ligar os resumos com o Ollama rodando no host, em `example/server.toml`:
 
 ```toml
-[llm]
-url = "http://ollama:11434/v1"
-model = "qwen3:8b"
-
 [summaries]
 enabled = true
+provider = "ollama"                           # ou "anthropic", para o Claude Haiku
+url = "http://host.docker.internal:11434/v1"  # omita para "anthropic"
+exclude = ["vendor/"]                         # pastas que ficam sem resumo
 ```
 
-Depois reinicie com `docker compose restart ragnar-mcp indexer`. A execução seguinte reindexa o repositório, e os chunks sem mudança mantêm seus vetores. Para desligar os resumos, use `enabled = false`. Resumos são uma configuração do servidor: um repositório não os liga pelo próprio `.ragnar/config.toml`. Ligá-los sem `llm.url` e `llm.model` interrompe o programa com um erro.
+Depois reinicie com `docker compose restart indexer`. A execução seguinte reindexa o repositório, e os chunks sem mudança mantêm seus vetores. Para desligar os resumos, use `enabled = false`. Resumos são uma configuração do servidor: um repositório não os liga pelo próprio `.ragnar/config.toml`, mas pode deixar pastas de fora com `index.summary_exclude`. Ligá-los sem um modelo interrompe o programa com um erro.
 
-A mesma seção `[llm]` atende multi-query, HyDE e recuperação contextual. Veja [Técnicas de recuperação](retrieval.md).
+[Resumos de arquivos](summaries.md) mostra o passo a passo com o Ollama e com o Haiku, com um comando de prévia e uma tabela de problemas comuns.
+
+`[summaries]` pode ter provedor e modelo próprios. As chaves que ficam vazias vêm de `[llm]`, que atende multi-query, HyDE e recuperação contextual. Veja [Técnicas de recuperação](retrieval.md).
 
 No Compose, defina as chaves em `example/.env`. O `compose.yaml` repassa `RAGNAR_EMBEDDING_API_KEY` a todos os serviços da aplicação, `RAGNAR_LLM_API_KEY` ao `indexer` (resumos e recuperação contextual) e ao `ragnar-mcp` (estratégias de consulta), e `RAGNAR_RERANK_API_KEY` ao `ragnar-mcp`.
 
@@ -100,6 +101,7 @@ No Compose, defina as chaves em `example/.env`. O `compose.yaml` repassa `RAGNAR
 | `secret_scan` | `true` | Roda o gitleaks. Só no escopo do servidor |
 | `secret_action` | `"fail"` | Ao achar um segredo: `fail` para a execução, `skip` deixa esses arquivos de fora. Só no escopo do servidor |
 | `legacy_encoding` | `"cp1252"` | Alternativa para arquivos que não são UTF-8 |
+| `summary_exclude` | `[]` | Diretórios (terminados em `/`) e globs que ficam sem [resumo de arquivo](summaries.md#deixar-pastas-de-fora). Soma-se a `summaries.exclude` |
 
 Mudar qualquer uma delas, exceto `secret_scan` e `secret_action`, reindexa o repositório inteiro na execução seguinte. Chunks com o mesmo texto mantêm seus vetores, então a reindexação só paga pelo que é novo.
 
@@ -180,19 +182,32 @@ Qualquer endpoint no formato de `/rerank` usado por Jina, Cohere e TEI funciona.
 
 | Chave | Padrão | Significado |
 | --- | --- | --- |
-| `enabled` | `false` | Escreve um resumo de cada arquivo de código ao indexar. Exige `[llm]`. Veja [Embeddings e resumos](#embeddings-e-resumos) |
+| `enabled` | `false` | Escreve um resumo de cada arquivo de código ao indexar. Veja [Resumos de arquivos](summaries.md) |
+| `provider` | `""` | `ollama`, `anthropic` ou `openai`. Vazio: usa `[llm]` |
+| `url` | `""` | URL base. Vazio: o padrão do provedor, ou `llm.url` quando `provider` está vazio |
+| `model` | `""` | Nome do modelo. Vazio: o padrão do provedor, ou `llm.model` quando `provider` está vazio |
+| `api_key_env` | `""` | Variável com a chave. Vazio: `llm.api_key_env` |
+| `language` | `""` | Idioma dos resumos, como `"Brazilian Portuguese"`. Vazio: o modelo escolhe |
+| `exclude` | `[]` | Diretórios (terminados em `/`) e globs que ficam sem resumo |
 | `min_lines` | `30` | Arquivos menores ficam sem resumo |
 | `max_chars` | `12000` | Texto do arquivo enviado ao modelo |
 | `concurrency` | `4` | Chamadas paralelas ao modelo |
 
 ## `[llm]`
 
-Qualquer endpoint `/chat/completions` compatível com OpenAI funciona.
+`provider` escolhe a API. `openai` funciona com qualquer endpoint `/chat/completions`, `ollama` usa a API `/v1` compatível do Ollama, e `anthropic` usa a Messages API da Anthropic.
+
+| Provedor | `url` padrão | `model` padrão |
+| --- | --- | --- |
+| `openai` | nenhuma | nenhum |
+| `ollama` | `http://127.0.0.1:11434/v1` | `qwen3:8b` |
+| `anthropic` | `https://api.anthropic.com/v1` | `claude-haiku-5-5` |
 
 | Chave | Padrão | Significado |
 | --- | --- | --- |
-| `url` | `""` | URL base |
-| `model` | `""` | Nome do modelo |
+| `provider` | `"openai"` | `openai`, `ollama` ou `anthropic` |
+| `url` | `""` | URL base. Vazio: o padrão do provedor |
+| `model` | `""` | Nome do modelo. Vazio: o padrão do provedor |
 | `api_key_env` | `"RAGNAR_LLM_API_KEY"` | Variável com a chave |
 | `temperature` | `0.0` | Temperatura |
 | `max_tokens` | `300` | Limite da resposta |

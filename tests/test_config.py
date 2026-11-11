@@ -8,12 +8,16 @@ from ragnar.config import (
     CONFIG_FILE,
     LOCAL_CONFIG_FILE,
     PRESETS,
+    PROVIDERS,
     RagnarError,
+    chat_settings,
     index_fingerprint,
     load_env_file,
     load_settings,
+    matches_path,
     parse_env_file,
     parse_override,
+    summary_settings,
     with_repo_config,
 )
 
@@ -98,6 +102,54 @@ def test_fingerprint_follows_chunking_settings_only(tmp_path):
     base = load_settings(tmp_path, environ={})
     assert index_fingerprint(base) == index_fingerprint(load_settings(tmp_path, ["retrieval.rrf_k=5"], {}))
     assert index_fingerprint(base) != index_fingerprint(load_settings(tmp_path, ["index.chunk_budget=900"], {}))
+
+
+def test_providers_fill_in_url_and_model(tmp_path):
+    s = load_settings(tmp_path, ["llm.provider=ollama"], {})
+    assert (chat_settings(s).url, chat_settings(s).model) == PROVIDERS["ollama"]
+    s = load_settings(tmp_path, ["llm.provider=anthropic", 'llm.model="claude-x"'], {})
+    assert (chat_settings(s).url, chat_settings(s).model) == (PROVIDERS["anthropic"][0], "claude-x")
+
+
+def test_summaries_fall_back_to_llm_key_by_key(tmp_path):
+    s = load_settings(tmp_path, ['llm.url="http://llm/v1"', 'llm.model="big"', 'summaries.model="small"',
+                                 "summaries.enabled=true"], {})
+    m = summary_settings(s)
+    assert (m.provider, m.url, m.model, m.api_key_env) == ("openai", "http://llm/v1", "small", "RAGNAR_LLM_API_KEY")
+
+
+def test_summaries_with_their_own_provider_ignore_the_llm_endpoint(tmp_path):
+    s = load_settings(tmp_path, ['llm.url="http://ollama:11434/v1"', 'llm.model="qwen3:8b"', "summaries.enabled=true",
+                                 "summaries.provider=anthropic", 'summaries.api_key_env="ANTHROPIC_API_KEY"'], {})
+    m = summary_settings(s)
+    assert (m.provider, m.url, m.model, m.api_key_env) == ("anthropic", *PROVIDERS["anthropic"], "ANTHROPIC_API_KEY")
+    assert chat_settings(s).url == "http://ollama:11434/v1"
+
+
+@pytest.mark.parametrize("text, message", [
+    ("[summaries]\nenabled = true\n", "summaries.enabled requires a chat model"),
+    ("[summaries]\nprovider = 'gpt'\n", "summaries.provider must be one of"),
+    ("[llm]\nprovider = 'gpt'\n", "llm.provider must be one of"),
+])
+def test_invalid_summary_settings(tmp_path, text, message):
+    write(tmp_path, text)
+    with pytest.raises(RagnarError, match=message):
+        load_settings(tmp_path, environ={})
+
+
+def test_summary_exclusions_reach_the_fingerprint_and_the_repository_may_add_its_own(tmp_path):
+    on = ["summaries.enabled=true", "summaries.provider=ollama"]
+    base = load_settings(tmp_path, on, {})
+    assert index_fingerprint(base) != index_fingerprint(load_settings(tmp_path, [*on, 'summaries.exclude=["old/"]'], {}))
+    s = with_repo_config(base, '[index]\nsummary_exclude = ["vendor/"]\n[summaries]\nprovider = "anthropic"\n')
+    assert s.index.summary_exclude == ("vendor/",) and s.summaries.provider == "ollama"
+
+
+def test_matches_path_reads_globs_and_directories():
+    assert matches_path(("legacy/",), "legacy/a/b.pas")
+    assert not matches_path(("legacy/",), "legacy2/b.pas")
+    assert matches_path(("*/generated/*",), "app/generated/x.py")
+    assert not matches_path((), "a.py")
 
 
 def test_root_files_of_the_old_layout_are_not_read(tmp_path):

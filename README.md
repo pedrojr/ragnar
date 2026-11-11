@@ -82,6 +82,7 @@ Every technique is a setting. The server's `server.toml` owns most of them, and 
 | [Getting started](docs/getting-started.md) | Adoption, step by step |
 | [Configuration](docs/configuration.md) | Every setting |
 | [Retrieval techniques](docs/retrieval.md) | What each technique costs and gives |
+| [File summaries](docs/summaries.md) | Business-language summaries with Ollama or Claude Haiku |
 | [Languages](docs/languages.md) | Supported languages, Delphi notes, adding a language |
 | [MCP server](docs/mcp.md) | Tools, access control, metrics |
 | [Other agents](docs/agents.md) | Using Ragnar outside Claude Code |

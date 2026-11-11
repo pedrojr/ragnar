@@ -193,7 +193,7 @@ def test_file_summaries_are_cached_and_stay_out_of_line_tools(dsn, tmp_path, mon
             FakeChat.calls += 1
             return "Draws the order screen button and refreshes its label."
 
-    monkeypatch.setattr("ragnar.indexer.chat_from", lambda settings: FakeChat())
+    monkeypatch.setattr("ragnar.indexer.summary_chat_from", lambda settings: FakeChat())
     repo, emb = make_repo(tmp_path), FakeEmbedder(768)
     settings = load_settings(tmp_path, overrides=["summaries.enabled=true", "summaries.min_lines=3",
                                                   'llm.url="http://llm"', 'llm.model="m"'], environ={})
@@ -206,6 +206,22 @@ def test_file_summaries_are_cached_and_stay_out_of_line_tools(dsn, tmp_path, mon
         assert "widget/button.go" in kinds
         read = read_code(conn, ["sums"], "widget/button.go", 1, 1)
         assert read["lines"][0] == (1, "package widget")
+
+
+def test_excluded_directories_get_no_summary(dsn, tmp_path, monkeypatch):
+    class FakeChat:
+        def complete(self, prompt: str) -> str:
+            return "Draws the order screen button."
+
+    monkeypatch.setattr("ragnar.indexer.summary_chat_from", lambda settings: FakeChat())
+    repo, emb = make_repo(tmp_path), FakeEmbedder(768)
+    settings = load_settings(tmp_path, overrides=["summaries.enabled=true", "summaries.min_lines=3",
+                                                  'summaries.exclude=["widget/"]',
+                                                  'llm.url="http://llm"', 'llm.model="m"'], environ={})
+    index(str(repo), "sumsx", dsn, emb, settings, scan=False)
+    with psycopg.connect(dsn) as conn:
+        paths = [p for (p,) in conn.execute("SELECT path FROM code_chunk WHERE repo = 'sumsx' AND kind = 'summary'")]
+    assert not any(p.startswith("widget/") for p in paths)
 
 
 def test_settings_change_reuses_vectors(dsn, tmp_path):

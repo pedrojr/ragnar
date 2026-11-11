@@ -43,6 +43,7 @@ INDEX_HELP = {
     "index_docs": "index documentation files",
     "index_agent_notes": "index AGENTS.md, CLAUDE.md and similar agent notes",
     "legacy_encoding": "fallback encoding for sources that are not UTF-8",
+    "summary_exclude": 'left out of file summaries, when the server turns them on, for example "generated/"',
 }
 CONFIG_HEADER = """# Ragnar settings for this repository. Commit this file.
 # Full reference: https://github.com/pedrojr/ragnar/blob/main/docs/configuration.md

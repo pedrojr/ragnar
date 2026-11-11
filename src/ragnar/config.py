@@ -14,6 +14,7 @@ RAGNAR_DSN_READ (replicas).
 from __future__ import annotations
 
 import dataclasses
+import fnmatch
 import hashlib
 import json
 import os
@@ -71,6 +72,7 @@ class Index:
     secret_scan: bool = True
     secret_action: str = "fail"  # fail: stop the run | skip: leave the files with findings out
     legacy_encoding: str = "cp1252"  # fallback for sources that are not UTF-8
+    summary_exclude: tuple[str, ...] = ()  # globs, or directories ending in /, left out of file summaries
 
 
 @dataclass(frozen=True)
@@ -139,12 +141,21 @@ class Summaries:
     min_lines: int = 30  # shorter files explain themselves
     max_chars: int = 12000  # of the file sent to the model
     concurrency: int = 4
+    exclude: tuple[str, ...] = ()  # globs, or directories ending in /, left out of file summaries
+    language: str = ""  # language the summaries are written in, e.g. "Brazilian Portuguese"; empty: the model picks
+    # The model that writes the summaries. Empty keys fall back to [llm]. Setting provider here
+    # makes the section stand alone: url and model then come from the provider defaults, not [llm].
+    provider: str = ""  # "" | openai | ollama | anthropic
+    url: str = ""
+    model: str = ""
+    api_key_env: str = ""
 
 
 @dataclass(frozen=True)
 class Llm:
-    url: str = ""
-    model: str = ""
+    provider: str = "openai"  # openai: any /chat/completions endpoint | ollama | anthropic
+    url: str = ""  # empty: the provider default (see PROVIDERS)
+    model: str = ""  # empty: the provider default (see PROVIDERS)
     api_key_env: str = "RAGNAR_LLM_API_KEY"
     temperature: float = 0.0
     max_tokens: int = 300
@@ -178,6 +189,16 @@ CHOICES = {
     ("retrieval", "mode"): ("hybrid", "vector", "lexical"),
     ("rerank", "provider"): ("none", "http"),
     ("query", "strategy"): ("none", "multi_query", "hyde"),
+    ("llm", "provider"): ("openai", "ollama", "anthropic"),
+    ("summaries", "provider"): ("", "openai", "ollama", "anthropic"),
+}
+# Chat providers: (default url, default model). openai has no defaults: any compatible endpoint
+# (vLLM, LiteLLM, a hosted API) needs both. ollama talks to its OpenAI-compatible /v1 API;
+# anthropic talks to the Messages API.
+PROVIDERS: dict[str, tuple[str, str]] = {
+    "openai": ("", ""),
+    "ollama": ("http://127.0.0.1:11434/v1", "qwen3:8b"),
+    "anthropic": ("https://api.anthropic.com/v1", "claude-haiku-5-5"),
 }
 # A repository may tune how it is chunked, but it never picks endpoints or turns off
 # the secret scan: the index worker runs with credentials the repository does not own.
@@ -244,10 +265,43 @@ def _validate(s: Settings) -> None:
         raise RagnarError("retrieval.diversity must be between 0 and 1")
     if s.rerank.provider == "http" and not (s.rerank.url and s.rerank.model):
         raise RagnarError("rerank.provider = http requires rerank.url and rerank.model")
-    if (s.query.strategy != "none" or s.contextual.enabled or s.summaries.enabled) and not (s.llm.url and s.llm.model):
-        raise RagnarError("query.strategy, contextual.enabled and summaries.enabled require llm.url and llm.model")
+    chat = chat_settings(s)
+    if (s.query.strategy != "none" or s.contextual.enabled) and not (chat.url and chat.model):
+        raise RagnarError("query.strategy and contextual.enabled require llm.url and llm.model "
+                          "(or llm.provider = ollama | anthropic)")
+    summary = summary_settings(s)
+    if s.summaries.enabled and not (summary.url and summary.model):
+        raise RagnarError("summaries.enabled requires a chat model: set summaries.provider (ollama | anthropic), "
+                          "or summaries.url and summaries.model, or the same keys in [llm]")
     if s.index.window_overlap >= s.index.window_lines:
         raise RagnarError("index.window_overlap must be smaller than index.window_lines")
+
+
+def chat_settings(s: Settings) -> Llm:
+    """[llm] with the provider defaults filled in: the model for query strategies and contextual retrieval."""
+    url, model = PROVIDERS[s.llm.provider]
+    return dataclasses.replace(s.llm, url=s.llm.url or url, model=s.llm.model or model)
+
+
+def summary_settings(s: Settings) -> Llm:
+    """The model that writes file summaries: [summaries] keys, then [llm], then the provider defaults.
+
+    When [summaries] names a provider, url and model never come from [llm], which may point at
+    another provider. The key variable and the request limits still do.
+    """
+    own = s.summaries
+    if not own.provider:
+        base = chat_settings(dataclasses.replace(s, llm=dataclasses.replace(
+            s.llm, url=own.url or s.llm.url, model=own.model or s.llm.model)))
+        return dataclasses.replace(base, api_key_env=own.api_key_env or s.llm.api_key_env)
+    url, model = PROVIDERS[own.provider]
+    return dataclasses.replace(s.llm, provider=own.provider, url=own.url or url, model=own.model or model,
+                               api_key_env=own.api_key_env or s.llm.api_key_env)
+
+
+def matches_path(patterns: tuple[str, ...], path: str) -> bool:
+    """fnmatch globs ("*" also crosses "/"), plus directory prefixes written with a trailing "/"."""
+    return any(path.startswith(p) if p.endswith("/") else fnmatch.fnmatch(path, p) for p in patterns)
 
 
 def _merge(base: dict[str, dict[str, Any]], extra: dict[str, Any]) -> None:
@@ -378,7 +432,8 @@ def index_fingerprint(settings: Settings) -> str:
         "index": {k: v for k, v in dataclasses.asdict(settings.index).items() if k not in SERVER_OWNED},
         "languages": settings.project.languages,
         "doc_prefix": settings.embedding.doc_prefix,
-        "contextual": settings.contextual.enabled and settings.llm.model,
-        "summaries": settings.summaries.enabled and [settings.llm.model, settings.summaries.min_lines],
+        "contextual": settings.contextual.enabled and chat_settings(settings).model,
+        "summaries": settings.summaries.enabled and [summary_settings(settings).model, settings.summaries.min_lines,
+                                                     sorted(settings.summaries.exclude), settings.summaries.language],
     }
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]

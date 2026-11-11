@@ -1,5 +1,6 @@
-"""Optional model calls, through any OpenAI-compatible /chat/completions endpoint, and reranking
-through any /rerank endpoint (the Jina, Cohere and TEI request shape).
+"""Optional model calls, through any OpenAI-compatible /chat/completions endpoint (Ollama included)
+or the Anthropic Messages API, and reranking through any /rerank endpoint (the Jina, Cohere and TEI
+request shape).
 
 Nothing here is required: the default pipeline runs without a chat model or a reranker.
 """
@@ -7,12 +8,13 @@ Nothing here is required: the default pipeline runs without a chat model or a re
 from __future__ import annotations
 
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
 from .chunker import Chunk, split_identifiers
-from .config import Contextual, Llm, RagnarError, Rerank, Settings, Summaries
+from .config import Contextual, Llm, RagnarError, Rerank, Settings, Summaries, chat_settings, summary_settings
 
 CONTEXT_PROMPT = """<document path="{path}">
 {document}
@@ -39,25 +41,43 @@ HYDE_PROMPT = """Write a short, plausible code snippet that answers this questio
 Question: {query}"""
 
 
+ANTHROPIC_VERSION = "2023-06-01"
+THINKING = re.compile(r"<think>.*?</think>", re.DOTALL)  # reasoning models served by Ollama may print it
+
+
 class Chat:
+    """One prompt in, one answer out. cfg.provider picks the wire format: anthropic speaks the
+    Messages API; openai and ollama speak /chat/completions."""
+
     def __init__(self, cfg: Llm):
         self.cfg = cfg
         api_key = os.environ.get(cfg.api_key_env, "")
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        if cfg.provider == "anthropic":
+            if not api_key:
+                raise RagnarError(f"the anthropic provider needs an API key: set {cfg.api_key_env}")
+            headers = {"x-api-key": api_key, "anthropic-version": ANTHROPIC_VERSION}
+        else:
+            headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self._client = httpx.Client(base_url=cfg.url.rstrip("/"), headers=headers, timeout=cfg.timeout)
 
     def complete(self, prompt: str) -> str:
+        messages = [{"role": "user", "content": prompt}]
         try:
-            r = self._client.post("/chat/completions", json={
-                "model": self.cfg.model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": self.cfg.temperature,
-                "max_tokens": self.cfg.max_tokens,
-            })
-            r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"].strip()
-        except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-            raise RagnarError(f"chat model unavailable at {self.cfg.url}: {exc}") from None
+            if self.cfg.provider == "anthropic":
+                r = self._client.post("/messages", json={"model": self.cfg.model, "messages": messages,
+                                                         "temperature": self.cfg.temperature,
+                                                         "max_tokens": self.cfg.max_tokens})
+                r.raise_for_status()
+                text = "".join(b["text"] for b in r.json()["content"] if b.get("type") == "text")
+            else:
+                r = self._client.post("/chat/completions", json={"model": self.cfg.model, "messages": messages,
+                                                                 "temperature": self.cfg.temperature,
+                                                                 "max_tokens": self.cfg.max_tokens})
+                r.raise_for_status()
+                text = r.json()["choices"][0]["message"]["content"] or ""
+            return THINKING.sub("", text).strip()
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+            raise RagnarError(f"chat model unavailable at {self.cfg.url} ({self.cfg.provider}): {exc}") from None
 
 
 class Reranker:
@@ -79,8 +99,14 @@ class Reranker:
 
 
 def chat_from(settings: Settings) -> Chat | None:
-    needed = settings.query.strategy != "none" or settings.contextual.enabled or settings.summaries.enabled
-    return Chat(settings.llm) if needed else None
+    """The [llm] model, for query strategies and contextual retrieval."""
+    needed = settings.query.strategy != "none" or settings.contextual.enabled
+    return Chat(chat_settings(settings)) if needed else None
+
+
+def summary_chat_from(settings: Settings) -> Chat | None:
+    """The model that writes file summaries. See config.summary_settings."""
+    return Chat(summary_settings(settings)) if settings.summaries.enabled else None
 
 
 def reranker_from(settings: Settings) -> Reranker | None:
@@ -118,10 +144,12 @@ def summarize(chat: Chat, cfg: Summaries, files: list[dict]) -> list[str]:
     A question in business words ("onde calcula o desconto do convênio?") rarely shares words with the
     code. A summary written in those words gives the file a way in (Meta-RAG, Code-Craft).
     """
+    language = f"\nWrite in {cfg.language}." if cfg.language else ""
+
     def one(f: dict) -> str:
         return chat.complete(SUMMARY_PROMPT.format(path=f["path"], code=f["text"][: cfg.max_chars],
                                                    declarations=f["declarations"] or "(none)",
-                                                   refers=f["refers"] or "(none)"))
+                                                   refers=f["refers"] or "(none)") + language)
 
     with ThreadPoolExecutor(max_workers=max(1, cfg.concurrency)) as pool:
         return list(pool.map(one, files))

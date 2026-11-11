@@ -23,6 +23,11 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `index.secret_action`, to leave files with findings out instead of stopping the run. Server scope only.
 - `benchmark/`: before and after comparison on pinned open source projects in Delphi, Java, C# and Go.
 - Binary Delphi forms (`TPF0`) are read as text, and image data in text forms stays out of chunks and the size limit.
+- `llm.provider` and `summaries.provider` (`openai`, `ollama`, `anthropic`), with default URLs and models. The `anthropic` provider calls the Messages API, for Claude Haiku.
+- `[summaries]` takes its own `provider`, `url`, `model` and `api_key_env`, falling back to `[llm]`, plus `language` for the language of the summaries.
+- `summaries.exclude` on the server and `index.summary_exclude` in a repository leave folders out of file summaries.
+- `ragnar summarize`, to preview summaries of local files with the configured model.
+- [File summaries](docs/summaries.md) guide.
 - `exclude` per repository in `repos.toml`.
 - An interrupted first index resumes from its embedding checkpoint (migration 006).
 - `RAGNAR_BENCH_SUITE` and `RAGNAR_BENCH_DSN` run the benchmark on a private suite, and `benchmark/summarize_suite.py` publishes its aggregates only.

@@ -43,27 +43,28 @@ Two steps turn code into something searchable. One is always on. The other is op
 | Default | On, always | Off |
 | What it does | Turns each code chunk into a vector. Search compares the vector of your question with those of the chunks, so it finds code by meaning | A chat model writes a short description of each code file. The description is searched as an extra chunk of kind `summary` |
 | When it runs | At index time for every chunk, and at search time for the question | At index time only |
-| Model | `jinaai/jina-embeddings-v2-base-code`, 768 dimensions, bundled and run on CPU | Any OpenAI-compatible chat model you choose |
+| Model | `jinaai/jina-embeddings-v2-base-code`, 768 dimensions, bundled and run on CPU | Ollama, Claude Haiku, or any OpenAI-compatible chat model you choose |
 | Cost | CPU time, about one second per chunk. No fee with the bundled embedder | One chat call per file of 30 lines or more, sending up to 12,000 characters and getting up to 300 tokens back. Cached by file content, so only new or changed files cost a call |
 | Improves | Finding code from a question in natural language | Questions in business words that the code never uses, as in legacy code with poor names |
 | Settings | `[embedding]` | `[summaries]` and `[llm]` |
-| Key | `RAGNAR_EMBEDDING_API_KEY`, only for a hosted API | `RAGNAR_LLM_API_KEY`, if the endpoint needs one |
-| Sends code to | Nobody with the bundled embedder. The provider, with a hosted API | The chat provider |
+| Key | `RAGNAR_EMBEDDING_API_KEY`, only for a hosted API | `RAGNAR_LLM_API_KEY`, for Anthropic or another hosted API |
+| Sends code to | Nobody with the bundled embedder. The provider, with a hosted API | Nobody with Ollama. The provider, with a hosted API |
 
-To turn summaries on, in `example/server.toml`:
+To turn summaries on with Ollama running on the host, in `example/server.toml`:
 
 ```toml
-[llm]
-url = "http://ollama:11434/v1"
-model = "qwen3:8b"
-
 [summaries]
 enabled = true
+provider = "ollama"                           # or "anthropic", for Claude Haiku
+url = "http://host.docker.internal:11434/v1"  # leave out for "anthropic"
+exclude = ["vendor/"]                         # folders that get no summary
 ```
 
-Then restart with `docker compose restart ragnar-mcp indexer`. The next run reindexes the repository, and unchanged chunks keep their vectors. To turn summaries off, set `enabled = false`. Summaries are a server setting: a repository cannot turn them on from its own `.ragnar/config.toml`. Enabling them without `llm.url` and `llm.model` stops the program with an error.
+Then restart with `docker compose restart indexer`. The next run reindexes the repository, and unchanged chunks keep their vectors. To turn summaries off, set `enabled = false`. Summaries are a server setting: a repository cannot turn them on from its own `.ragnar/config.toml`, but it can leave folders out with `index.summary_exclude`. Enabling them without a model stops the program with an error.
 
-The same `[llm]` section serves multi-query, HyDE and contextual retrieval. See [Retrieval techniques](retrieval.md).
+[File summaries](summaries.md) walks through Ollama and Haiku step by step, with a preview command and troubleshooting.
+
+`[summaries]` can name its own provider and model. Keys it leaves empty come from `[llm]`, which serves multi-query, HyDE and contextual retrieval. See [Retrieval techniques](retrieval.md).
 
 Under Compose, set the keys in `example/.env`. `compose.yaml` passes `RAGNAR_EMBEDDING_API_KEY` to every app service, `RAGNAR_LLM_API_KEY` to `indexer` (summaries and contextual retrieval) and `ragnar-mcp` (query strategies), and `RAGNAR_RERANK_API_KEY` to `ragnar-mcp`.
 
@@ -100,6 +101,7 @@ Under Compose, set the keys in `example/.env`. `compose.yaml` passes `RAGNAR_EMB
 | `secret_scan` | `true` | Run gitleaks. Server scope only |
 | `secret_action` | `"fail"` | On a finding: `fail` stops the run, `skip` leaves those files out. Server scope only |
 | `legacy_encoding` | `"cp1252"` | Fallback for files that are not UTF-8 |
+| `summary_exclude` | `[]` | Directories (ending in `/`) and globs that get no [file summary](summaries.md#leave-folders-out). Adds to `summaries.exclude` |
 
 Changing any of these, except `secret_scan` and `secret_action`, reindexes the repository in full on the next run. Chunks whose text did not change keep their vectors, so a reindex only pays for what is new.
 
@@ -180,19 +182,32 @@ Any endpoint with the `/rerank` request shape used by Jina, Cohere and TEI works
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `false` | Writes a summary of each code file at index time. Needs `[llm]`. See [Embeddings and summaries](#embeddings-and-summaries) |
+| `enabled` | `false` | Writes a summary of each code file at index time. See [File summaries](summaries.md) |
+| `provider` | `""` | `ollama`, `anthropic` or `openai`. Empty: use `[llm]` |
+| `url` | `""` | Base URL. Empty: the provider default, or `llm.url` when `provider` is empty |
+| `model` | `""` | Model name. Empty: the provider default, or `llm.model` when `provider` is empty |
+| `api_key_env` | `""` | Variable with the key. Empty: `llm.api_key_env` |
+| `language` | `""` | Language of the summaries, such as `"Brazilian Portuguese"`. Empty: the model chooses |
+| `exclude` | `[]` | Directories (ending in `/`) and globs that get no summary |
 | `min_lines` | `30` | Shorter files get no summary |
 | `max_chars` | `12000` | File text sent to the model |
 | `concurrency` | `4` | Parallel model calls |
 
 ## `[llm]`
 
-Any OpenAI-compatible `/chat/completions` endpoint works.
+`provider` picks the API. `openai` works with any `/chat/completions` endpoint, `ollama` uses Ollama's compatible `/v1` API, and `anthropic` uses the Anthropic Messages API.
+
+| Provider | Default `url` | Default `model` |
+| --- | --- | --- |
+| `openai` | none | none |
+| `ollama` | `http://127.0.0.1:11434/v1` | `qwen3:8b` |
+| `anthropic` | `https://api.anthropic.com/v1` | `claude-haiku-5-5` |
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `url` | `""` | Base URL |
-| `model` | `""` | Model name |
+| `provider` | `"openai"` | `openai`, `ollama` or `anthropic` |
+| `url` | `""` | Base URL. Empty: the provider default |
+| `model` | `""` | Model name. Empty: the provider default |
 | `api_key_env` | `"RAGNAR_LLM_API_KEY"` | Variable with the key |
 | `temperature` | `0.0` | Sampling temperature |
 | `max_tokens` | `300` | Reply limit |

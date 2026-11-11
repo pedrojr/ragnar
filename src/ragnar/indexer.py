@@ -25,10 +25,19 @@ import psycopg
 
 from . import delphi, graph
 from .chunker import Chunk, Chunker, Symbol, normalize_source, split_identifiers
-from .config import CONFIG_FILE, RagnarError, Settings, index_fingerprint, load_settings, with_repo_config
+from .config import (
+    CONFIG_FILE,
+    RagnarError,
+    Settings,
+    index_fingerprint,
+    load_settings,
+    matches_path,
+    summary_settings,
+    with_repo_config,
+)
 from .embedder import Embedder, FakeEmbedder, to_pgvector
 from .languages import FORM_EXTENSIONS, is_test, language_for
-from .llm import chat_from, contextualize, summarize
+from .llm import chat_from, contextualize, summarize, summary_chat_from
 
 COLUMNS = (
     "repo", "path", "symbol", "language", "kind", "start_line", "end_line",
@@ -282,7 +291,10 @@ def summary_chunks(chat, settings: Settings, dsn: str, chunker: Chunker, blobs: 
     Summaries are cached by the hash of the file text and the model, so only new or changed files cost
     a model call, even in a full reindex.
     """
-    cfg, model = settings.summaries, settings.llm.model
+    cfg = settings.summaries
+    # the cache key: a summary in another language is another summary
+    model = summary_settings(settings).model + (f" ({cfg.language})" if cfg.language else "")
+    excluded = cfg.exclude + settings.index.summary_exclude
     declared: dict[str, list[str]] = {}
     for s in symbols:
         if s.symbol.count(" > ") <= 2:
@@ -292,7 +304,7 @@ def summary_chunks(chat, settings: Settings, dsn: str, chunker: Chunker, blobs: 
         refers.setdefault(e.path, []).append(e.dst_name)
     files = []
     for path, src in blobs.items():
-        if chunker.source_kind(path) != "code" or is_test(language_for(path), path):
+        if chunker.source_kind(path) != "code" or is_test(language_for(path), path) or matches_path(excluded, path):
             continue
         text = chunker.readable_text(path, src)
         if text is None or text.count("\n") + 1 < cfg.min_lines:
@@ -422,7 +434,7 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
     edges = code_edges(chunker, blobs, chunks, symbols, definition_counts(dsn, repo, symbols, None if mode == "full" else paths))
     if settings.contextual.enabled and (chat := chat_from(settings)):
         chunks = contextualize(chat, settings.contextual, chunks, blobs)
-    if settings.summaries.enabled and (chat := chat_from(settings)):
+    if settings.summaries.enabled and (chat := summary_chat_from(settings)):
         chunks += summary_chunks(chat, settings, dsn, chunker, blobs, symbols, edges)
     hashes = [content_hash(c.content, settings.embedding.doc_prefix) for c in chunks]
     known = reusable_vectors(dsn, repo, hashes) if state is not None and state[1] == emb.model else {}

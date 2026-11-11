@@ -7,7 +7,7 @@ import pytest
 
 from ragnar import llm
 from ragnar.chunker import Chunk
-from ragnar.config import Contextual, Llm, RagnarError, Rerank, Retrieval
+from ragnar.config import Contextual, Llm, RagnarError, Rerank, Retrieval, Summaries
 from ragnar.mcp_server import render_hits
 from ragnar.search import (
     confidence,
@@ -160,6 +160,49 @@ def test_chat_is_openai_compatible():
     chat._client = mock_client(handler)
     assert chat.complete("q") == "hi"
     assert seen["path"] == "/v1/chat/completions" and b'"model":"any"' in seen["body"].replace(b" ", b"")
+
+
+def test_chat_speaks_the_anthropic_messages_api(monkeypatch):
+    seen = {}
+
+    def handler(request):
+        seen.update(path=request.url.path, key=request.headers.get("x-api-key"),
+                    version=request.headers.get("anthropic-version"), body=request.read())
+        return httpx.Response(200, json={"content": [{"type": "text", "text": " Registers the cash withdrawal. "}]})
+
+    monkeypatch.setenv("RAGNAR_LLM_API_KEY", "sk-test")
+    chat = llm.Chat(Llm(provider="anthropic", url="http://model.test/v1", model="claude-haiku"))
+    chat._client = mock_client(handler)
+    chat._client.headers.update({"x-api-key": "sk-test", "anthropic-version": llm.ANTHROPIC_VERSION})
+    assert chat.complete("q") == "Registers the cash withdrawal."
+    assert seen["path"] == "/v1/messages" and seen["key"] == "sk-test" and seen["version"]
+    assert b'"max_tokens":300' in seen["body"].replace(b" ", b"")
+
+
+def test_anthropic_without_a_key_is_a_clear_error(monkeypatch):
+    monkeypatch.delenv("RAGNAR_LLM_API_KEY", raising=False)
+    with pytest.raises(RagnarError, match="set RAGNAR_LLM_API_KEY"):
+        llm.Chat(Llm(provider="anthropic", url="http://model.test/v1", model="m"))
+
+
+def test_chat_drops_reasoning_blocks():
+    chat = llm.Chat(Llm(provider="ollama", url="http://model.test/v1", model="qwen3:8b"))
+    chat._client = mock_client(lambda _: httpx.Response(200, json={"choices": [{"message": {
+        "content": "<think>\nlet me see\n</think>\n\nPrints the receipt."}}]}))
+    assert chat.complete("q") == "Prints the receipt."
+
+
+def test_summarize_asks_for_the_configured_language():
+    class Recorder:
+        prompt = ""
+
+        def complete(self, prompt):
+            Recorder.prompt = prompt
+            return "ok"
+
+    files = [{"path": "a.pas", "text": "begin end.", "declarations": "", "refers": ""}]
+    assert llm.summarize(Recorder(), Summaries(language="Brazilian Portuguese"), files) == ["ok"]
+    assert Recorder.prompt.endswith("Write in Brazilian Portuguese.")
 
 
 def test_chat_failure_is_a_clear_error():
