@@ -65,7 +65,7 @@ Then restart with `docker compose restart ragnar-mcp indexer`. The next run rein
 
 The same `[llm]` section serves multi-query, HyDE and contextual retrieval. See [Retrieval techniques](retrieval.md).
 
-Under Compose, a key reaches a container only if `compose.yaml` passes it. The file forwards `RAGNAR_EMBEDDING_API_KEY` and nothing else. For a hosted chat model or reranker, add `RAGNAR_LLM_API_KEY` or `RAGNAR_RERANK_API_KEY` under `environment` of `indexer` (summaries and contextual retrieval) and of `ragnar-mcp` (query strategies and reranking), and set the value in `example/.env`.
+Under Compose, set the keys in `example/.env`. `compose.yaml` passes `RAGNAR_EMBEDDING_API_KEY` to every app service, `RAGNAR_LLM_API_KEY` to `indexer` (summaries and contextual retrieval) and `ragnar-mcp` (query strategies), and `RAGNAR_RERANK_API_KEY` to `ragnar-mcp`.
 
 ## Presets
 

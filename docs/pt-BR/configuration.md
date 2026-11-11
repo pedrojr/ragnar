@@ -65,7 +65,7 @@ Depois reinicie com `docker compose restart ragnar-mcp indexer`. A execução se
 
 A mesma seção `[llm]` atende multi-query, HyDE e recuperação contextual. Veja [Técnicas de recuperação](retrieval.md).
 
-No Compose, uma chave só chega ao contêiner se o `compose.yaml` a repassar. O arquivo repassa `RAGNAR_EMBEDDING_API_KEY` e mais nada. Para um modelo de chat ou reranker hospedado, adicione `RAGNAR_LLM_API_KEY` ou `RAGNAR_RERANK_API_KEY` em `environment` do `indexer` (resumos e recuperação contextual) e do `ragnar-mcp` (estratégias de consulta e reranking) e defina o valor em `example/.env`.
+No Compose, defina as chaves em `example/.env`. O `compose.yaml` repassa `RAGNAR_EMBEDDING_API_KEY` a todos os serviços da aplicação, `RAGNAR_LLM_API_KEY` ao `indexer` (resumos e recuperação contextual) e ao `ragnar-mcp` (estratégias de consulta), e `RAGNAR_RERANK_API_KEY` ao `ragnar-mcp`.
 
 ## Presets
 

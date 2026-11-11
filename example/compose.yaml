@@ -87,6 +87,8 @@ services:
       RAGNAR_DSN_READ: postgresql://ragnar_reader:${RAGNAR_READER_PASSWORD}@db-replica:5432/ragnar
       RAGNAR_ACL_FILE: /run/ragnar/acl.json
       RAGNAR_CONFIG: /etc/ragnar/server.toml
+      RAGNAR_LLM_API_KEY: ${RAGNAR_LLM_API_KEY:-}         # hosted chat model: multi-query, HyDE
+      RAGNAR_RERANK_API_KEY: ${RAGNAR_RERANK_API_KEY:-}   # hosted reranker
     volumes:
       - ./acl.json:/run/ragnar/acl.json:ro
       - ./server.toml:/etc/ragnar/server.toml:ro
@@ -105,6 +107,7 @@ services:
       RAGNAR_DSN_WRITE: postgresql://ragnar_writer:${RAGNAR_WRITER_PASSWORD}@db-primary:5432/ragnar
       RAGNAR_CONFIG: /etc/ragnar/server.toml
       RAGNAR_GIT_TOKEN: ${RAGNAR_GIT_TOKEN:-}
+      RAGNAR_LLM_API_KEY: ${RAGNAR_LLM_API_KEY:-}   # hosted chat model: summaries, contextual retrieval
       HOME: /cache
     volumes:
       - ./repos.toml:/etc/ragnar/repos.toml:ro
