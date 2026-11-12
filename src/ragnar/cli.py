@@ -28,7 +28,7 @@ REPOS_TEMPLATE = """# Repositories the index worker follows. Copy the block per 
 # url = "https://github.com/acme/myapp.git"
 # branch = "main"
 # token_env = "RAGNAR_GIT_TOKEN"                # for private repositories
-# exclude = ["vendor/*"]                        # until the repository commits its own .ragnar/config.toml
+# exclude = ["vendor/*"]                        # index.exclude in the repository's .ragnar/config.toml replaces it
 """
 # Server processes never read .rag/.env: a developer's file must not hand RAGNAR_DSN_WRITE to the MCP server.
 SERVER_COMMANDS = {"mcp", "embedder", "embed-preload"}

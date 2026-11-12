@@ -62,7 +62,7 @@ echo 'RAGNAR_GIT_TOKEN=<read-only token>' >> .env
 
 The token travels in a request header, so it stays out of URLs, the mirror and error messages. GitHub and GitLab accept this form.
 
-To leave folders out before the repository commits its own `.ragnar/config.toml`, such as vendored libraries, add `exclude = ["vendor/*", "lib/*"]` to the entry. A `.ragnar/config.toml` in the repository replaces this list.
+To leave folders out, such as vendored libraries, add `exclude = ["vendor/*", "lib/*"]` to the entry. When the repository's own `.ragnar/config.toml` sets `index.exclude`, that list replaces this one.
 
 To follow a clone on this machine, mount it into the worker with a local override file, and use the mount point as `url`:
 

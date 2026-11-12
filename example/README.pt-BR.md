@@ -62,7 +62,7 @@ echo 'RAGNAR_GIT_TOKEN=<token somente leitura>' >> .env
 
 O token vai num cabeçalho da requisição, então fica fora de URLs, do espelho e das mensagens de erro. GitHub e GitLab aceitam esse formato.
 
-Para deixar pastas de fora antes de o repositório ter seu próprio `.ragnar/config.toml`, como bibliotecas copiadas para dentro dele, adicione `exclude = ["vendor/*", "lib/*"]` à entrada. Um `.ragnar/config.toml` no repositório substitui essa lista.
+Para deixar pastas de fora, como bibliotecas copiadas para dentro do repositório, adicione `exclude = ["vendor/*", "lib/*"]` à entrada. Quando o `.ragnar/config.toml` do próprio repositório define `index.exclude`, essa lista substitui esta.
 
 Para seguir um clone desta máquina, monte-o no worker com um arquivo de override local e use o ponto de montagem como `url`:
 
