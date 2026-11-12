@@ -411,7 +411,7 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
     if full or state is None or state[1] != emb.model or state[2] != fingerprint:
         mode, paths = "full", list_files(repo_dir, head)
     elif state[0] == head:
-        return Result(repo, "unchanged", head, 0, 0, 0, time.monotonic() - t0)
+        return Result(repo, "unchanged", head, 0, 0, 0, round(time.monotonic() - t0, 1))
     else:
         changed = changed_files(repo_dir, state[0], head)
         mode, paths = ("incremental", with_form_pairs(changed)) if changed is not None else ("full", list_files(repo_dir, head))

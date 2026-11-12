@@ -386,6 +386,13 @@ def main(argv: list[str] | None = None) -> None:
     except RagnarError as exc:
         print(f"error: {exc}", file=sys.stderr)
         sys.exit(2)
+    except Exception as exc:
+        # an unreachable database is an expected failure, not a traceback; psycopg stays a lazy import
+        psycopg = sys.modules.get("psycopg")
+        if psycopg is None or not isinstance(exc, psycopg.OperationalError):
+            raise
+        print(f"error: database unavailable: {str(exc).strip()}", file=sys.stderr)
+        sys.exit(2)
 
 
 if __name__ == "__main__":

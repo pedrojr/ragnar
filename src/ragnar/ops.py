@@ -15,6 +15,7 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
+SESSION_SECONDS = 10.0  # the load test opens a new MCP session this often, so new pods receive traffic
 TOOLS = {"search_code", "find_symbol", "find_references", "call_graph", "trace_flow", "find_table_usage",
          "repo_map", "file_outline", "read_code", "list_repos"}
 DEFAULT_QUERIES = [
@@ -115,19 +116,27 @@ async def _load(url: str, token: str, concurrency: int, duration: float, queries
     async def worker(n: int) -> None:
         nonlocal errors
         rnd = random.Random(n)
-        async with mcp_client(url, token) as client:
-            while time.monotonic() < stop:
-                t0 = time.perf_counter()
-                try:
-                    res = await client.call_tool("search_code", {"query": rnd.choice(queries), "k": 10})
-                    if res.is_error:
-                        errors += 1
-                except Exception:  # noqa: BLE001
-                    errors += 1
-                elapsed = time.perf_counter() - t0
-                latencies.append(elapsed)
-                if interval > elapsed:
-                    await asyncio.sleep(interval - elapsed)
+        while time.monotonic() < stop:
+            # A kept-alive connection stays on the pod it first reached, so a client that never reconnects
+            # never uses the pods the autoscaler adds. Each session lasts SESSION_SECONDS.
+            session_end = min(stop, time.monotonic() + SESSION_SECONDS)
+            try:
+                async with mcp_client(url, token) as client:
+                    while time.monotonic() < session_end:
+                        t0 = time.perf_counter()
+                        try:
+                            res = await client.call_tool("search_code", {"query": rnd.choice(queries), "k": 10})
+                        except Exception:  # noqa: BLE001 - a broken session: reconnect
+                            errors += 1
+                            break
+                        errors += res.is_error
+                        elapsed = time.perf_counter() - t0
+                        latencies.append(elapsed)
+                        if interval > elapsed:
+                            await asyncio.sleep(interval - elapsed)
+            except Exception:  # noqa: BLE001 - no session, for example while a pod is replaced: count it and retry
+                errors += 1
+                await asyncio.sleep(1)
 
     async def report() -> None:
         last, t_last = 0, time.monotonic()

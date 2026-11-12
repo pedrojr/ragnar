@@ -165,3 +165,15 @@ def test_doctor_measures_index_staleness(tmp_path):
     _git(repo, "commit", "-q", "-m", "more")
     assert "1 commit(s) behind" in next(c.detail for c in doctor(repo, head) if c.name == "index")
     assert levels(doctor(repo, "0" * 40))["index"] == "warn"
+
+
+def test_an_unreachable_database_is_an_error_message(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("RAGNAR_DSN_WRITE", "postgresql://u:p@127.0.0.1:1/ragnar?connect_timeout=2")
+    try:
+        main(["migrate"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected an exit")
+    assert capsys.readouterr().err.startswith("error: database unavailable:")
