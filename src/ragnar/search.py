@@ -1,7 +1,8 @@
 """Retrieval pipeline. Read only.
 
-query -> optional expansion -> ranked lists (vector, lexical, exact symbol) -> RRF fusion
-      -> optional rerank -> per-file cap and diversity -> neighbor chunks
+query -> optional expansion -> ranked lists (vector, lexical, whole file, literals, exact symbol)
+      -> RRF fusion -> optional graph list around the best hits, fused again -> documentation weight
+      -> optional rerank -> per-file cap and diversity -> neighbor chunks -> excerpts
       -> token budget -> references to the hits that did not fit
 
 Lexical ranking is BM25 in spirit, on plain Postgres: each query term weighs by its rarity,

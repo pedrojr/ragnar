@@ -18,14 +18,17 @@ FOLLOW_UP_SECONDS = 600  # a read_code this soon after a search, by the same cli
 
 
 def parse(lines: Iterable[str]) -> list[dict]:
-    """Tool events; other log lines are skipped."""
+    """Tool events; other log lines are skipped.
+
+    A prefix before the JSON object is ignored, such as the `ragnar-mcp-1  | ` that `docker compose logs` adds.
+    """
     events = []
     for line in lines:
-        line = line.strip()
-        if not line.startswith("{"):
+        start = line.find("{")
+        if start < 0:
             continue
         try:
-            event = json.loads(line)
+            event = json.loads(line[start:].strip())
         except ValueError:
             continue
         if event.get("event") == "tool":

@@ -10,7 +10,17 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import CONFIG_FILE, ENV_FILE, LOCAL_CONFIG_FILE, RagnarError, load_env_file, load_settings, read_dsn, write_dsn
+from .config import (
+    CONFIG_FILE,
+    ENV_FILE,
+    LOCAL_CONFIG_FILE,
+    RagnarError,
+    env,
+    load_env_file,
+    load_settings,
+    read_dsn,
+    write_dsn,
+)
 
 REPOS_TEMPLATE = """# Repositories the index worker follows. Copy the block per repository.
 # [[repo]]
@@ -117,15 +127,19 @@ def cmd_sync(args) -> None:
     from .embedder import from_settings
     from .sync import load_repos, sync_once, watch
 
+    def selected():
+        repos = load_repos(args.config)
+        return [r for r in repos if r.name == args.repo] if args.repo else repos
+
     settings = load_settings(overrides=args.set)
-    repos = load_repos(args.config)
-    if args.repo:
-        repos = [r for r in repos if r.name == args.repo]
+    repos = selected()
+    if args.repo and not repos:
+        raise RagnarError(f"no repository named {args.repo!r} in {args.config}")
     if not repos:
         print(f"no repository to sync in {args.config}", file=sys.stderr)
     emb = from_settings(settings)
     if args.watch:
-        watch(lambda: load_repos(args.config), write_dsn(), emb, settings, args.interval)
+        watch(selected, write_dsn(), emb, settings, args.interval)
         return
     _, errors = sync_once(repos, write_dsn(), emb, settings)
     sys.exit(1 if errors else 0)
@@ -226,7 +240,7 @@ def cmd_embed_preload(_args) -> None:
 def cmd_smoke(args) -> None:
     from .ops import smoke
 
-    ok = smoke(args.url, os.environ["RAGNAR_MCP_TOKEN"], os.environ.get("RAGNAR_MCP_TOKEN_RESTRICTED"), args.repo,
+    ok = smoke(args.url, env("RAGNAR_MCP_TOKEN"), os.environ.get("RAGNAR_MCP_TOKEN_RESTRICTED"), args.repo,
                os.environ.get("RAGNAR_DSN_WRITE"), os.environ.get("RAGNAR_DSN_READ"), args.replica_host)
     sys.exit(0 if ok else 1)
 
@@ -235,7 +249,7 @@ def cmd_load(args) -> None:
     from .ops import load
 
     queries = Path(args.queries).read_text(encoding="utf-8").splitlines() if args.queries else None
-    load(args.url, os.environ["RAGNAR_MCP_TOKEN"], args.concurrency, args.duration, queries, args.rate)
+    load(args.url, env("RAGNAR_MCP_TOKEN"), args.concurrency, args.duration, queries, args.rate)
 
 
 def cmd_stats(args) -> None:

@@ -410,7 +410,7 @@ def load_settings(root: str | Path | None = None, overrides: list[str] | None = 
 
 
 def with_repo_config(settings: Settings, toml_text: str | None) -> Settings:
-    """Applies the [index] section of a repository's own .ragnar/config.toml, and nothing else."""
+    """Applies the [index] section and project.languages of a repository's own .ragnar/config.toml, and nothing else."""
     if not toml_text:
         return settings
     try:

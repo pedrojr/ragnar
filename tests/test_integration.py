@@ -22,7 +22,7 @@ from ragnar.acl import hash_token
 from ragnar.config import load_settings
 from ragnar.embedder import FakeEmbedder
 from ragnar.indexer import index
-from ragnar.migrate import migrate
+from ragnar.migrate import migrate, resize_embeddings
 from ragnar.ops import TOOLS
 from ragnar.search import Pipeline, file_outline, find_references, find_symbol, list_repos, read_code
 
@@ -310,3 +310,17 @@ def test_mcp_over_http(dsn, tmp_path, monkeypatch):
     assert outline.startswith("demo:widget/button.go\n") and "widget > Button > Refresh" in outline
     assert code == '<code repo="demo" path="widget/button.go">\n1: package widget\n</code>'
     assert tools == TOOLS
+
+
+def test_resize_embeddings_clears_every_index_table(dsn, tmp_path, monkeypatch):
+    # runs last: it empties the module's database
+    index(str(make_repo(tmp_path)), "demo", dsn, FakeEmbedder(768), load_settings(tmp_path, environ={}), scan=False, full=True)
+    with psycopg.connect(dsn) as conn:
+        conn.execute("INSERT INTO code_edge (repo, path, line, src_symbol, dst_name, kind, text, commit_sha) "
+                     "VALUES ('demo', 'a.go', 1, '', 'thing', 'ref', 'thing()', 'x')")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("RAGNAR__EMBEDDING__DIM", "768")
+    assert resize_embeddings(dsn) == 768
+    with psycopg.connect(dsn) as conn:
+        for table in ("code_chunk", "code_symbol", "code_edge", "index_state", "embedding_checkpoint"):
+            assert conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 0, table

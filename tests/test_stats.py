@@ -30,6 +30,12 @@ def test_report_counts_tools_tokens_and_repeats():
     assert r["repeated_questions"] == [{"query": "onde grava o pedido", "times": 2}]
 
 
+def test_log_prefixes_are_ignored():
+    # docker compose logs prefixes each line with the container name
+    prefixed = [f"ragnar-mcp-1  | {entry}" for entry in LOG]
+    assert parse(prefixed) == parse(LOG) and len(parse(prefixed)) == 5
+
+
 def test_a_read_soon_after_a_search_labels_the_file():
     assert labels(parse(LOG)) == [{"id": "use-1", "query": "onde grava o pedido", "relevant": ["src/Order.pas"],
                                    "client": "dev"}]

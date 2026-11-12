@@ -53,7 +53,7 @@ def test_grep_terms_keep_accented_words_whole_and_add_the_plain_form():
 def test_informative_messages_say_what_changed():
     from ragnar.evaluation import informative
 
-    assert informative("Corrige cálculo do desconto de convênio")
+    assert informative("Corrige cálculo da multa da mensalidade atrasada")
     assert not informative("Ajustes gerais")
     assert not informative("fix minor changes in code")
 

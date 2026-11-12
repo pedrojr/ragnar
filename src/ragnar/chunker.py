@@ -8,7 +8,6 @@ neighbors merge while they fit. Size is measured in non-whitespace characters.
 from __future__ import annotations
 
 import codecs
-import fnmatch
 import re
 import unicodedata
 from bisect import bisect_right
@@ -19,7 +18,7 @@ from pathlib import PurePosixPath
 from tree_sitter import Node, Parser, Tree
 
 from . import delphi
-from .config import Index, Settings
+from .config import Index, Settings, matches_path
 from .delphi import Declaration
 from .languages import (
     BY_NAME,
@@ -40,7 +39,7 @@ class Chunk:
     path: str
     symbol: str
     language: str
-    kind: str  # code | test | doc
+    kind: str  # code | test | doc | summary
     start_line: int
     end_line: int
     content: str  # header + snippet
@@ -243,13 +242,10 @@ class Chunker:
     def from_settings(cls, settings: Settings) -> Chunker:
         return cls(settings.index, settings.project.languages)
 
-    def _matches(self, patterns: tuple[str, ...], path: str) -> bool:
-        return any(fnmatch.fnmatch(path, p) for p in patterns)
-
     def eligible(self, path: str) -> bool:
-        if self._matches(self.index.exclude, path):
+        if matches_path(self.index.exclude, path):
             return False
-        if self._matches(self.index.include, path):
+        if matches_path(self.index.include, path):
             return True
         suffix = PurePosixPath(path).suffix.lower()
         if suffix in DOC_EXTENSIONS:

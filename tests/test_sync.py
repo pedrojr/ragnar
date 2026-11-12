@@ -98,6 +98,22 @@ def test_watch_rereads_the_repository_list_on_each_pass(tmp_path, monkeypatch):
     assert seen == [["a"], ["a", "b"], ["a", "b"]]
 
 
+def test_sync_repo_option_applies_to_every_pass(tmp_path, monkeypatch):
+    from ragnar.cli import main
+
+    path = tmp_path / "repos.toml"
+    path.write_text('[[repo]]\nname = "a"\nurl = "u"\n\n[[repo]]\nname = "b"\nurl = "u"\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("RAGNAR_DSN_WRITE", "dsn")
+    seen = []
+    monkeypatch.setattr("ragnar.sync.watch", lambda repos, *_: seen.append([r.name for r in repos()]))
+    main(["sync", "--config", str(path), "--repo", "b", "--watch"])
+    assert seen == [["b"]]
+    with pytest.raises(SystemExit) as exc:
+        main(["sync", "--config", str(path), "--repo", "c"])
+    assert exc.value.code == 2
+
+
 def test_watch_stops_on_request(tmp_path):
     stop = threading.Event()
     stop.set()

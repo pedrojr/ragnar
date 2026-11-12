@@ -129,7 +129,8 @@ def contextualize(chat: Chat, cfg: Contextual, chunks: list[Chunk], documents: d
     """
     def one(c: Chunk) -> Chunk:
         document = documents.get(c.path, b"").decode(errors="replace")[: cfg.max_file_chars]
-        note = chat.complete(CONTEXT_PROMPT.format(path=c.path, document=document, chunk=c.content))
+        # one line: the chunk header must stay within the first lines, where read_code and excerpts look for it
+        note = " ".join(chat.complete(CONTEXT_PROMPT.format(path=c.path, document=document, chunk=c.content)).split())
         content = f"{note}\n{c.content}"
         return Chunk(c.path, c.symbol, c.language, c.kind, c.start_line, c.end_line, content,
                      c.search_text + "\n" + note + "\n" + split_identifiers(note), c.literals)
@@ -141,7 +142,7 @@ def contextualize(chat: Chat, cfg: Contextual, chunks: list[Chunk], documents: d
 def summarize(chat: Chat, cfg: Summaries, files: list[dict]) -> list[str]:
     """One summary per file: {"path", "text", "declarations", "refers"} in, sentences out, in order.
 
-    A question in business words ("onde calcula o desconto do convênio?") rarely shares words with the
+    A question in business words ("onde calcula a multa da mensalidade atrasada?") rarely shares words with the
     code. A summary written in those words gives the file a way in (Meta-RAG, Code-Craft).
     """
     language = f"\nWrite in {cfg.language}." if cfg.language else ""

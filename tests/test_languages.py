@@ -116,6 +116,10 @@ def test_settings_narrow_what_is_indexed():
     assert not Chunker(Index(index_docs=False)).eligible("README.md")
     assert not Chunker(Index(exclude=("legacy/*",))).eligible("legacy/a.py")
     assert Chunker(Index(include=("*.vue",))).eligible("src/App.vue")
+    # a trailing "/" names a directory, as in summary_exclude
+    assert not Chunker(Index(exclude=("legacy/",))).eligible("legacy/deep/a.py")
+    assert Chunker(Index(exclude=("legacy/",))).eligible("src/legacy.py")
+    assert Chunker(Index(include=("web/",))).eligible("web/App.vue")
 
 
 def test_sql_and_included_files_use_line_windows():

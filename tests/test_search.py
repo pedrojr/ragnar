@@ -237,6 +237,9 @@ def test_contextualize_adds_the_note_to_content_and_search():
     out = llm.contextualize(StubChat("Handles billing"), Contextual(), [chunk], {"a.py": b"code"})
     assert out[0].content.startswith("Handles billing\n") and "billing" in out[0].search_text
     assert out[0].start_line == 1
+    # a note over several lines would push the header out of reach of read_code
+    out = llm.contextualize(StubChat("Handles\n\nbilling.\n"), Contextual(), [chunk], {"a.py": b"code"})
+    assert out[0].content.split("\n")[:2] == ["Handles billing.", "// file: a.py"]
 
 
 def test_quoted_terms_read_messages_but_not_apostrophes():
