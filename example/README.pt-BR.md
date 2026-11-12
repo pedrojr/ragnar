@@ -6,18 +6,21 @@ Esta pasta roda o lado servidor do Ragnar nas suas máquinas: o banco, o embedde
 
 ```mermaid
 flowchart LR
-    repo[Seu host git] -- "git fetch, a cada minuto" --> worker[indexer]
+    repo[Seu host git] -- "git fetch, por consulta periódica" --> worker[indexer]
     worker -- COPY --> primary[(db-primary)]
     worker --> embedder
+    migrate -. "esquema, na subida" .-> primary
     primary -- WAL --> replicas[(db-replica × N)]
     agent[Agente de IA] -- "HTTP + token" --> mcp[ragnar-mcp]
     mcp -- SELECT --> replicas
     mcp --> embedder
+    mcp -. "/metrics" .-> keda[Prometheus + KEDA<br/>só no Kubernetes]
+    keda -. "escala" .-> replicas
 ```
 
-- **Um escritor.** Só o worker grava, e só no primário.
+- **Um escritor.** Só o worker grava no índice, e só no primário. O job `migrate` aplica o esquema quando a infraestrutura sobe.
 - **Busca somente leitura.** O servidor MCP lê das réplicas, com um papel que só faz `SELECT`.
-- **Sem rede de entrada.** O worker consulta seu host git, então nada precisa alcançar esta máquina.
+- **Sem rede de entrada.** O worker consulta seu host git, a cada minuto no Compose e a cada 5 minutos no Kubernetes, então nada precisa alcançar esta máquina.
 
 ## Requisitos
 
@@ -136,7 +139,7 @@ docker compose down
 ./scripts/smoke.sh myapp --target k8s
 ```
 
-O `up.sh` pode rodar de novo e recarrega `repos.toml` e `acl.json`. Ele instala versões fixas de metrics-server 0.9.0, CloudNativePG 1.30.1 e KEDA 2.21.0, e depois cria:
+O `up.sh` pode rodar de novo e recarrega `repos.toml`, `acl.json` e `server.toml`, além das chaves de modelo do `.env`. Ele instala versões fixas de metrics-server 0.9.0, CloudNativePG 1.30.1 e KEDA 2.21.0, e depois cria:
 
 | Recurso | O que é | Escala |
 | --- | --- | --- |
@@ -182,6 +185,8 @@ RAGNAR_EMBEDDING_API_KEY=<chave>
 ```
 
 **Isso envia seu código-fonte a esse provedor.**
+
+No Kubernetes, defina a URL, `MODEL` e `DIM` em `k8s/base/embed.env`, deixe a chave no `.env` e rode `./scripts/up.sh`.
 
 Para embutir outro modelo local na imagem, defina os mesmos `MODEL` e `DIM` e rode `docker compose build embedder`. Precisa ser um modelo aceito pelo fastembed.
 

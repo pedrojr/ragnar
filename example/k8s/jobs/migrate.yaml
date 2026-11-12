@@ -19,3 +19,5 @@ spec:
               valueFrom: { secretKeyRef: { name: ragnar-writer, key: password } }
             - name: RAGNAR_DSN_WRITE
               value: host=ragnar-db-rw port=5432 dbname=ragnar user=ragnar_writer password=$(RAGNAR_WRITER_PASSWORD)
+          envFrom:
+            - configMapRef: { name: ragnar-embed }   # embedding.dim sets the vector column

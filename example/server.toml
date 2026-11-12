@@ -1,6 +1,6 @@
 # Server-side settings for the MCP server and the index worker. Every option: docs/configuration.md.
 # Repositories can tune only their own [index] section, through the .ragnar/config.toml they commit.
-# After a change: docker compose restart ragnar-mcp indexer
+# After a change: docker compose restart ragnar-mcp indexer (Kubernetes: ./scripts/up.sh)
 
 [project]
 preset = "balanced"       # economy | balanced | precise

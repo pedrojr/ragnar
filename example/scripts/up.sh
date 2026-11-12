@@ -39,7 +39,7 @@ step "images (Docker Desktop Kubernetes sees local images)"
 docker build -q --target app -t ragnar-app:0.1.0 -f docker/Dockerfile .. >/dev/null
 docker build -q --target embedder -t ragnar-embedder:0.1.0 -f docker/Dockerfile .. >/dev/null
 
-step "namespace and secrets (from .env)"
+step "namespace, secrets (from .env), repos.toml and server.toml"
 kubectl apply -f k8s/base/namespace.yaml >/dev/null
 apply_secret() { kubectl -n ragnar create secret "$@" --dry-run=client -o yaml | kubectl apply -f - >/dev/null; }
 apply_secret generic ragnar-writer --type=kubernetes.io/basic-auth \
@@ -50,7 +50,14 @@ apply_secret generic ragnar-db-init-sql --from-literal=init.sql="CREATE ROLE rag
 ALTER ROLE ragnar_reader SET default_transaction_read_only = on;"
 apply_secret generic ragnar-acl --from-file=acl.json=acl.json
 apply_secret generic ragnar-git --from-literal=RAGNAR_GIT_TOKEN="${RAGNAR_GIT_TOKEN:-}"
-kubectl -n ragnar create configmap ragnar-repos --from-file=repos.toml=repos.toml --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+model_keys=()   # hosted chat model, reranker and embedder; empty when unused
+for name in RAGNAR_LLM_API_KEY RAGNAR_RERANK_API_KEY RAGNAR_EMBEDDING_API_KEY; do
+  model_keys+=("--from-literal=$name=${!name:-}")
+done
+apply_secret generic ragnar-model-keys "${model_keys[@]}"
+apply_config() { kubectl -n ragnar create configmap "$@" --dry-run=client -o yaml | kubectl apply -f - >/dev/null; }
+apply_config ragnar-repos --from-file=repos.toml=repos.toml
+apply_config ragnar-server --from-file=server.toml=server.toml
 apply_secret generic ragnar-mcp-tokens \
   --from-literal=RAGNAR_MCP_TOKEN="$RAGNAR_MCP_TOKEN" --from-literal=RAGNAR_MCP_TOKEN_RESTRICTED="$RAGNAR_MCP_TOKEN_RESTRICTED"
 
@@ -66,7 +73,7 @@ kubectl -n ragnar logs job/ragnar-migrate
 
 step "waiting for the embedder and the MCP server"
 kubectl -n ragnar rollout status deploy/ragnar-embedder --timeout=600s
-kubectl -n ragnar rollout restart deploy/ragnar-mcp >/dev/null   # reloads the ACL if it changed
+kubectl -n ragnar rollout restart deploy/ragnar-mcp >/dev/null   # reloads the ACL and server.toml if they changed
 kubectl -n ragnar rollout status deploy/ragnar-mcp --timeout=300s
 
 cat <<MSG

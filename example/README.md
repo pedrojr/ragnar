@@ -6,18 +6,21 @@ This folder runs the server side of Ragnar on your own machines: the database, t
 
 ```mermaid
 flowchart LR
-    repo[Your git host] -- "git fetch, every minute" --> worker[indexer]
+    repo[Your git host] -- "git fetch, polling" --> worker[indexer]
     worker -- COPY --> primary[(db-primary)]
     worker --> embedder
+    migrate -. "schema, at start" .-> primary
     primary -- WAL --> replicas[(db-replica × N)]
     agent[AI agent] -- "HTTP + token" --> mcp[ragnar-mcp]
     mcp -- SELECT --> replicas
     mcp --> embedder
+    mcp -. "/metrics" .-> keda[Prometheus + KEDA<br/>Kubernetes only]
+    keda -. "scales" .-> replicas
 ```
 
-- **One writer.** Only the worker writes, and only on the primary.
+- **One writer.** Only the worker writes to the index, and only on the primary. The `migrate` job applies the schema when the stack comes up.
 - **Read-only search.** The MCP server reads from replicas, with a role that can only `SELECT`.
-- **No inbound network.** The worker polls your git host, so nothing has to reach this machine.
+- **No inbound network.** The worker polls your git host, every minute under Compose and every 5 minutes under Kubernetes, so nothing has to reach this machine.
 
 ## Requirements
 
@@ -136,7 +139,7 @@ docker compose down
 ./scripts/smoke.sh myapp --target k8s
 ```
 
-`up.sh` is safe to run again, and it reloads `repos.toml` and `acl.json`. It installs fixed versions of metrics-server 0.9.0, CloudNativePG 1.30.1 and KEDA 2.21.0, then creates:
+`up.sh` is safe to run again, and it reloads `repos.toml`, `acl.json` and `server.toml`, plus the model keys in `.env`. It installs fixed versions of metrics-server 0.9.0, CloudNativePG 1.30.1 and KEDA 2.21.0, then creates:
 
 | Resource | What it is | Scaling |
 | --- | --- | --- |
@@ -182,6 +185,8 @@ RAGNAR_EMBEDDING_API_KEY=<key>
 ```
 
 **This sends your source code to that provider.**
+
+On Kubernetes, set the URL, `MODEL` and `DIM` in `k8s/base/embed.env`, keep the key in `.env`, and run `./scripts/up.sh`.
 
 To bake another local model into the image, set the same `MODEL` and `DIM`, and run `docker compose build embedder`. It must be a model fastembed supports.
 

@@ -1,5 +1,5 @@
 # Read-only MCP server. Reads only from ragnar-db-ro as ragnar_reader; never receives the write password.
-# No MCP session: any pod answers any request. Scales on CPU.
+# No MCP session: any pod answers any request. Scales on CPU. Settings: server.toml, through scripts/up.sh.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -29,11 +29,12 @@ spec:
             - name: RAGNAR_DSN_READ
               value: host=ragnar-db-ro port=5432 dbname=ragnar user=ragnar_reader password=$(RAGNAR_READER_PASSWORD)
             - { name: RAGNAR_ACL_FILE, value: /run/ragnar/acl.json }
-            - { name: RAGNAR__EMBEDDING__URL, value: "http://ragnar-embedder:8000/v1" }
+            - { name: RAGNAR_CONFIG, value: /etc/ragnar/server.toml }
             - { name: RAGNAR_POOL_MAX, value: "8" }
             - { name: RAGNAR_POOL_MAX_LIFETIME, value: "120" }   # renews connections, so a new replica receives load
           envFrom:
             - configMapRef: { name: ragnar-embed }
+            - secretRef: { name: ragnar-model-keys, optional: true }   # hosted chat model, reranker or embedder
           ports: [{ containerPort: 8080, name: http }]
           readinessProbe:
             httpGet: { path: /readyz, port: http }
@@ -46,9 +47,12 @@ spec:
             limits: { cpu: 500m, memory: 256Mi }
           volumeMounts:
             - { name: acl, mountPath: /run/ragnar, readOnly: true }
+            - { name: server, mountPath: /etc/ragnar, readOnly: true }
       volumes:
         - name: acl
           secret: { secretName: ragnar-acl }
+        - name: server
+          configMap: { name: ragnar-server }   # server.toml, created by scripts/up.sh
 ---
 # LoadBalancer on Docker Desktop publishes on localhost:8080 (the same address as Compose).
 apiVersion: v1

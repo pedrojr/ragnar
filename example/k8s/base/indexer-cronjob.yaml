@@ -1,5 +1,5 @@
-# Index worker inside the cluster: follows the branches listed in repos.toml.
-# scripts/up.sh creates the ragnar-repos ConfigMap from that file.
+# Index worker inside the cluster: follows the branches listed in repos.toml, with the settings of server.toml.
+# scripts/up.sh creates the ragnar-repos and ragnar-server ConfigMaps from those files.
 # To react to a merge at once, run from CI: kubectl -n ragnar create job --from=cronjob/ragnar-indexer idx-$(date +%s)
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -38,15 +38,19 @@ spec:
                   value: host=ragnar-db-rw port=5432 dbname=ragnar user=ragnar_writer password=$(RAGNAR_WRITER_PASSWORD)
                 - name: RAGNAR_GIT_TOKEN
                   valueFrom: { secretKeyRef: { name: ragnar-git, key: RAGNAR_GIT_TOKEN, optional: true } }
-                - { name: RAGNAR__EMBEDDING__URL, value: "http://ragnar-embedder:8000/v1" }
+                - { name: RAGNAR_CONFIG, value: /etc/ragnar/server.toml }
                 - { name: HOME, value: /cache }
               envFrom:
                 - configMapRef: { name: ragnar-embed }
+                - secretRef: { name: ragnar-model-keys, optional: true }   # hosted chat model or embedder
               volumeMounts:
                 - { name: cache, mountPath: /cache }
-                - { name: repos, mountPath: /etc/ragnar, readOnly: true }
+                - { name: config, mountPath: /etc/ragnar, readOnly: true }
           volumes:
             - name: cache
               persistentVolumeClaim: { claimName: ragnar-indexer-cache }
-            - name: repos
-              configMap: { name: ragnar-repos }
+            - name: config   # repos.toml and server.toml
+              projected:
+                sources:
+                  - configMap: { name: ragnar-repos }
+                  - configMap: { name: ragnar-server }
