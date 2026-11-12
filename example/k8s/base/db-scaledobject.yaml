@@ -12,7 +12,6 @@ spec:
     name: ragnar-db
   minReplicaCount: 2                # total instances: 1 primary + 1 replica
   maxReplicaCount: 4                # 1 primary + 3 replicas
-  pollingInterval: 15
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:

@@ -24,7 +24,7 @@ flowchart LR
 
 ## Requirements
 
-- Docker Desktop, or Docker Engine with Compose, on Windows, macOS or Linux. For Kubernetes, turn it on under *Settings > Kubernetes*.
+- Docker Desktop, or Docker Engine with Compose, on Windows, macOS or Linux. For Kubernetes, turn it on under *Settings > Kubernetes*. On Windows, run `wsl --update` first: recent Kubernetes versions do not start on the cgroup v1 of older WSL kernels.
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) and git. On Windows, run the scripts in Git Bash.
 - About 6 GB of free memory for Docker. The embedder uses up to 3 GB while indexing.
 
@@ -155,7 +155,9 @@ To index right after a merge, run from CI:
 kubectl -n ragnar create job --from=cronjob/ragnar-indexer idx-$(date +%s)
 ```
 
-For large repositories, prefer the CronJob over `index.sh --target k8s`. A `port-forward` pins traffic to one pod, while the CronJob goes through the Service and uses every embedder pod.
+`index.sh --target k8s` runs the indexer in a temporary pod, with the worker's settings and through the Services, so it uses every embedder pod. A local clone travels as a git bundle, which holds commits only. For the first build of a large repository, prefer the CronJob: it does not depend on a `kubectl exec` session that stays open for hours.
+
+Docker Desktop publishes the `LoadBalancer` on every network interface, not only on `127.0.0.1`. Other machines on your network can reach port 8080 unless a firewall blocks it. The token still applies.
 
 Load test:
 
@@ -202,6 +204,7 @@ docker compose run --rm tools migrate --resize-embeddings
 | --- | --- | --- |
 | `POSTGRES_PASSWORD` error on `up` | `.env` is missing | Run `ragnar init-env` |
 | Port 8080 in use | Compose and Kubernetes both running | Stop one |
+| Kubernetes stays at `failed to start` on Windows | WSL runs cgroup v1, which recent Kubernetes versions refuse | `wsl --update`, then `wsl --shutdown`, and start Docker Desktop again |
 | `secret found` in the worker log | A credential is in the repository | Rotate and remove it. The index stays on the last good commit |
 | `... is empty` in the worker log | `token_env` variable is not set | Set it in `.env`, then `docker compose up -d indexer` |
 | Embedder restarting | Out of memory | Give Docker more memory, or lower `RAGNAR_EMBED_BATCH` |
@@ -212,6 +215,6 @@ docker compose run --rm tools migrate --resize-embeddings
 This is a reference setup, not a hardened deployment.
 
 - Static tokens per client. For production, put an identity provider in front.
-- No TLS, NetworkPolicy or PodDisruptionBudget. Put a TLS proxy in front before leaving `127.0.0.1`.
+- No TLS, NetworkPolicy or PodDisruptionBudget. Put a TLS proxy in front before the server listens beyond `127.0.0.1`. On Docker Desktop, the Kubernetes `LoadBalancer` already listens on every interface.
 - No backup. The index derives from git, so recovery means reindexing.
 - Compose spreads reads across replicas through Docker DNS, which is only approximate.

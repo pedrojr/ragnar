@@ -11,11 +11,11 @@ The full walkthrough lives in `${CLAUDE_PLUGIN_ROOT}/example/README.md`. Read it
 
 1. **Compose or Kubernetes.** Compose suits one team on one machine. Kubernetes suits automatic scaling. Both publish port 8080, so run one at a time.
 2. **Embedder.** The bundled CPU embedder keeps code on the user's machines. An external provider is faster, but it sends source code to that provider: make the user confirm this explicitly.
-3. **Where it runs.** The example binds to `127.0.0.1` and has no TLS. Any shared server needs a TLS proxy and network rules first. See "Limits" in the example README.
+3. **Where it runs.** The example has no TLS. Compose binds to `127.0.0.1`, but on Kubernetes Docker Desktop publishes port 8080 on every network interface. Tell the user. Any shared server needs a TLS proxy and network rules first. See "Limits" in the example README.
 
 ## Steps
 
-1. Check `docker`, `uv` and `git`. For Kubernetes, also `kubectl` and the context.
+1. Check `docker`, `uv` and `git`. For Kubernetes, also `kubectl` and the context, and that `docker desktop kubernetes status` reports `running`. On Windows, `failed to start` usually means WSL needs `wsl --update`: see Troubleshooting in the example README.
 2. Work in a clone of Ragnar, because the plugin folder changes on each update:
    ```bash
    git clone https://github.com/pedrojr/ragnar && cd ragnar/example

@@ -24,7 +24,7 @@ flowchart LR
 
 ## Requisitos
 
-- Docker Desktop, ou Docker Engine com Compose, em Windows, macOS ou Linux. Para Kubernetes, ligue em *Settings > Kubernetes*.
+- Docker Desktop, ou Docker Engine com Compose, em Windows, macOS ou Linux. Para Kubernetes, ligue em *Settings > Kubernetes*. No Windows, rode `wsl --update` antes: versões recentes do Kubernetes não sobem no cgroup v1 de kernels WSL antigos.
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) e git. No Windows, rode os scripts no Git Bash.
 - Cerca de 6 GB de memória livre para o Docker. O embedder usa até 3 GB ao indexar.
 
@@ -155,7 +155,9 @@ Para indexar logo depois de um merge, rode no CI:
 kubectl -n ragnar create job --from=cronjob/ragnar-indexer idx-$(date +%s)
 ```
 
-Em repositórios grandes, prefira o CronJob ao `index.sh --target k8s`. Um `port-forward` prende o tráfego num pod, enquanto o CronJob passa pelo Service e usa todos os pods do embedder.
+O `index.sh --target k8s` roda o indexador num pod temporário, com as configurações do worker e pelos Services, então usa todos os pods do embedder. Um clone local viaja como git bundle, que só leva commits. No primeiro build de um repositório grande, prefira o CronJob: ele não depende de uma sessão `kubectl exec` aberta por horas.
+
+O Docker Desktop publica o `LoadBalancer` em todas as interfaces de rede, não só em `127.0.0.1`. Outras máquinas da sua rede alcançam a porta 8080, a menos que um firewall bloqueie. O token continua valendo.
 
 Teste de carga:
 
@@ -202,6 +204,7 @@ docker compose run --rm tools migrate --resize-embeddings
 | --- | --- | --- |
 | Erro de `POSTGRES_PASSWORD` no `up` | Falta o `.env` | Rode `ragnar init-env` |
 | Porta 8080 em uso | Compose e Kubernetes ligados juntos | Pare um deles |
+| Kubernetes fica em `failed to start` no Windows | O WSL roda cgroup v1, que versões recentes do Kubernetes recusam | `wsl --update`, depois `wsl --shutdown`, e suba o Docker Desktop de novo |
 | `secret found` no log do worker | Há uma credencial no repositório | Troque e remova. O índice fica no último commit bom |
 | `... is empty` no log do worker | A variável de `token_env` não está definida | Defina no `.env` e rode `docker compose up -d indexer` |
 | Embedder reiniciando | Falta de memória | Dê mais memória ao Docker ou reduza `RAGNAR_EMBED_BATCH` |
@@ -212,6 +215,6 @@ docker compose run --rm tools migrate --resize-embeddings
 Esta é uma montagem de referência, não um ambiente endurecido.
 
 - Tokens estáticos por cliente. Em produção, coloque um provedor de identidade na frente.
-- Sem TLS, NetworkPolicy ou PodDisruptionBudget. Coloque um proxy TLS na frente antes de sair do `127.0.0.1`.
+- Sem TLS, NetworkPolicy ou PodDisruptionBudget. Coloque um proxy TLS na frente antes de o servidor escutar além do `127.0.0.1`. No Docker Desktop, o `LoadBalancer` do Kubernetes já escuta em todas as interfaces.
 - Sem backup. O índice deriva do git, então recuperar é reindexar.
 - O Compose distribui leituras entre réplicas pelo DNS do Docker, de forma apenas aproximada.

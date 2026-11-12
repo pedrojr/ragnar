@@ -18,7 +18,7 @@ Conte com uma primeira resposta em até 7 dias. O Ragnar é mantido por melhor e
 
 ## Antes de expor um servidor
 
-O [exemplo](example/README.pt-BR.md) fica em `127.0.0.1` e não é endurecido. Em rede compartilhada:
+O [exemplo](example/README.pt-BR.md) não é endurecido. No Compose ele fica em `127.0.0.1`. No Kubernetes, o Docker Desktop publica o `LoadBalancer` do MCP em todas as interfaces de rede. Em rede compartilhada:
 
 1. Coloque um proxy TLS na frente do servidor MCP. Tokens trafegam num cabeçalho.
 2. Mantenha Postgres, embedder e `/metrics` fora da rede.

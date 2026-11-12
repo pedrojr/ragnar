@@ -62,5 +62,5 @@ Confirm with the user first: every repository must be indexed again.
 | `embedder unavailable` | Embedder down or out of memory | `docker compose ps embedder`, or `kubectl -n ragnar get pods`; read the logs |
 | `another indexer wrote ...` | Two runs on the same repository | Run again; the second run sees the new state |
 | `secret found` | gitleaks found a credential | Rule 2 |
-| `port 15432 did not open` | port-forward failed (k8s) | `kubectl -n ragnar get cluster ragnar-db` must report a healthy state |
+| `timed out waiting for the condition on pods/ragnar-index-...` | The indexer pod did not start (k8s) | `kubectl -n ragnar describe pod -l app=ragnar-index`; run `./scripts/up.sh` if the image or a Secret is missing |
 | `returned dimension N, expected M` | Model and `embedding.dim` disagree | Fix `embedding.dim`, then see the section above |

@@ -83,3 +83,8 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - `ragnar smoke` e `ragnar load` avisam com uma mensagem de erro quando falta o `RAGNAR_MCP_TOKEN`.
 - A nota contextual fica numa linha só, então o `read_code` e os trechos focados mantêm os números de linha certos.
 - O Job de migração do Kubernetes lê a dimensão do embedding do `embed.env`.
+- `scripts/index.sh --target k8s` roda o indexador num pod temporário, pelos Services. Antes ele passava por `kubectl port-forward`, que encerra quando o Postgres fecha uma conexão encaminhada, e a execução falhava depois das primeiras consultas. Um clone local viaja como git bundle.
+- `scripts/index.sh` no Compose usa o `server.toml`, como o worker, então a próxima passagem do worker não reindexa tudo.
+- Um banco inacessível vira uma mensagem de erro da CLI, não um traceback.
+- `ragnar load` abre uma sessão MCP nova a cada 10 segundos. Uma conexão mantida aberta fica no pod que alcançou primeiro, então antes os pods criados pelo autoscaler não recebiam tráfego. Uma falha de conexão agora conta como erro, em vez de encerrar o teste.
+- A documentação do exemplo e o `SECURITY.md` dizem que o Docker Desktop publica o `LoadBalancer` do Kubernetes em todas as interfaces de rede, e que o WSL precisa de cgroup v2 para versões recentes do Kubernetes.

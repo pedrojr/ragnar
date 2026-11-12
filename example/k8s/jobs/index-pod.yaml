@@ -1,0 +1,35 @@
+# Temporary indexer pod for scripts/index.sh --target k8s. It runs `ragnar index` inside the cluster,
+# with the worker's credentials and settings, and reaches the primary and every embedder pod through
+# their Services. kubectl port-forward is not used: it exits when Postgres closes a forwarded connection.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ragnar-index
+  namespace: ragnar
+  labels: { app: ragnar-index }
+spec:
+  restartPolicy: Never
+  securityContext: { fsGroup: 10001 }
+  containers:
+    - name: indexer
+      image: ragnar-app:0.1.0
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]   # index.sh runs the commands through kubectl exec
+      env:
+        - name: RAGNAR_WRITER_PASSWORD
+          valueFrom: { secretKeyRef: { name: ragnar-writer, key: password } }
+        - name: RAGNAR_DSN_WRITE
+          value: host=ragnar-db-rw port=5432 dbname=ragnar user=ragnar_writer password=$(RAGNAR_WRITER_PASSWORD)
+        - { name: RAGNAR_CONFIG, value: /etc/ragnar/server.toml }
+        - { name: HOME, value: /work }
+      envFrom:
+        - configMapRef: { name: ragnar-embed }
+        - secretRef: { name: ragnar-model-keys, optional: true }
+      volumeMounts:
+        - { name: work, mountPath: /work }
+        - { name: server, mountPath: /etc/ragnar, readOnly: true }
+  volumes:
+    - name: work
+      emptyDir: {}
+    - name: server
+      configMap: { name: ragnar-server }

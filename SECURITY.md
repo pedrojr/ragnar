@@ -18,7 +18,7 @@ Expect a first reply within 7 days. Ragnar is maintained on a best-effort basis,
 
 ## Before you expose a server
 
-The [example](example/README.md) binds to `127.0.0.1`, and it is not hardened. On a shared network:
+The [example](example/README.md) is not hardened. Under Compose it binds to `127.0.0.1`. Under Kubernetes, Docker Desktop publishes the MCP `LoadBalancer` on every network interface. On a shared network:
 
 1. Put a TLS proxy in front of the MCP server. Tokens travel in a header.
 2. Keep Postgres, the embedder and `/metrics` off the network.
