@@ -1,6 +1,6 @@
 ---
 name: search
-description: Chooses the cheapest reliable way to find code in a ragnarized project, between local tools (Grep, Glob, Read) and the Ragnar index (find_symbol, find_references, call_graph, trace_flow, find_table_usage, repo_map, search_code, file_outline, read_code). Use before exploring code to answer a question, locate a feature, trace behavior or understand unfamiliar areas, whenever ragnar.toml exists or the Ragnar MCP tools are available.
+description: Chooses the cheapest reliable way to find code in a ragnarized project, between local tools (Grep, Glob, Read) and the Ragnar index (find_symbol, find_references, call_graph, trace_flow, find_table_usage, repo_map, search_code, file_outline, read_code). Use before exploring code to answer a question, locate a feature, trace behavior or understand unfamiliar areas, whenever .ragnar/config.toml exists or the Ragnar MCP tools are available.
 ---
 
 # Search: local or index
@@ -35,7 +35,7 @@ If you are on another branch, or the working tree has changes, the index can be 
 
 ## Keep the search cheap
 
-1. Narrow first. Pass `path_prefix` and `kind` (`code`, `test`, `doc`) when you can guess them.
+1. Narrow first. Pass `path_prefix` and `kind` (`code`, `test`, `doc`, `summary`) when you can guess them.
 2. Leave `k` out. The server applies the project's token budget.
 3. Trust the hit. Open only the cited lines, with `Read` and a line range, not the whole file.
 4. Rewrite a failed query once, using terms from the code. Then switch to `Grep`. Never send the same query twice.

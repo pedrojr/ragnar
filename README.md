@@ -20,16 +20,18 @@ In a [benchmark](benchmark/README.md) on 8 open source projects in Delphi, Java,
 
 ```mermaid
 flowchart LR
-    agent[AI agent + plugin] -- "MCP + token" --> mcp[Ragnar MCP server]
+    agent[AI agent + plugin] -- "MCP over HTTP + token" --> mcp[Ragnar MCP server]
     mcp -- SELECT --> replicas[(Read replicas)]
     primary[(Primary)] -- replication --> replicas
-    worker[Index worker] -- writes --> primary
-    repo[Your repository] -- "tracked branch" --> worker
+    repo[Your git host] -- "git fetch, tracked branch" --> worker[Index worker]
+    worker -- writes --> primary
     worker --> embed[Embedder]
     mcp --> embed
+    worker -. "summaries, context notes" .-> models[Optional models:<br/>chat, reranker]
+    mcp -. "query expansion, rerank" .-> models
 ```
 
-You run the server side from [`example/`](example/README.md). The worker follows a branch of your project, so each merge reaches the index on its own. The plugin connects your agent and guides it through the rest.
+You run the server side from [`example/`](example/README.md). The worker follows a branch of your project, so each merge reaches the index on its own. Dotted lines are optional and off by default. The plugin connects your agent and guides it through the rest.
 
 ## Quick start
 

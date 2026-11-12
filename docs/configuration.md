@@ -66,7 +66,7 @@ Then restart with `docker compose restart indexer`. The next run reindexes the r
 
 `[summaries]` can name its own provider and model. Keys it leaves empty come from `[llm]`, which serves multi-query, HyDE and contextual retrieval. See [Retrieval techniques](retrieval.md).
 
-Under Compose, set the keys in `example/.env`. `compose.yaml` passes `RAGNAR_EMBEDDING_API_KEY` to every app service, `RAGNAR_LLM_API_KEY` to `indexer` (summaries and contextual retrieval) and `ragnar-mcp` (query strategies), and `RAGNAR_RERANK_API_KEY` to `ragnar-mcp`.
+Under Compose, set the keys in `example/.env`. `compose.yaml` passes `RAGNAR_EMBEDDING_API_KEY` to every app service, `RAGNAR_LLM_API_KEY` to `indexer` (summaries and contextual retrieval) and `ragnar-mcp` (query strategies), and `RAGNAR_RERANK_API_KEY` to `ragnar-mcp`. Under Kubernetes, `scripts/up.sh` copies the same three keys from `example/.env` into the `ragnar-model-keys` Secret, which the MCP server and the worker read.
 
 ## Presets
 
@@ -89,8 +89,8 @@ Under Compose, set the keys in `example/.env`. `compose.yaml` passes `RAGNAR_EMB
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `include` | `[]` | Extra globs, indexed by line windows |
-| `exclude` | `[]` | Globs to skip |
+| `include` | `[]` | Extra globs, indexed by line windows. A trailing `/` names a directory |
+| `exclude` | `[]` | Globs to skip, such as `"legacy/*"`. A trailing `/` names a directory, such as `"vendor/"` |
 | `max_file_kb` | `2048` | Larger files are skipped, and the run reports them |
 | `chunk_budget` | `1800` | Non-whitespace characters per chunk |
 | `window_lines` | `80` | Lines per chunk, for files without a grammar |
@@ -220,7 +220,7 @@ These configure a process, not retrieval.
 | Variable | Used by | Meaning |
 | --- | --- | --- |
 | `RAGNAR_DSN_WRITE` | Indexer, migrations | Primary connection |
-| `RAGNAR_DSN_READ` | MCP server, evaluation | Replica connection |
+| `RAGNAR_DSN_READ` | MCP server, `ragnar eval`, `ragnar search` | Replica connection |
 | `RAGNAR_ACL_FILE` | MCP server | Path to `acl.json` |
 | `RAGNAR_CONFIG` | All | Path to the settings file |
 | `RAGNAR_POOL_MAX` | MCP server | Database connections, default `10` |
@@ -228,4 +228,6 @@ These configure a process, not retrieval.
 | `RAGNAR_EMBED_THREADS` | Embedder | CPU threads |
 | `RAGNAR_EMBED_MAX_TOKENS` | Embedder | Input cut, default `512` |
 | `RAGNAR_EMBED_BATCH` | Embedder | Internal batch, default `8` |
+| `RAGNAR_MCP_TOKEN` | `ragnar smoke`, `ragnar load` | Token the checks and the load test use |
+| `RAGNAR_MCP_TOKEN_RESTRICTED` | `ragnar smoke` | A token without access to the repository, to check the ACL |
 | `RAGNAR_VENV` | `bin/ragnar` | Environment folder for the plugin's CLI |

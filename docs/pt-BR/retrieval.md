@@ -19,15 +19,19 @@ flowchart LR
     w --> f
     t --> f
     s --> f
-    f --> r[Rerank]
+    f -. "melhores hits" .-> g[Lista do grafo]
+    g -.-> f
+    f --> k[Peso da documentação]
+    k --> r[Rerank]
     r --> d[Limite por arquivo + diversidade]
     d --> n[Chunks vizinhos]
-    n --> b[Orçamento de tokens]
+    n --> e[Trechos focados]
+    e --> b[Orçamento de tokens]
     b --> c[Referências para o resto]
     c --> a[Resposta]
 ```
 
-Etapas que usam um modelo opcional vêm desligadas.
+Etapas que usam um modelo opcional vêm desligadas, assim como a lista do grafo (pontilhada).
 
 ## Na consulta
 
@@ -38,6 +42,7 @@ Etapas que usam um modelo opcional vêm desligadas.
 | Reforço por símbolo | `retrieval.symbol_weight` | Nenhum | Perguntas que citam classe ou função |
 | Lista por arquivo | `retrieval.file_weight` | Duas consultas a mais | Arquivos grandes, onde as palavras da pergunta ficam distantes |
 | Lista do grafo | `retrieval.graph_weight` | Uma consulta a mais | Fluxos entre arquivos: o que os melhores resultados chamam e quem os chama |
+| Peso da documentação | `retrieval.doc_weight` | Nenhum | Documentos de visão geral que citam todos os módulos e tiram o lugar do código |
 | Lista de literais | `retrieval.literal_weight` | Uma consulta a mais, só com texto entre aspas | Mensagens de erro, textos de tela e SQL que a pessoa cita |
 | Reranking | `[rerank]` | Uma chamada de modelo por busca | Melhores resultados fora de ordem |
 | Multi-query | `query.strategy = "multi_query"` | Uma chamada de chat e mais embeddings por busca | Perguntas vagas |

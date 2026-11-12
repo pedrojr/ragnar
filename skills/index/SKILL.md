@@ -50,7 +50,7 @@ If the user has no infrastructure yet, use the `infra` skill first.
 Ragnar reindexes everything by itself when the embedding model or a chunking setting changes. A model with another dimension also needs:
 
 ```bash
-ragnar migrate --resize-embeddings   # CLEARS the whole index
+cd "$RAGNAR_HOME/example" && docker compose run --rm tools migrate --resize-embeddings   # CLEARS the whole index
 ```
 
 Confirm with the user first: every repository must be indexed again.

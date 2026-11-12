@@ -10,7 +10,7 @@ Conte com uma primeira resposta em até 7 dias. O Ragnar é mantido por melhor e
 
 ## O que o Ragnar protege
 
-- **Segredos no código.** O indexador roda o gitleaks no texto normalizado antes de indexar, e um achado interrompe a execução. O índice fica no último commit bom.
+- **Segredos no código.** O indexador roda o gitleaks no texto normalizado antes de indexar, e um achado interrompe a execução. O índice fica no último commit bom. O servidor pode escolher `index.secret_action = "skip"`, que deixa de fora os arquivos com achados.
 - **Acesso de escrita.** O servidor MCP conecta com um papel que só lê, nas réplicas, e nunca recebe a senha de escrita.
 - **Acesso a repositórios.** Tokens são guardados como hash. Cada um lista os repositórios que pode ler.
 - **Configuração vinda do repositório.** Um repositório só muda como é dividido em chunks, então não desvia embeddings nem desliga a varredura de segredos.
@@ -28,4 +28,4 @@ O [exemplo](example/README.pt-BR.md) fica em `127.0.0.1` e não é endurecido. E
 
 ## Provedores hospedados
 
-Embeddings, reranking, recuperação contextual e expansão de consulta enviam código ou perguntas ao endpoint configurado. A montagem padrão mantém tudo nas suas máquinas. Antes de apontar qualquer um deles para um provedor hospedado, confirme que ele atende à sua política.
+Embeddings, resumos de arquivo, reranking, recuperação contextual e expansão de consulta enviam código ou perguntas ao endpoint configurado. A montagem padrão mantém tudo nas suas máquinas. Antes de apontar qualquer um deles para um provedor hospedado, confirme que ele atende à sua política.

@@ -62,6 +62,8 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - `ragnar sync --watch` relê o `repos.toml` antes de cada passada, então repositórios novos não exigem reinício. Um arquivo que deixa de ser válido mantém a lista anterior.
 - Arquivos de instrução para agentes (`AGENTS.md`, `CLAUDE.md`, regras do Copilot e do Cursor) ficam fora do índice, a menos que `index.index_agent_notes` esteja ligado: o agente já os lê, e eles casavam com quase qualquer pergunta.
 - O total de chunks usado na raridade dos termos fica em cache até um indexador gravar, em vez de ser contado a cada busca.
+- `index.include` e `index.exclude` aceitam um diretório escrito com `/` no fim, como o `index.summary_exclude`. Arquivos já indexados nesse diretório saem do índice com `ragnar index --full`.
+- No exemplo de Kubernetes, o servidor MCP e o worker leem o `server.toml`, e o `scripts/up.sh` repassa a eles as chaves de modelo do `.env`. O `k8s/base/embed.env` guarda todas as configurações de embedding, inclusive a URL.
 - As perguntas do histórico pulam mensagens de commit que não dizem nada e tiram das respostas os arquivos alterados por mais de 5% dos commits. O benchmark também informa se algum arquivo certo está entre os 10 primeiros (`hit10`) e registra a confiança de cada busca.
 
 ### Corrigido
@@ -75,3 +77,9 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - Um 4xx do embedder vira um erro claro, e as novas tentativas esperam entre si.
 - O orçamento de tokens pula um resultado que não cabe e mantém os menores que vêm depois dele.
 - O baseline de grep mantém palavras acentuadas inteiras e também busca a forma sem acento, para que perguntas em português tenham uma comparação justa.
+- `ragnar migrate --resize-embeddings` também limpa o grafo de código. Antes, um token que citava um repositório pelo nome ainda lia as arestas antigas.
+- `ragnar sync --repo` vale para todas as passagens do `--watch`, e um nome que não está no `repos.toml` é um erro.
+- `ragnar stats` lê linhas de auditoria com prefixo, como a saída do `docker compose logs`.
+- `ragnar smoke` e `ragnar load` avisam com uma mensagem de erro quando falta o `RAGNAR_MCP_TOKEN`.
+- A nota contextual fica numa linha só, então o `read_code` e os trechos focados mantêm os números de linha certos.
+- O Job de migração do Kubernetes lê a dimensão do embedding do `embed.env`.

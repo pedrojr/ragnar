@@ -72,6 +72,6 @@ O modelo do agente não importa para o Ragnar. As escolhas de modelo do servidor
 | --- | --- |
 | Embeddings | Qualquer endpoint `/v1/embeddings` |
 | Reranking | Qualquer endpoint `/rerank` no formato Jina, Cohere ou TEI |
-| Expansão de consulta e recuperação contextual | Qualquer endpoint `/chat/completions` compatível com OpenAI |
+| Resumos de arquivo, expansão de consulta e recuperação contextual | Qualquer endpoint `/chat/completions` compatível com OpenAI, Ollama incluído, ou a API Messages da Anthropic |
 
 Veja [Configuração](configuration.md).

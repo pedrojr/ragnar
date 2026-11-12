@@ -19,15 +19,19 @@ flowchart LR
     w --> f
     t --> f
     s --> f
-    f --> r[Rerank]
+    f -. "best hits" .-> g[Graph list]
+    g -.-> f
+    f --> k[Documentation weight]
+    k --> r[Rerank]
     r --> d[File cap + diversity]
     d --> n[Neighbor chunks]
-    n --> b[Token budget]
+    n --> e[Excerpts]
+    e --> b[Token budget]
     b --> c[References for the rest]
     c --> a[Answer]
 ```
 
-Stages with an optional model are off by default.
+Stages with an optional model are off by default, and so is the graph list (dotted).
 
 ## At query time
 
@@ -38,6 +42,7 @@ Stages with an optional model are off by default.
 | Symbol boost | `retrieval.symbol_weight` | None | Questions that name a class or function |
 | Whole-file list | `retrieval.file_weight` | Two more queries | Large files, where the words of a question sit far apart |
 | Graph list | `retrieval.graph_weight` | One more query | Flows across files: what the best hits call, and who calls them |
+| Documentation weight | `retrieval.doc_weight` | None | Overview documents that mention every module and crowd out the code |
 | Literal list | `retrieval.literal_weight` | One more query, only for quoted text | Error messages, screen captions and SQL that a person quotes |
 | Reranking | `[rerank]` | One model call per search | Top results in the wrong order |
 | Multi-query | `query.strategy = "multi_query"` | One chat call and more embeddings per search | Vague questions |

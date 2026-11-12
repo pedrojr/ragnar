@@ -2,7 +2,7 @@
 
 [English](../summaries.md)
 
-Um resumo de arquivo é um parágrafo curto que um modelo de chat escreve sobre um arquivo de código, com as palavras que a equipe usa para falar do negócio. Para uma unit Delphi cheia de `btnSangriaClick` e `TB_MOVCX`, o resumo pode dizer "registra a retirada de dinheiro do caixa". O Ragnar indexa esse parágrafo como mais um chunk, do tipo `summary`. Assim, uma pergunta feita em termos de negócio encontra o arquivo mesmo quando o código nunca usa essas palavras.
+Um resumo de arquivo é um parágrafo curto que um modelo de chat escreve sobre um arquivo de código, com as palavras que a equipe usa para falar do negócio. Para uma unit Delphi cheia de `btnTrancarClick` e `TB_MATR`, o resumo pode dizer "registra o trancamento da matrícula de um aluno no semestre". O Ragnar indexa esse parágrafo como mais um chunk, do tipo `summary`. Assim, uma pergunta feita em termos de negócio encontra o arquivo mesmo quando o código nunca usa essas palavras.
 
 Os resumos vêm desligados (`summaries.enabled = false`). Esta página mostra como ligá-los com o Ollama na sua máquina ou com o Claude Haiku pela API da Anthropic, como deixar pastas de fora e como conferir o resultado.
 
@@ -129,19 +129,19 @@ Um repositório só pode acrescentar exclusões. Ele não liga os resumos nem es
 `ragnar summarize` envia arquivos locais ao modelo configurado e imprime os resumos. Não grava nada no índice e não precisa de banco de dados.
 
 ```bash
-ragnar summarize src/Caixa/uSangria.pas src/Vendas/uDesconto.pas
+ragnar summarize src/Secretaria/uTrancamento.pas src/Mensalidades/uMulta.pas
 ```
 
 ```text
 provider: ollama, model: qwen3:8b, url: http://127.0.0.1:11434/v1
-## src/Caixa/uSangria.pas
-Registra a retirada de dinheiro do caixa ...
+## src/Secretaria/uTrancamento.pas
+Registra o trancamento da matrícula de um aluno ...
 ```
 
 Rode o comando na raiz do repositório, para que os caminhos batam com as listas de exclusão. Para testar uma configuração sem editar arquivo, use `--set`:
 
 ```bash
-ragnar summarize src/Caixa/uSangria.pas --set summaries.provider=anthropic --set 'summaries.language="English"'
+ragnar summarize src/Secretaria/uTrancamento.pas --set summaries.provider=anthropic --set 'summaries.language="English"'
 ```
 
 ## Aplicar e conferir
@@ -151,7 +151,7 @@ ragnar summarize src/Caixa/uSangria.pas --set summaries.provider=anthropic --set
 3. Faça uma pergunta em termos de negócio:
 
    ```bash
-   ragnar search "retirada de dinheiro do caixa" --repo myapp
+   ragnar search "trancamento de matrícula" --repo myapp
    ```
 
    Os resultados de resumo trazem o símbolo `(summary)`. Pelo MCP, `search_code` com `kind = "summary"` devolve só resumos.

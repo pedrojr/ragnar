@@ -2,7 +2,7 @@
 
 [Português (Brasil)](pt-BR/summaries.md)
 
-A file summary is a short paragraph a chat model writes about one code file, in the words the team uses for the business. For a Delphi unit full of `btnSangriaClick` and `TB_MOVCX`, the summary may read "registers the withdrawal of cash from the register". Ragnar indexes that paragraph as one more chunk of kind `summary`, so a question asked in business words finds the file even when the code never uses those words.
+A file summary is a short paragraph a chat model writes about one code file, in the words the team uses for the business. For a Delphi unit full of `btnTrancarClick` and `TB_MATR`, the summary may read "suspends a student's enrollment for the term". Ragnar indexes that paragraph as one more chunk of kind `summary`, so a question asked in business words finds the file even when the code never uses those words.
 
 Summaries are off by default (`summaries.enabled = false`). This page shows how to turn them on with Ollama on your own machine or with Claude Haiku through the Anthropic API, how to leave folders out, and how to check the result.
 
@@ -129,19 +129,19 @@ A repository can only add exclusions. It cannot turn summaries on or choose the 
 `ragnar summarize` sends local files to the configured model and prints the summaries. It writes nothing to the index and needs no database.
 
 ```bash
-ragnar summarize src/Caixa/uSangria.pas src/Vendas/uDesconto.pas
+ragnar summarize src/Secretaria/uTrancamento.pas src/Mensalidades/uMulta.pas
 ```
 
 ```text
 provider: ollama, model: qwen3:8b, url: http://127.0.0.1:11434/v1
-## src/Caixa/uSangria.pas
-Registra a retirada de dinheiro do caixa ...
+## src/Secretaria/uTrancamento.pas
+Registra o trancamento da matrícula de um aluno ...
 ```
 
 Run it from the repository root, so the paths match the exclusion lists. To try a setting without editing a file, add `--set`:
 
 ```bash
-ragnar summarize src/Caixa/uSangria.pas --set summaries.provider=anthropic --set 'summaries.language="English"'
+ragnar summarize src/Secretaria/uTrancamento.pas --set summaries.provider=anthropic --set 'summaries.language="English"'
 ```
 
 ## Apply and verify
@@ -151,7 +151,7 @@ ragnar summarize src/Caixa/uSangria.pas --set summaries.provider=anthropic --set
 3. Ask a question in business words:
 
    ```bash
-   ragnar search "retirada de dinheiro do caixa" --repo myapp
+   ragnar search "trancamento de matrícula" --repo myapp
    ```
 
    Summary hits carry the symbol `(summary)`. Through MCP, `search_code` with `kind = "summary"` returns only summaries.

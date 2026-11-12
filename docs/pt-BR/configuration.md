@@ -66,7 +66,7 @@ Depois reinicie com `docker compose restart indexer`. A execução seguinte rein
 
 `[summaries]` pode ter provedor e modelo próprios. As chaves que ficam vazias vêm de `[llm]`, que atende multi-query, HyDE e recuperação contextual. Veja [Técnicas de recuperação](retrieval.md).
 
-No Compose, defina as chaves em `example/.env`. O `compose.yaml` repassa `RAGNAR_EMBEDDING_API_KEY` a todos os serviços da aplicação, `RAGNAR_LLM_API_KEY` ao `indexer` (resumos e recuperação contextual) e ao `ragnar-mcp` (estratégias de consulta), e `RAGNAR_RERANK_API_KEY` ao `ragnar-mcp`.
+No Compose, defina as chaves em `example/.env`. O `compose.yaml` repassa `RAGNAR_EMBEDDING_API_KEY` a todos os serviços da aplicação, `RAGNAR_LLM_API_KEY` ao `indexer` (resumos e recuperação contextual) e ao `ragnar-mcp` (estratégias de consulta), e `RAGNAR_RERANK_API_KEY` ao `ragnar-mcp`. No Kubernetes, o `scripts/up.sh` copia as mesmas três chaves do `example/.env` para o Secret `ragnar-model-keys`, que o servidor MCP e o worker leem.
 
 ## Presets
 
@@ -89,8 +89,8 @@ No Compose, defina as chaves em `example/.env`. O `compose.yaml` repassa `RAGNAR
 
 | Chave | Padrão | Significado |
 | --- | --- | --- |
-| `include` | `[]` | Globs extras, indexados por janelas de linhas |
-| `exclude` | `[]` | Globs a ignorar |
+| `include` | `[]` | Globs extras, indexados por janelas de linhas. Uma `/` no fim indica um diretório |
+| `exclude` | `[]` | Globs a ignorar, como `"legacy/*"`. Uma `/` no fim indica um diretório, como `"vendor/"` |
 | `max_file_kb` | `2048` | Arquivos maiores são ignorados, e a execução informa quais |
 | `chunk_budget` | `1800` | Caracteres sem espaço por chunk |
 | `window_lines` | `80` | Linhas por chunk, para arquivos sem gramática |
@@ -220,7 +220,7 @@ Elas configuram um processo, não a recuperação.
 | Variável | Usada por | Significado |
 | --- | --- | --- |
 | `RAGNAR_DSN_WRITE` | Indexador, migrações | Conexão com o primário |
-| `RAGNAR_DSN_READ` | Servidor MCP, avaliação | Conexão com as réplicas |
+| `RAGNAR_DSN_READ` | Servidor MCP, `ragnar eval`, `ragnar search` | Conexão com as réplicas |
 | `RAGNAR_ACL_FILE` | Servidor MCP | Caminho do `acl.json` |
 | `RAGNAR_CONFIG` | Todos | Caminho do arquivo de configuração |
 | `RAGNAR_POOL_MAX` | Servidor MCP | Conexões com o banco, padrão `10` |
@@ -228,4 +228,6 @@ Elas configuram um processo, não a recuperação.
 | `RAGNAR_EMBED_THREADS` | Embedder | Threads de CPU |
 | `RAGNAR_EMBED_MAX_TOKENS` | Embedder | Corte da entrada, padrão `512` |
 | `RAGNAR_EMBED_BATCH` | Embedder | Lote interno, padrão `8` |
+| `RAGNAR_MCP_TOKEN` | `ragnar smoke`, `ragnar load` | Token usado pelas verificações e pelo teste de carga |
+| `RAGNAR_MCP_TOKEN_RESTRICTED` | `ragnar smoke` | Um token sem acesso ao repositório, para testar a ACL |
 | `RAGNAR_VENV` | `bin/ragnar` | Pasta do ambiente da CLI do plugin |

@@ -62,6 +62,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `ragnar sync --watch` rereads `repos.toml` before each pass, so new repositories need no restart. A file that stops parsing keeps the previous list.
 - Agent instruction files (`AGENTS.md`, `CLAUDE.md`, Copilot and Cursor rules) stay out of the index unless `index.index_agent_notes` is set: agents already read them, and they matched almost any question.
 - The chunk total behind term rarity is cached until an indexer writes, instead of counted on every search.
+- `index.include` and `index.exclude` accept a directory written with a trailing `/`, as `index.summary_exclude` does. Files already indexed under such a directory leave the index with `ragnar index --full`.
+- In the Kubernetes example, the MCP server and the worker read `server.toml`, and `scripts/up.sh` passes the model keys from `.env` to them. `k8s/base/embed.env` holds every embedding setting, the URL included.
 - History questions skip commit messages that say nothing, and drop from their answers the files changed by more than 5% of the commits. The benchmark also reports whether any right file is in the top 10 (`hit10`) and records the confidence of each search.
 
 ### Fixed
@@ -75,3 +77,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - A 4xx from the embedder is a clear error, and retries back off.
 - The token budget skips a hit that does not fit and keeps the smaller hits after it.
 - The grep baseline keeps accented words whole and also searches their unaccented form, so Portuguese questions get a fair comparison.
+- `ragnar migrate --resize-embeddings` also clears the code graph. Before, a token that listed a repository by name could still read its old edges.
+- `ragnar sync --repo` applies to every pass of `--watch`, and a name missing from `repos.toml` is an error.
+- `ragnar stats` reads audit lines with a prefix, such as the output of `docker compose logs`.
+- `ragnar smoke` and `ragnar load` report a missing `RAGNAR_MCP_TOKEN` as an error message.
+- A contextual note stays on one line, so `read_code` and excerpts keep the right line numbers.
+- The Kubernetes migration Job reads the embedding dimension from `embed.env`.

@@ -9,11 +9,13 @@
 | Plugin | `.claude-plugin/`, `.mcp.json`, `skills/`, `hooks/`, `bin/` | Connects the agent and guides the workflow |
 | CLI | `src/ragnar/cli.py` | Every operation, for people and skills |
 | Indexer | `chunker.py`, `languages.py`, `delphi.py`, `indexer.py` | Turns a commit into chunks, symbols and vectors |
+| Code graph | `graph.py` | Links routines to the names they use, form events to handlers, and SQL to tables |
 | Worker | `sync.py` | Follows branches and calls the indexer |
-| Retrieval | `search.py`, `llm.py` | The search pipeline |
+| Retrieval | `search.py`, `llm.py` | The search pipeline, and the optional chat model and reranker |
 | MCP server | `mcp_server.py`, `acl.py` | Read-only access for agents |
 | Embedder | `embed_server.py`, `embedder.py` | Bundled CPU embedder, and the client for any endpoint |
-| Evaluation | `evaluation.py` | Measures retrieval against grep |
+| Evaluation | `evaluation.py`, `stats.py` | Measures retrieval against grep, and reports real use from the audit lines |
+| Operations | `ops.py`, `migrate.py`, `migrations/` | Smoke test, load test and schema migrations |
 | Project setup | `project.py` | `ragnar init` and `ragnar doctor` |
 | Settings | `config.py` | Layers, validation and fingerprint |
 
@@ -24,15 +26,15 @@ Indexing:
 1. The worker mirrors the repository and resolves the tracked branch to a commit.
 2. It compares the commit with `index_state`. A new model, new chunking settings or a rewritten history leads to a full run. Otherwise, it reads the changed files from `git diff`.
 3. It reads file contents from the commit with `git cat-file`.
-4. It normalizes encodings and scans for secrets. A finding stops the run.
-5. It builds chunks and symbols, then computes embeddings outside any transaction.
+4. It normalizes encodings and scans for secrets. A finding stops the run, unless the server sets `index.secret_action = "skip"`.
+5. It builds chunks, symbols and code graph edges, plus summaries and context notes when they are on. Then it computes embeddings outside any transaction. Unchanged chunks reuse their vectors, and new vectors are checkpointed, so a stopped run resumes.
 6. In one short transaction, it locks the repository, confirms no one else wrote, swaps the chunks, and records the commit.
 
 Searching:
 
 1. The agent calls an MCP tool with a token.
 2. The server checks the token and resolves which repositories it may read.
-3. The pipeline in [Retrieval techniques](retrieval.md) runs on a replica.
+3. On a replica, `search_code` runs the pipeline in [Retrieval techniques](retrieval.md). The other tools read symbols, the code graph or chunk lines.
 4. The result goes back inside delimiters, and an audit line is written.
 
 ## Design decisions
@@ -51,7 +53,7 @@ Searching:
 
 **Model calls stay optional.** The default pipeline needs an embedder and nothing else, so cost stays predictable. Everything else is opt-in, and measured with `ragnar eval`.
 
-**Standard interfaces only.** MCP towards agents. `/v1/embeddings`, `/rerank` and `/chat/completions` towards models. No part of the system depends on one vendor.
+**Standard interfaces only.** MCP towards agents. `/v1/embeddings`, `/rerank` and `/chat/completions` towards models, plus the Anthropic Messages API for Claude. No part of the system depends on one vendor.
 
 ## Data model
 
@@ -59,8 +61,12 @@ Searching:
 | --- | --- |
 | `code_chunk` | One row per chunk: location, kind, text, tsvector, embedding |
 | `code_symbol` | One row per definition: name, qualified name, signature |
-| `index_state` | Per repository: indexed commit, model, settings fingerprint |
+| `code_edge` | Code graph: routine to name (`ref`), control to handler (`event`), routine to table (`sql_read`, `sql_write`) |
+| `index_state` | Per repository: indexed commit, model, settings fingerprint, files left out |
+| `embedding_checkpoint` | Vectors of a run that has not committed yet |
+| `summary_cache` | File summaries by model and file content |
 | `replication_probe` | Measures replication lag in the smoke test |
+| `schema_migrations` | Migrations already applied |
 
 ## Repository layout
 
@@ -74,4 +80,5 @@ src/ragnar/       Python package
 tests/            test suite
 docs/             documentation (docs/pt-BR/ has the translation)
 example/          reference infrastructure
+benchmark/        public benchmark and its report
 ```

@@ -72,6 +72,6 @@ The agent's model does not matter to Ragnar. The server's own model choices are 
 | --- | --- |
 | Embeddings | Any `/v1/embeddings` endpoint |
 | Reranking | Any `/rerank` endpoint in the Jina, Cohere or TEI shape |
-| Query expansion and contextual retrieval | Any OpenAI-compatible `/chat/completions` endpoint |
+| File summaries, query expansion and contextual retrieval | Any OpenAI-compatible `/chat/completions` endpoint, Ollama included, or the Anthropic Messages API |
 
 See [Configuration](configuration.md).

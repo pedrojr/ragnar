@@ -20,16 +20,18 @@ Em um [benchmark](benchmark/README.pt-BR.md) com 8 projetos open source em Delph
 
 ```mermaid
 flowchart LR
-    agent[Agente de IA + plugin] -- "MCP + token" --> mcp[Servidor MCP Ragnar]
+    agent[Agente de IA + plugin] -- "MCP via HTTP + token" --> mcp[Servidor MCP Ragnar]
     mcp -- SELECT --> replicas[(Réplicas de leitura)]
     primary[(Primário)] -- replicação --> replicas
-    worker[Worker de indexação] -- grava --> primary
-    repo[Seu repositório] -- "branch acompanhado" --> worker
+    repo[Seu host git] -- "git fetch, branch acompanhado" --> worker[Worker de indexação]
+    worker -- grava --> primary
     worker --> embed[Embedder]
     mcp --> embed
+    worker -. "resumos, notas de contexto" .-> models[Modelos opcionais:<br/>chat, reranker]
+    mcp -. "expansão da consulta, rerank" .-> models
 ```
 
-Você sobe o lado servidor a partir de [`example/`](example/README.pt-BR.md). O worker acompanha um branch do seu projeto, então cada merge chega ao índice sozinho. O plugin conecta seu agente e o guia no resto.
+Você sobe o lado servidor a partir de [`example/`](example/README.pt-BR.md). O worker acompanha um branch do seu projeto, então cada merge chega ao índice sozinho. As linhas pontilhadas são opcionais e vêm desligadas. O plugin conecta seu agente e o guia no resto.
 
 ## Início rápido
 

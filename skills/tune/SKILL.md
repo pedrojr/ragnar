@@ -1,6 +1,6 @@
 ---
 name: tune
-description: Chooses Ragnar's retrieval techniques with evidence. Compares settings (hybrid weights, reranking, query expansion, contextual retrieval, token budget) on the project's own golden set and recommends the cheapest one that holds quality. Use for "tune the RAG", "otimizar a busca", "reduce token cost", "the results are bad", "try a reranker", "which preset should I use?".
+description: Chooses Ragnar's retrieval techniques with evidence. Compares settings (hybrid weights, code graph, reranking, query expansion, contextual retrieval, file summaries, token budget) on the project's own golden set and recommends the cheapest one that holds quality. Use for "tune the RAG", "otimizar a busca", "reduce token cost", "the results are bad", "try a reranker", "which preset should I use?".
 ---
 
 # Tune retrieval
@@ -21,6 +21,7 @@ A golden set and a snapshot index must exist. If they do not, run the `evaluate`
      --variant vector:retrieval.mode=vector \
      --variant lexical:retrieval.mode=lexical \
      --variant wide:retrieval.candidates=100,retrieval.neighbor_chunks=1 \
+     --variant graph:retrieval.graph_weight=0.5 \
      --out .rag/eval/tune.json
    ```
 3. Read each `vs_configured` line. It shows the gain over the current settings, with its interval.
@@ -28,6 +29,7 @@ A golden set and a snapshot index must exist. If they do not, run the `evaluate`
    - Reranker: `rerank.provider=http`, with `rerank.url` and `rerank.model`.
    - Query expansion: `query.strategy=multi_query` or `hyde`, with `[llm]`.
    - Contextual retrieval: `contextual.enabled=true`, with `[llm]`. It changes the index, so it needs a new snapshot built with that setting. It costs one model call per chunk: estimate that with the user first.
+   - File summaries: `summaries.enabled=true`, with `summaries.provider` or `[llm]`. Like contextual retrieval, it needs a new snapshot. It costs one model call per code file of 30 lines or more, cached by file content. Preview a few files first with `ragnar summarize <files>`.
 5. Recommend one configuration, with the table that supports it.
 6. Apply it after the user agrees. Retrieval settings go in the server's `server.toml`, and chunking settings in the project's `.ragnar/config.toml`. Restart the MCP server for the first; the second causes a full reindex.
 
@@ -47,3 +49,5 @@ A golden set and a snapshot index must exist. If they do not, run the `evaluate`
 | Misses concepts | Raise `retrieval.vector_weight`, or try a reranker |
 | All results come from one file | Lower `retrieval.max_chunks_per_file`, or raise `retrieval.diversity` |
 | Generated code in the results | Add it to `index.exclude` |
+| Misses the other end of a flow across files | `retrieval.graph_weight=0.5`, and the `trace_flow` and `call_graph` tools |
+| Business questions miss legacy code with poor names | File summaries, on a cheap model |

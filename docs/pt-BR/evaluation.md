@@ -74,7 +74,7 @@ Cada variante mostra o ganho sobre o grep e sobre a configuração atual. Opçõ
 O servidor MCP escreve uma linha JSON por chamada de ferramenta no stdout. O `ragnar stats` lê essas linhas e monta um relatório de uso: chamadas por ferramenta, tokens devolvidos, buscas sem resultado ou com baixa confiança e perguntas repetidas.
 
 ```bash
-kubectl logs deploy/ragnar-mcp > audit.log      # ou: docker compose logs ragnar-mcp
+kubectl -n ragnar logs -l app=ragnar-mcp --tail=-1 > audit.log   # todos os pods; ou: docker compose logs ragnar-mcp
 ragnar stats audit.log --labels questions.jsonl
 ragnar eval run --golden questions.jsonl ...
 ```
