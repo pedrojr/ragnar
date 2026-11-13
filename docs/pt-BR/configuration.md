@@ -229,6 +229,23 @@ Elas configuram um processo, não a recuperação.
 | `RAGNAR_EMBED_THREADS` | Embedder | Threads de CPU |
 | `RAGNAR_EMBED_MAX_TOKENS` | Embedder | Corte da entrada, padrão `512` |
 | `RAGNAR_EMBED_BATCH` | Embedder | Lote interno, padrão `8` |
+| `FASTEMBED_CACHE_PATH` | Embedder, `ragnar embed-preload` | Pasta dos arquivos do modelo de embedding |
 | `RAGNAR_MCP_TOKEN` | `ragnar smoke`, `ragnar load` | Token usado pelas verificações e pelo teste de carga |
 | `RAGNAR_MCP_TOKEN_RESTRICTED` | `ragnar smoke` | Um token sem acesso ao repositório, para testar a ACL |
 | `RAGNAR_VENV` | `bin/ragnar` | Pasta do ambiente da CLI do plugin |
+
+Os comandos da CLI também leem essas variáveis do `.rag/.env`. Veja [Linha de comando](cli.md).
+
+### Infraestrutura de exemplo
+
+Os arquivos de `example/` leem estas variáveis do `.env`. O `ragnar init-env` grava as senhas e os tokens.
+
+| Variável | Usada por | Significado |
+| --- | --- | --- |
+| `POSTGRES_PASSWORD` | Compose | Senha do papel administrador `postgres` |
+| `REPLICATION_PASSWORD` | Compose | Senha do papel com que a réplica se conecta |
+| `RAGNAR_WRITER_PASSWORD` | Compose, Kubernetes | Senha do `ragnar_writer`, usada no `RAGNAR_DSN_WRITE` |
+| `RAGNAR_READER_PASSWORD` | Compose, Kubernetes | Senha do `ragnar_reader`, usada no `RAGNAR_DSN_READ` |
+| `RAGNAR_EMBED_MEMORY` | Compose | Limite de memória do contêiner do embedder, padrão `3g` |
+| `RAGNAR_SYNC_INTERVAL` | Compose | Segundos entre as passagens do worker de indexação, padrão `60` |
+| `K8S_CONTEXT` | `scripts/up.sh` | Contexto do kubectl que o script exige, padrão `docker-desktop` |

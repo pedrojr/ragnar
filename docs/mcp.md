@@ -147,3 +147,19 @@ Keep `/metrics` off public networks. It exposes counters, not code.
 | `ragnar_search_seconds{phase}` | Latency per phase |
 
 Each tool call also writes a JSON audit line to standard output: client, tool, query, chunk ids, latency and tokens. The query text appears there, so treat these logs as sensitive.
+
+## Bundled embedder
+
+`ragnar embedder` serves the embedding model on CPU, with no authentication. Keep it on a private network.
+
+| Path | Purpose |
+| --- | --- |
+| `POST /v1/embeddings` | OpenAI-compatible embeddings |
+| `GET /v1/models` | The loaded model |
+| `/healthz` | Liveness |
+| `/metrics` | Prometheus |
+
+| Metric | Meaning |
+| --- | --- |
+| `ragnar_embed_texts_total` | Texts turned into vectors |
+| `ragnar_embed_seconds` | Latency per request |

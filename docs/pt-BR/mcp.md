@@ -147,3 +147,19 @@ Mantenha `/metrics` fora de redes públicas. Ele expõe contadores, não código
 | `ragnar_search_seconds{phase}` | Latência por fase |
 
 Cada chamada também grava uma linha JSON de auditoria na saída padrão: cliente, ferramenta, consulta, ids de chunks, latência e tokens. O texto da consulta aparece ali, então trate esses logs como sensíveis.
+
+## Embedder incluído
+
+O `ragnar embedder` serve o modelo de embedding em CPU, sem autenticação. Mantenha-o numa rede privada.
+
+| Caminho | Finalidade |
+| --- | --- |
+| `POST /v1/embeddings` | Embeddings compatíveis com OpenAI |
+| `GET /v1/models` | O modelo carregado |
+| `/healthz` | Liveness |
+| `/metrics` | Prometheus |
+
+| Métrica | Significado |
+| --- | --- |
+| `ragnar_embed_texts_total` | Textos transformados em vetores |
+| `ragnar_embed_seconds` | Latência por requisição |

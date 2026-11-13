@@ -83,6 +83,7 @@ Toda técnica é uma configuração. O `server.toml` do servidor é dono da maio
 | --- | --- |
 | [Primeiros passos](docs/pt-BR/getting-started.md) | Adoção, passo a passo |
 | [Configuração](docs/pt-BR/configuration.md) | Todas as opções |
+| [Linha de comando](docs/pt-BR/cli.md) | Todos os comandos e opções do `ragnar` |
 | [Técnicas de recuperação](docs/pt-BR/retrieval.md) | O que cada técnica custa e entrega |
 | [Resumos de arquivos](docs/pt-BR/summaries.md) | Resumos em linguagem de negócio com Ollama ou Claude Haiku |
 | [Linguagens](docs/pt-BR/languages.md) | Linguagens suportadas, Delphi, como adicionar uma linguagem |

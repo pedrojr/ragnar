@@ -60,7 +60,7 @@ git worktree add benchmark/work/v0-src <commit>
 PYTHONPATH=benchmark/work/v0-src/src uv run python benchmark/bench.py index --label v0
 ```
 
-O `RAGNAR_BENCH_SUITE` aponta os mesmos scripts para outra pasta, com seus próprios `repos.toml`, `questions/`, `repos/` e `work/`. Use para um repositório privado: o código, as perguntas e os resultados ficam fora deste repositório. O `RAGNAR_BENCH_DSN` aponta para outro servidor Postgres. É uma DSN de administrador com `{db}` no lugar do nome do banco, que os scripts preenchem, como `postgresql://postgres:<POSTGRES_PASSWORD>@127.0.0.1:15432/{db}` para o primário da infraestrutura de exemplo.
+O `RAGNAR_BENCH_SUITE` aponta os mesmos scripts para outra pasta, com seus próprios `repos.toml`, `questions/`, `repos/` e `work/`. Use para um repositório privado: o código, as perguntas e os resultados ficam fora deste repositório. O `RAGNAR_BENCH_DSN` aponta para outro servidor Postgres. É uma DSN de administrador com `{db}` no lugar do nome do banco, que os scripts preenchem, como `postgresql://postgres:<POSTGRES_PASSWORD>@127.0.0.1:15432/{db}` para o primário da infraestrutura de exemplo. O `RAGNAR_BENCH_EMBEDDER` aponta para outro endpoint de embeddings, no lugar de `http://127.0.0.1:8001/v1`.
 
 ```bash
 RAGNAR_BENCH_SUITE=/caminho/da/suite-privada uv run python benchmark/bench.py prepare

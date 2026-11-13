@@ -83,6 +83,7 @@ Every technique is a setting. The server's `server.toml` owns most of them, and 
 | --- | --- |
 | [Getting started](docs/getting-started.md) | Adoption, step by step |
 | [Configuration](docs/configuration.md) | Every setting |
+| [Command line](docs/cli.md) | Every `ragnar` command and option |
 | [Retrieval techniques](docs/retrieval.md) | What each technique costs and gives |
 | [File summaries](docs/summaries.md) | Business-language summaries with Ollama or Claude Haiku |
 | [Languages](docs/languages.md) | Supported languages, Delphi notes, adding a language |
