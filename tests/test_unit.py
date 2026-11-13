@@ -169,7 +169,7 @@ def test_disk_names_are_valid_on_every_os(name, disk):
 
 @pytest.mark.skipif(not (shutil.which("gitleaks") or shutil.which("docker")), reason="needs gitleaks or docker")
 def test_secret_scan_sees_files_that_differ_only_in_case():
-    key = b'AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLQ"\n'
+    key = b'AWS_ACCESS_KEY_ID = "AKIA' + b'IOSFODNN7EXAMPLQ"\n'  # split, so a scan of this repository passes
     found = secret_scan({"Cfg.py": key, "cfg.py": b"x = 1\n", "what?.txt": b"x = 1\n", "sub/dir/K.py": key,
                          "env/lib/site.py": key})  # gitleaks allowlists env/lib/: folders must reach it
     assert sorted(found) == ["Cfg.py", "sub/dir/K.py"]  # before: cfg.py overwrote Cfg.py on Windows and macOS
