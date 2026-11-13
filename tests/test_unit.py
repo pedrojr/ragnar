@@ -141,8 +141,21 @@ def test_safe_path_keeps_tree_paths_inside_the_checkout(path, safe):
 def test_blob_sizes_reads_no_content(tmp_path):
     repo = make_repo(tmp_path)
     sha = _git(repo, "rev-parse", "HEAD").strip()
-    sizes = blob_sizes(repo, sha, ["widget/button.go", "missing.go"])
-    assert sizes == {"widget/button.go": len((repo / "widget" / "button.go").read_bytes())}
+    size = len((repo / "widget" / "button.go").read_bytes())
+    assert blob_sizes(repo, sha, ["widget/button.go", "missing.go"]) == {"widget/button.go": size}
+    # a missing path echoed back with U+2028 must not shift the sizes after it
+    assert blob_sizes(repo, sha, ["gone x.go", "widget/button.go"]) == {"widget/button.go": size}
+
+
+def test_paths_that_are_not_utf8_are_reported(tmp_path, capsys):
+    repo = make_repo(tmp_path)
+    blob = _git(repo, "hash-object", "-w", "widget/button.go").strip()
+    subprocess.run(["git", "-C", str(repo), "update-index", "--add", "--index-info"],
+                   input=f"100644 {blob}\tRelat".encode() + b"\xf3rio.go\n", check=True)
+    _git(repo, "commit", "-qm", "cp1252 name")
+    files = list_files(repo, _git(repo, "rev-parse", "HEAD").strip())
+    assert "widget/button.go" in files and not any("�" in f for f in files)
+    assert "names are not UTF-8" in capsys.readouterr().err
 
 
 def test_secret_scan_refuses_a_path_outside_its_folder(tmp_path):

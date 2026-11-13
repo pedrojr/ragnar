@@ -105,11 +105,16 @@ def safe_path(path: str) -> bool:
 
 
 def _safe(paths: list[str]) -> list[str]:
-    unsafe = [p for p in paths if not safe_path(p)]
+    # a name committed in cp1252 by an old Git for Windows decodes with U+FFFD, and git no longer finds it
+    broken = [p for p in paths if "�" in p]
+    if broken:
+        print(f"left out {len(broken)} files whose names are not UTF-8, such as {broken[0]!r}: "
+              "rename them in a commit (git mv) to index them", file=sys.stderr, flush=True)
+    unsafe = [p for p in paths if "�" not in p and not safe_path(p)]
     if unsafe:
         print(f"left out {len(unsafe)} paths that would leave the checkout, such as {unsafe[0]!r}",
               file=sys.stderr, flush=True)
-    return [p for p in paths if safe_path(p)]
+    return [p for p in paths if "�" not in p and safe_path(p)]
 
 
 def list_files(repo_dir: Path, sha: str) -> list[str]:
@@ -135,7 +140,8 @@ def blob_sizes(repo_dir: Path, sha: str, paths: list[str]) -> dict[str, int]:
     if not paths:
         return {}
     out = git(repo_dir, "cat-file", "--batch-check=%(objecttype) %(objectsize)",
-              input="".join(f"{sha}:{p}\n" for p in paths).encode()).decode(errors="replace").splitlines()
+              input="".join(f"{sha}:{p}\n" for p in paths).encode()).decode(errors="replace").split("\n")
+    # split on \n only: a "missing" line echoes the path, and splitlines would also cut at U+2028
     sizes = {}
     for path, line in zip(paths, out):
         kind, _, size = line.partition(" ")
