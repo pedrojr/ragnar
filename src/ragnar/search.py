@@ -526,7 +526,10 @@ class Pipeline:
         t2 = time.perf_counter()
         if self.reranker and hits:
             top = hits[: self.settings.rerank.candidates]
-            hits = [top[i] for i in self.reranker.rerank(query, [h["content"] for h in top]) if i < len(top)]
+            # only valid, first-seen indexes: a reranker that repeats or invents one must not duplicate a hit
+            order = dict.fromkeys(i for i in self.reranker.rerank(query, [h["content"] for h in top])
+                                  if isinstance(i, int) and 0 <= i < len(top))
+            hits = [top[i] for i in order]
         self.timing["rerank"] = time.perf_counter() - t2
         return hits
 

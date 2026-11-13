@@ -262,6 +262,20 @@ def test_reranker_orders_by_score():
     assert reranker.rerank("q", ["a", "b"]) == [1, 0]
 
 
+def test_rerank_drops_repeated_and_invalid_indexes():
+    class Stub:
+        def rerank(self, query, documents):
+            return [1, 1, -1, 7, 0]
+
+    from ragnar.config import load_settings
+    from ragnar.embedder import FakeEmbedder
+    from ragnar.search import Pipeline
+
+    pipeline = Pipeline(load_settings(environ={}), FakeEmbedder(8), reranker=Stub())
+    hits = [{"id": n, "content": str(n)} for n in range(2)]
+    assert [h["id"] for h in pipeline.rerank("q", hits)] == [1, 0]
+
+
 class StubChat:
     def __init__(self, answer):
         self.answer = answer
