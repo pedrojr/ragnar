@@ -64,6 +64,27 @@ def test_full_incremental_and_unchanged(dsn, tmp_path):
         assert hits and hits[0]["path"] == "widget/button.go" and {"embed", "sql"} <= set(timing)
         hits, _ = pipeline.search(conn, ["demo"], "NewButton", k=5, kind="doc")
         assert all(h["kind"] == "doc" for h in hits)
+
+    # the MCP server runs the steps apart, so model calls never hold a pooled connection: same hits
+    class NoEmbedInSql:
+        dim = emb.dim
+        held = False
+
+        def embed_query(self, text):
+            assert not self.held, "embedding while a connection is held"
+            return emb.embed_query(text)
+
+    steps = Pipeline(load_settings(environ={}), NoEmbedInSql())
+    steps.prepare("NewButton label")
+    with psycopg.connect(dsn) as conn:
+        steps.emb.held = True
+        found = steps.rerank("NewButton label", steps.retrieve(conn, ["demo"], "NewButton label", 5))
+        stepped, _ = steps.finish(conn, "NewButton label", found)
+    with psycopg.connect(dsn) as conn:
+        whole, _ = Pipeline(load_settings(environ={}), emb).search(conn, ["demo"], "NewButton label", k=5)
+    assert [h["id"] for h in stepped] == [h["id"] for h in whole]
+
+    with psycopg.connect(dsn) as conn:
         names = [s["symbol"] for s in find_symbol(conn, ["demo"], "new")]
         assert names == ["widget > NewLabel", "widget > NewButton"]  # same weight: shorter name first
         assert [r["repo"] for r in list_repos(conn, None)] == ["demo"]

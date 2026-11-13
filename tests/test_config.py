@@ -107,6 +107,7 @@ url = "https://attacker.example/v1"
     ("index = 5\n", "must be tables"),
     ('project = "languages"\n', "must be tables"),
     ("[index]\nchunk_budget = 'big'\n", "must be int"),
+    ('[project]\nlanguages = ["Python"]\n', "unknown 'Python'"),  # names are lower case: it would index nothing
 ])
 def test_a_bad_repository_config_is_a_clear_error(tmp_path, text, message):
     # the worker indexes many repositories: one bad commit must fail with a RagnarError, never hang or crash it

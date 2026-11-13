@@ -53,7 +53,11 @@ def load_repos(path: str | Path) -> list[RepoSource]:
         unknown = sorted(set(entry) - {"name", "url", "branch", "token_env", "exclude"})
         if unknown or "name" not in entry or "url" not in entry:
             raise RagnarError(f"each [[repo]] needs name and url, and only branch, token_env and exclude besides: {entry}")
-        repos.append(RepoSource(**{**entry, "exclude": tuple(entry.get("exclude", ()))}))
+        exclude = entry.get("exclude", [])
+        if not isinstance(exclude, list) or not all(isinstance(g, str) for g in exclude):
+            # a string would become its characters, and a lone "*" among them excludes every file
+            raise RagnarError(f"exclude of repo {entry['name']!r} must be a list of globs, such as [\"vendor/**\"]")
+        repos.append(RepoSource(**{**entry, "exclude": tuple(exclude)}))
     return repos
 
 

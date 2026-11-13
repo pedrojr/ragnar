@@ -48,7 +48,14 @@ class Acl:
     @classmethod
     def from_json(cls, text: str) -> Acl:
         data = json.loads(text)
-        return cls({c["token_sha256"]: Client(c["name"], tuple(c["repos"])) for c in data["clients"]})
+        clients = {}
+        for c in data["clients"]:
+            repos = c["repos"]
+            # a string would become its characters, and one "*" among them would grant every repository
+            if not isinstance(repos, list) or not all(isinstance(r, str) for r in repos):
+                raise ValueError(f"repos of client {c.get('name')!r} must be a list of names")
+            clients[c["token_sha256"]] = Client(c["name"], tuple(repos))
+        return cls(clients)
 
     @classmethod
     def from_file(cls, path: str | Path) -> Acl:

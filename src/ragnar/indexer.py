@@ -93,8 +93,26 @@ def resolve_source(source: str, name: str, env: dict[str, str] | None = None) ->
     return mirror
 
 
+def safe_path(path: str) -> bool:
+    """A tree path that stays inside a checkout. Git hosts refuse the others on push, but a mirror of a host
+    that skips fsck, or a local repository, can still carry `..` or a drive letter, and the secret scan writes
+    every path to disk."""
+    if os.name == "nt" and ("\\" in path or ":" in path):  # separators and drive letters only on Windows
+        return False
+    return bool(path) and not path.startswith("/") and all(part not in ("", ".", "..") for part in path.split("/"))
+
+
+def _safe(paths: list[str]) -> list[str]:
+    unsafe = [p for p in paths if not safe_path(p)]
+    if unsafe:
+        print(f"left out {len(unsafe)} paths that would leave the checkout, such as {unsafe[0]!r}",
+              file=sys.stderr, flush=True)
+    return [p for p in paths if safe_path(p)]
+
+
 def list_files(repo_dir: Path, sha: str) -> list[str]:
-    return [p for p in git(repo_dir, "ls-tree", "-r", "-z", "--name-only", sha).decode(errors="replace").split("\0") if p]
+    out = git(repo_dir, "ls-tree", "-r", "-z", "--name-only", sha).decode(errors="replace")
+    return _safe([p for p in out.split("\0") if p])
 
 
 def changed_files(repo_dir: Path, old: str, new: str) -> list[str] | None:
@@ -104,7 +122,7 @@ def changed_files(repo_dir: Path, old: str, new: str) -> list[str] | None:
     except RagnarError:
         return None
     out = git(repo_dir, "diff", "--name-only", "-z", "--no-renames", old, new).decode(errors="replace")
-    return [p for p in out.split("\0") if p]
+    return _safe([p for p in out.split("\0") if p])
 
 
 def read_blobs(repo_dir: Path, sha: str, paths: list[str]) -> dict[str, bytes]:
@@ -134,6 +152,8 @@ def secret_scan(files: dict[str, bytes]) -> dict[str, list[str]]:
         root = Path(tmp) / "src"
         for path, content in files.items():
             f = root / path
+            if not safe_path(path) or not f.resolve().is_relative_to(root.resolve()):
+                raise RagnarError(f"refusing to scan a path outside the checkout: {path!r}")
             f.parent.mkdir(parents=True, exist_ok=True)
             f.write_bytes(content)
         report = Path(tmp) / "report.json"

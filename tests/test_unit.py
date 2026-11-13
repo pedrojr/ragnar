@@ -14,7 +14,7 @@ from ragnar.chunker import Chunker
 from ragnar.cli import main
 from ragnar.config import Index, RagnarError
 from ragnar.embedder import FakeEmbedder, to_pgvector
-from ragnar.indexer import changed_files, list_files, read_blobs, scrub
+from ragnar.indexer import changed_files, list_files, read_blobs, safe_path, scrub, secret_scan
 from ragnar.mcp_server import render_hits
 from ragnar.search import like_prefix
 
@@ -118,6 +118,28 @@ def test_acl_resolution():
     with pytest.raises(RagnarError):
         a.resolve("other")
     assert acl.client_for("bearer t2").resolve(None) is None
+
+
+def test_acl_repos_must_be_a_list(tmp_path):
+    # a string would become its characters: "a*" would grant every repository through its "*"
+    path = tmp_path / "acl.json"
+    path.write_text(json.dumps({"clients": [{"name": "a", "token_sha256": hash_token("t"), "repos": "a*"}]}),
+                    encoding="utf-8")
+    with pytest.raises(RagnarError, match="must be a list"):
+        Acl.from_file(path)
+
+
+@pytest.mark.parametrize(("path", "safe"), [
+    ("src/a.py", True), (".github/workflows/ci.yml", True), ("a..b/c", True),
+    ("a/../../x.py", False), ("../x", False), ("./x", False), ("/etc/passwd", False), ("a//b", False), ("", False),
+])
+def test_safe_path_keeps_tree_paths_inside_the_checkout(path, safe):
+    assert safe_path(path) is safe
+
+
+def test_secret_scan_refuses_a_path_outside_its_folder(tmp_path):
+    with pytest.raises(RagnarError, match="outside the checkout"):
+        secret_scan({"a/../../escaped.py": b"x"})
 
 
 def test_render_hits_escapes_delimiters():

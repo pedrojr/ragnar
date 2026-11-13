@@ -284,6 +284,13 @@ def _validate(s: Settings) -> None:
                           "and index.window_overlap 0 or more")
     if s.index.window_overlap >= s.index.window_lines:
         raise RagnarError("index.window_overlap must be smaller than index.window_lines")
+    if s.project.languages:
+        from .languages import BY_NAME  # lazy: the registry loads tree-sitter, which settings do not need
+
+        unknown = [name for name in s.project.languages if name not in BY_NAME]
+        if unknown:
+            raise RagnarError(f"project.languages: unknown {', '.join(map(repr, unknown))}; "
+                              f"valid names: {', '.join(sorted(BY_NAME))}")
     try:
         codecs.lookup(s.index.legacy_encoding)
     except LookupError:

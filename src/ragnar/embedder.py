@@ -101,6 +101,9 @@ class FakeEmbedder:
         return None
 
 
-def from_settings(settings: Settings | None = None) -> Embedder | FakeEmbedder:
+QUERY_TIMEOUT = 10.0  # one query vector; a search should not wait the indexing timeout for it
+
+
+def from_settings(settings: Settings | None = None, timeout: float = 300) -> Embedder | FakeEmbedder:
     cfg = (settings or load_settings()).embedding
-    return FakeEmbedder(cfg.dim) if cfg.provider == "fake" else Embedder(cfg)
+    return FakeEmbedder(cfg.dim) if cfg.provider == "fake" else Embedder(cfg, timeout)

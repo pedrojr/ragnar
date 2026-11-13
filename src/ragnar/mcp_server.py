@@ -29,7 +29,7 @@ from starlette.responses import JSONResponse, PlainTextResponse, Response
 from . import __version__
 from .acl import Acl, Client
 from .config import RagnarError, Settings, env, load_settings, read_dsn
-from .embedder import from_settings
+from .embedder import QUERY_TIMEOUT, from_settings
 from .llm import chat_from, reranker_from
 from .search import CHARS_PER_TOKEN as CHARS
 from .search import Pipeline, estimate_tokens
@@ -129,7 +129,7 @@ class BearerAuth:
 
 
 def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServer:
-    pipeline_args = (settings, from_settings(settings), chat_from(settings), reranker_from(settings))
+    pipeline_args = (settings, from_settings(settings, QUERY_TIMEOUT), chat_from(settings), reranker_from(settings))
     server = MCPServer(
         name="ragnar",
         title="Ragnar code search",
@@ -204,7 +204,11 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
             repos = repos_for(client, repo)
             pipeline = Pipeline(*pipeline_args)  # per call: pipelines keep per-search timings
             limit = max(1, min(k, 20)) if k else None
-            hits, timing = read(lambda c: pipeline.search(c, repos, query, limit, path_prefix, kind))
+            # model calls run between the reads, so a slow embedder or reranker never holds a pooled connection
+            pipeline.prepare(query)
+            found = read(lambda c: pipeline.retrieve(c, repos, query, limit, path_prefix, kind))
+            found = pipeline.rerank(query, found)
+            hits, timing = read(lambda c: pipeline.finish(c, query, found))
             for phase, seconds in timing.items():
                 LATENCY.labels(phase).observe(seconds)
             if not hits:

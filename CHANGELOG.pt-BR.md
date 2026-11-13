@@ -77,6 +77,10 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - Um erro num repositório do `ragnar sync`, de banco ou inesperado, não derruba mais o worker: os outros repositórios e a próxima passagem continuam.
 - O `.ragnar/config.toml` de um repositório não trava nem derruba mais o worker de indexação. Os tamanhos de `[index]` precisam ser positivos, `legacy_encoding` precisa ser uma codificação conhecida, e `[index]` e `[project]` precisam ser tabelas.
 - Fetch e clone desistem de uma conexão parada em vez de congelar o worker.
+- Caminhos da árvore com `..` ou começando com `/` ficam fora do índice, e a varredura de segredos se recusa a gravar fora da sua pasta. Os hosts git rejeitam essas árvores, mas uma origem local ou um host sem fsck pode trazer uma.
+- O `search_code` chama o embedder, o modelo de chat e o reranker sem segurar uma conexão com o banco, e espera no máximo 10 segundos por vetor de consulta. Antes, um embedder travado podia tomar todas as conexões do pool e derrubar a checagem de prontidão de todas as réplicas do MCP.
+- `exclude` no `repos.toml` e `repos` na ACL precisam ser listas. Uma string virava os seus caracteres, e `"vendor/*"` excluía todos os arquivos por causa do `*`.
+- `project.languages` precisa citar linguagens conhecidas, como `python`, em vez de não indexar nada com um nome desconhecido.
 - O `ragnar init` mantém o fim de linha do `AGENTS.md`, do `CLAUDE.md` e do `.gitignore`, e não mexe no arquivo quando os marcadores do Ragnar estão incompletos ou fora de ordem.
 - O hook `PreToolUse` reconhece buscas no shell depois de um argumento entre aspas, e mostra o lembrete mesmo quando a entrada do hook não traz o id da sessão.
 - Toda ferramenta MCP que devolve texto do repositório o marca como dado, e os resumos de arquivo e as notas contextuais não deixam mais o conteúdo do arquivo fechar as tags que o delimitam no prompt.

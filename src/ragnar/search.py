@@ -378,10 +378,7 @@ class Pipeline:
         cfg = self.settings.retrieval
         out: list[tuple[float, list[int]]] = []
         if cfg.mode in ("hybrid", "vector"):
-            t0 = time.perf_counter()
-            vector = to_pgvector(list(self.emb.embed_query(text)))
-            self.timing["embed"] = self.timing.get("embed", 0.0) + time.perf_counter() - t0
-            rows = conn.execute(VECTOR_SQL, {**base, "emb": vector}).fetchall()
+            rows = conn.execute(VECTOR_SQL, {**base, "emb": self._vectors[text]}).fetchall()
             out.append((cfg.vector_weight, [r[0] for r in rows]))
         if cfg.mode in ("hybrid", "lexical"):
             out.append((cfg.lexical_weight, self._lexical(conn, text, base)))
@@ -463,13 +460,36 @@ class Pipeline:
 
     def search(self, conn: psycopg.Connection, repos: list[str], query: str, k: int | None = None,
                path_prefix: str = "", kind: str | None = None) -> tuple[list[dict], dict[str, float]]:
-        """Returns (hits, seconds per phase)."""
-        s, cfg = self.settings, self.settings.retrieval
-        self.timing, self.file_ids, self.literal_ids, self.graph_ids = {}, [], [], []
-        k = k or cfg.default_k
+        """Returns (hits, seconds per phase). A server that pools connections calls the four steps itself,
+        so the model calls in prepare and rerank never hold a database connection."""
+        self.prepare(query)
+        hits = self.retrieve(conn, repos, query, k, path_prefix, kind)
+        hits = self.rerank(query, hits)
+        return self.finish(conn, query, hits)
+
+    def prepare(self, query: str) -> None:
+        """Model calls before any SQL: query expansion, and the query vectors (the embedder caches them)."""
+        s = self.settings
+        self.timing = {}
         t0 = time.perf_counter()
-        extras = expand_query(self.chat, s.query.strategy, s.query.variants, query) \
+        self._extras = expand_query(self.chat, s.query.strategy, s.query.variants, query) \
             if self.chat and s.query.strategy != "none" else []
+        t1 = time.perf_counter()
+        self._vectors = {text: to_pgvector(list(self.emb.embed_query(text))) for text in (query, *self._extras)} \
+            if s.retrieval.mode in ("hybrid", "vector") else {}
+        self.timing.update({"expand": t1 - t0, "embed": time.perf_counter() - t1})
+        self._prepared = query
+
+    def retrieve(self, conn: psycopg.Connection, repos: list[str], query: str, k: int | None = None,
+                 path_prefix: str = "", kind: str | None = None) -> list[dict]:
+        """The SQL lists, fused. Call prepare(query) first."""
+        if getattr(self, "_prepared", None) != query:
+            self.prepare(query)
+        cfg = self.settings.retrieval
+        self.file_ids, self.literal_ids, self.graph_ids = [], [], []
+        self._k = k or cfg.default_k
+        k = self._k
+        extras = self._extras
         t1 = time.perf_counter()
         # SET LOCAL lasts for this transaction: safe with a connection pool
         conn.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")  # pgvector >= 0.8: filters keep the result count
@@ -496,11 +516,22 @@ class Pipeline:
         rows = conn.execute(HITS_SQL, (ids,)).fetchall()
         by_id = {r[0]: dict(zip(HIT_COLUMNS, r)) for r in rows}
         hits = weigh_kinds([by_id[i] for i in ids if i in by_id], scores, cfg.doc_weight)
+        self._ranked = ranked
+        self.timing["sql"] = time.perf_counter() - t1
+        return hits
+
+    def rerank(self, query: str, hits: list[dict]) -> list[dict]:
+        """The reranker call, if any: no SQL."""
         t2 = time.perf_counter()
         if self.reranker and hits:
-            top = hits[: s.rerank.candidates]
+            top = hits[: self.settings.rerank.candidates]
             hits = [top[i] for i in self.reranker.rerank(query, [h["content"] for h in top]) if i < len(top)]
-        t3 = time.perf_counter()
+        self.timing["rerank"] = time.perf_counter() - t2
+        return hits
+
+    def finish(self, conn: psycopg.Connection, query: str, hits: list[dict]) -> tuple[list[dict], dict[str, float]]:
+        """Diversity, neighbors, excerpts and the token budget. Needs the connection only for neighbor chunks."""
+        cfg, k, ranked = self.settings.retrieval, self._k, self._ranked
         hits = select_diverse(hits, k + cfg.reference_hits, cfg)
         ranked_hits = hits
         hits = hits[:k]
@@ -513,7 +544,6 @@ class Pipeline:
         kept = fit_budget(hits, cfg.max_context_tokens)
         seen = {h["id"] for h in kept}
         hits = references([*hits, *(h for h in ranked_hits if h["id"] not in seen)], kept, len(kept) + cfg.reference_hits)
-        self.timing.update({"expand": t1 - t0, "sql": t2 - t1 - self.timing.get("embed", 0.0), "rerank": t3 - t2})
         return hits, self.timing
 
     def _with_neighbors(self, conn: psycopg.Connection, hits: list[dict]) -> list[dict]:
