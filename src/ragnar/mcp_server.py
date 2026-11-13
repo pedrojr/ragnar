@@ -177,6 +177,9 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
         except RagnarError as exc:
             ERRORS.labels(tool).inc()
             raise ToolError(str(exc)) from None
+        except Exception:  # a bug or an unexpected database error still counts, so alerts on the metric see it
+            ERRORS.labels(tool).inc()
+            raise
         SEARCHES.labels(tool).inc()
         LATENCY.labels("total").observe(time.perf_counter() - t0)
         tokens = estimate_tokens(text)
