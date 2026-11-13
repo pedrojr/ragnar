@@ -89,6 +89,8 @@ services:
       RAGNAR_CONFIG: /etc/ragnar/server.toml
       RAGNAR_LLM_API_KEY: ${RAGNAR_LLM_API_KEY:-}         # hosted chat model: multi-query, HyDE
       RAGNAR_RERANK_API_KEY: ${RAGNAR_RERANK_API_KEY:-}   # hosted reranker
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reaches an Ollama running on the host, for multi-query and HyDE
     volumes:
       - ./acl.json:/run/ragnar/acl.json:ro
       - ./server.toml:/etc/ragnar/server.toml:ro
