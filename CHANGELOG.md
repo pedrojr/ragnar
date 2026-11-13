@@ -119,3 +119,11 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - An unreachable database is an error message from the CLI, not a traceback.
 - `ragnar load` opens a new MCP session every 10 seconds. A kept-alive connection stays on the pod it first reached, so before, the pods the autoscaler added got no traffic. A failed connection now counts as an error instead of ending the test.
 - The example docs and `SECURITY.md` say that Docker Desktop publishes the Kubernetes `LoadBalancer` on every network interface, and that WSL needs cgroup v2 for recent Kubernetes versions.
+- `repos.toml` refuses a repository listed twice, an empty name, and a `name`, `url`, `branch` or `token_env` that is not text. Two entries with one name overwrote each other's index on every pass.
+- `ragnar_tool_errors_total` also counts tool calls that fail with an unexpected error, such as a database error.
+- Indexing stops when the embedder returns fewer vectors than the texts it received. Before, vectors could land on the wrong chunks.
+- The bundled embedder answers 400 to a body that is not a JSON object. It used to answer 500.
+- A reranker answer with a repeated or out-of-range index no longer repeats a hit or picks one from the end of the list.
+- `scripts/up.sh` works with the kind provisioner of Docker Desktop. Its nodes keep their own images, so Kubernetes kept running the first image it had loaded. `up.sh` now copies each changed image into the nodes and restarts the embedder.
+- The GitHub Actions template installs gitleaks instead of running `gitleaks-action`, which needs a license key in organization repositories. `ragnar index` already scans the files it indexes.
+- `ragnar stats` skips audit lines that name no tool. They used to make it fail.

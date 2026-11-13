@@ -119,3 +119,11 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - Um banco inacessível vira uma mensagem de erro da CLI, não um traceback.
 - `ragnar load` abre uma sessão MCP nova a cada 10 segundos. Uma conexão mantida aberta fica no pod que alcançou primeiro, então antes os pods criados pelo autoscaler não recebiam tráfego. Uma falha de conexão agora conta como erro, em vez de encerrar o teste.
 - A documentação do exemplo e o `SECURITY.md` dizem que o Docker Desktop publica o `LoadBalancer` do Kubernetes em todas as interfaces de rede, e que o WSL precisa de cgroup v2 para versões recentes do Kubernetes.
+- O `repos.toml` recusa um repositório listado duas vezes, um nome vazio e `name`, `url`, `branch` ou `token_env` que não sejam texto. Duas entradas com o mesmo nome sobrescreviam o índice uma da outra a cada passada.
+- `ragnar_tool_errors_total` também conta chamadas que falham com um erro inesperado, como um erro do banco.
+- A indexação para quando o embedder devolve menos vetores do que os textos que recebeu. Antes, os vetores podiam cair nos chunks errados.
+- O embedder incluído responde 400 a um corpo que não é um objeto JSON. Antes respondia 500.
+- Uma resposta do reranker com índice repetido ou fora do intervalo não repete mais um resultado nem pega um do fim da lista.
+- O `scripts/up.sh` funciona com o provisionador kind do Docker Desktop. Os nós dele guardam as próprias imagens, então o Kubernetes continuava rodando a primeira imagem que tinha carregado. Agora o `up.sh` copia cada imagem alterada para os nós e reinicia o embedder.
+- O template do GitHub Actions instala o gitleaks em vez de rodar o `gitleaks-action`, que exige chave de licença em repositórios de organização. O `ragnar index` já varre os arquivos que indexa.
+- O `ragnar stats` ignora linhas de auditoria sem nome de ferramenta. Antes, elas o faziam falhar.
