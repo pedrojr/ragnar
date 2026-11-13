@@ -28,7 +28,7 @@ if [ "$target" = k8s ]; then
   kubectl -n ragnar wait --for=condition=Ready "pod/$pod" --timeout=180s >/dev/null
   if [ -d "${args[0]}" ]; then
     git -C "${args[0]}" bundle create -q - --all \
-      | kubectl -n ragnar exec -i "$pod" -- sh -c 'cat > /work/repo.bundle && git -c advice.defaultBranchName=false clone -q --mirror /work/repo.bundle /work/repo.git'
+      | kubectl -n ragnar exec -i "$pod" -- sh -c 'cat > /work/repo.bundle && git -c init.defaultBranch=main clone -q --mirror /work/repo.bundle /work/repo.git'
     args[0]=/work/repo.git
   fi
   MSYS_NO_PATHCONV=1 kubectl -n ragnar exec "$pod" -- ragnar index "${args[@]}"   # Git Bash would rewrite /work paths
