@@ -220,6 +220,9 @@ def test_git_reads_committed_content_only(tmp_path):
     second = _git(repo, "rev-parse", "HEAD").strip()
     assert list_files(repo, second) == ["widget/button.go"]
     assert sorted(changed_files(repo, first, second)) == ["README.md", "widget/button.go"]
+    gone: set[str] = set()
+    changed_files(repo, first, second, gone=gone)
+    assert gone == {"README.md", "widget/button.go"}
     assert read_blobs(repo, second, ["README.md"]) == {}
     assert changed_files(repo, "0" * 40, second) is None
 

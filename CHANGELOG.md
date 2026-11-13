@@ -83,6 +83,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - A form skipped as too large no longer lends its control and event words to the handlers in its `.pas`. This only affects forms above `index.max_file_kb` after their image data is dropped.
 - On Windows and macOS, the secret scan sees files whose names differ only in case, and accepts names Windows cannot write, such as `what?.txt`. Before, `cfg.py` overwrote `Cfg.py` in the scan folder and a key in it went unscanned, and an invalid name stopped the repository on every run.
 - Files whose names are not UTF-8, such as a name committed in cp1252 by an old Git for Windows, are reported with a hint to rename them. Before, they were left out without a word.
+- `index_state.skipped` lists each file left out with its reason (`too large`, `generated`, `secret`, `unreadable`, `name not UTF-8`, `unsafe path`...), instead of a count per reason. An incremental run keeps the files skipped by earlier runs and drops the ones it sees changed or deleted, so the list always describes the indexed commit.
 - The line-window chunker no longer repeats the pieces of a long line that falls in the overlap of two windows.
 - `index.legacy_encoding` must be a text encoding: `hex` or `rot13` passed the check and failed every run later.
 - Chunking a large data literal (a byte array, a constant table) takes linear time. A 1 MB array took close to two minutes.

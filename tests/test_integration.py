@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import socket
+import subprocess
 import threading
 import time
 
@@ -248,6 +249,36 @@ def test_a_file_over_the_size_limit_is_never_read(dsn, tmp_path, monkeypatch):
     _git(repo, "commit", "-q", "-m", "dump")
     r = index(str(repo), "demo", dsn, emb, load_settings(overrides=["index.max_file_kb=4"], environ={}), scan=False)
     assert r.skipped.get("too large") == 1 and "dump.sql" not in requested and "widget/button.go" in requested
+
+
+def test_skipped_files_are_kept_per_path_across_incremental_runs(dsn, tmp_path):
+    def stored():
+        with psycopg.connect(dsn) as conn:
+            return conn.execute("SELECT skipped FROM index_state WHERE repo = 'demo'").fetchone()[0]
+
+    repo, emb = make_repo(tmp_path), FakeEmbedder(768)
+    settings = load_settings(overrides=["index.max_file_kb=4"], environ={})
+    (repo / "dump.sql").write_text("INSERT INTO t VALUES (1);\n" * 400, encoding="utf-8")
+    blob = _git(repo, "hash-object", "-w", "widget/button.go").strip()
+    subprocess.run(["git", "-C", str(repo), "update-index", "--add", "--index-info"],
+                   input=f"100644 {blob}\tRelat".encode() + b"\xf3rio.go\n", check=True)  # a cp1252 name
+    _git(repo, "add", "dump.sql")
+    _git(repo, "commit", "-q", "-m", "dump")
+    r = index(str(repo), "demo", dsn, emb, settings, scan=False)
+    assert r.skipped == {"too large": 1, "name not UTF-8": 1}
+    assert stored() == {"dump.sql": "too large", "Relat�rio.go": "name not UTF-8"}
+
+    (repo / "widget" / "button.go").write_text("package widget\n\nfunc Other() {}\n", encoding="utf-8")
+    _git(repo, "add", "widget/button.go")  # not commit -a: the cp1252 file is only in the index
+    _git(repo, "commit", "-qm", "another file")
+    r = index(str(repo), "demo", dsn, emb, settings, scan=False)
+    assert r.mode == "incremental" and r.skipped == {}  # this run saw no skipped file...
+    assert stored() == {"dump.sql": "too large", "Relat�rio.go": "name not UTF-8"}  # ...and kept the others
+
+    _git(repo, "rm", "-q", "dump.sql")
+    _git(repo, "commit", "-qm", "remove the dump")
+    index(str(repo), "demo", dsn, emb, settings, scan=False)
+    assert stored() == {"Relat�rio.go": "name not UTF-8"}  # a deleted file leaves the map
 
 
 def test_an_unreadable_file_is_left_out_and_the_rest_is_indexed(dsn, tmp_path, monkeypatch, capsys):

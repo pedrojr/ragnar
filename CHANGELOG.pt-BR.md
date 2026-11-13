@@ -83,6 +83,7 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - Um formulário ignorado por tamanho não empresta mais as palavras dos seus controles e eventos aos handlers do `.pas`. Isso só afeta formulários acima de `index.max_file_kb` depois de descartados os dados de imagem.
 - No Windows e no macOS, a varredura de segredos enxerga arquivos cujos nomes diferem só em maiúsculas, e aceita nomes que o Windows não grava, como `what?.txt`. Antes, `cfg.py` sobrescrevia `Cfg.py` na pasta da varredura e uma chave nele passava sem ser vista, e um nome inválido parava o repositório em toda execução.
 - Arquivos com nome fora de UTF-8, como um nome gravado em cp1252 por um Git for Windows antigo, aparecem no log com a dica de renomeá-los. Antes, ficavam de fora sem aviso.
+- `index_state.skipped` lista cada arquivo deixado de fora com o motivo (`too large`, `generated`, `secret`, `unreadable`, `name not UTF-8`, `unsafe path`...), em vez de uma contagem por motivo. Uma execução incremental mantém os arquivos ignorados nas execuções anteriores e tira os que vê alterados ou apagados, então a lista sempre descreve o commit indexado.
 - O chunker por janelas não repete mais os pedaços de uma linha longa que cai na sobreposição de duas janelas.
 - `index.legacy_encoding` precisa ser uma codificação de texto: `hex` ou `rot13` passavam na checagem e falhavam depois em toda execução.
 - Dividir em chunks um literal de dados grande (um array de bytes, uma tabela de constantes) leva tempo linear. Um array de 1 MB levava quase dois minutos.

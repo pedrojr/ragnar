@@ -104,32 +104,47 @@ def safe_path(path: str) -> bool:
     return bool(path) and not path.startswith("/") and all(part not in ("", ".", "..") for part in path.split("/"))
 
 
-def _safe(paths: list[str]) -> list[str]:
+NOT_UTF8, UNSAFE_PATH = "name not UTF-8", "unsafe path"
+
+
+def _safe(paths: list[str], dropped: dict[str, str] | None = None, deleted: set[str] = frozenset()) -> list[str]:
+    """The paths the index can use. The others go to `dropped` with their reason, unless the commit deleted them."""
     # a name committed in cp1252 by an old Git for Windows decodes with U+FFFD, and git no longer finds it
-    broken = [p for p in paths if "�" in p]
+    reasons = {p: NOT_UTF8 if "�" in p else UNSAFE_PATH for p in paths if "�" in p or not safe_path(p)}
+    broken = [p for p, r in reasons.items() if r == NOT_UTF8]
     if broken:
         print(f"left out {len(broken)} files whose names are not UTF-8, such as {broken[0]!r}: "
               "rename them in a commit (git mv) to index them", file=sys.stderr, flush=True)
-    unsafe = [p for p in paths if "�" not in p and not safe_path(p)]
+    unsafe = [p for p, r in reasons.items() if r == UNSAFE_PATH]
     if unsafe:
         print(f"left out {len(unsafe)} paths that would leave the checkout, such as {unsafe[0]!r}",
               file=sys.stderr, flush=True)
-    return [p for p in paths if "�" not in p and safe_path(p)]
+    if dropped is not None:
+        dropped.update({p: r for p, r in reasons.items() if p not in deleted})
+    return [p for p in paths if p not in reasons]
 
 
-def list_files(repo_dir: Path, sha: str) -> list[str]:
+def list_files(repo_dir: Path, sha: str, dropped: dict[str, str] | None = None) -> list[str]:
     out = git(repo_dir, "ls-tree", "-r", "-z", "--name-only", sha).decode(errors="replace")
-    return _safe([p for p in out.split("\0") if p])
+    return _safe([p for p in out.split("\0") if p], dropped)
 
 
-def changed_files(repo_dir: Path, old: str, new: str) -> list[str] | None:
-    """Files changed between the commits; None if the old commit is gone (force push)."""
+def changed_files(repo_dir: Path, old: str, new: str, dropped: dict[str, str] | None = None,
+                  gone: set[str] | None = None) -> list[str] | None:
+    """Files changed between the commits; None if the old commit is gone (force push).
+
+    `gone` collects every changed path, usable or not, so a caller can forget what it knew about them.
+    """
     try:
         git(repo_dir, "cat-file", "-e", f"{old}^{{commit}}")
     except RagnarError:
         return None
-    out = git(repo_dir, "diff", "--name-only", "-z", "--no-renames", old, new).decode(errors="replace")
-    return _safe([p for p in out.split("\0") if p])
+    out = git(repo_dir, "diff", "--name-status", "-z", "--no-renames", old, new).decode(errors="replace").split("\0")
+    status = dict(zip(out[1::2], out[0::2]))  # -z --name-status: status, path, status, path...
+    if gone is not None:
+        gone.update(p for p in status if p)
+    deleted = {p for p, s in status.items() if s.startswith("D")}
+    return _safe([p for p in status if p], dropped, deleted)
 
 
 FORM_SLACK = 16  # a form may be this many times max_file_kb on disk: embedded images make most of it
@@ -481,6 +496,13 @@ class Result:
     skipped: dict[str, int] = field(default_factory=dict)  # reason -> files
 
 
+def previous_skips(stored: object) -> dict[str, str]:
+    """The path -> reason map of the last run. Older versions stored reason -> count, which names no file."""
+    if not isinstance(stored, dict):
+        return {}
+    return {p: r for p, r in stored.items() if isinstance(r, str)}
+
+
 def repo_settings(repo_dir: Path, head: str, settings: Settings) -> Settings:
     """Server settings plus the [index] section of the .ragnar/config.toml committed in the repository."""
     blob = read_blobs(repo_dir, head, [CONFIG_FILE]).get(CONFIG_FILE)
@@ -501,26 +523,33 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
     chunker = Chunker.from_settings(settings)
 
     with psycopg.connect(dsn) as conn:
-        state = conn.execute("SELECT commit_sha, embed_model, fingerprint FROM index_state WHERE repo = %s",
+        state = conn.execute("SELECT commit_sha, embed_model, fingerprint, skipped FROM index_state WHERE repo = %s",
                              (repo,)).fetchone()
 
+    # path -> why it is not in the index. An incremental run starts from the last map and forgets the paths
+    # it sees again, so files skipped long ago stay counted and files fixed or deleted leave the map.
+    left_out: dict[str, str] = {}
+    gone: set[str] = set()
     if full or state is None or state[1] != emb.model or state[2] != fingerprint:
-        mode, paths = "full", list_files(repo_dir, head)
+        mode, paths = "full", list_files(repo_dir, head, left_out)
     elif state[0] == head:
         return Result(repo, "unchanged", head, 0, 0, 0, round(time.monotonic() - t0, 1))
     else:
-        changed = changed_files(repo_dir, state[0], head)
-        mode, paths = ("incremental", with_form_pairs(changed)) if changed is not None else ("full", list_files(repo_dir, head))
+        changed = changed_files(repo_dir, state[0], head, left_out, gone)
+        if changed is None:
+            mode, paths = "full", list_files(repo_dir, head, left_out)
+        else:
+            mode, paths = "incremental", with_form_pairs(changed)
+    before = previous_skips(state[3] if state is not None else None) if mode == "incremental" else {}
+    run_skips: dict[str, str] = dict(left_out)  # this run's reasons, for the report
 
     wanted = [p for p in paths if chunker.eligible(p)]
     sizes = blob_sizes(repo_dir, head, wanted)
-    skipped: Counter = Counter()
     # a 200 MB dump must not be read into memory only to be skipped: forms get room for the image data
     # form_source drops, everything else must fit max_file_kb as stored
     limit = settings.index.max_file_kb * 1024
     huge = {p for p in wanted if sizes.get(p, 0) > limit * (FORM_SLACK if chunker.source_kind(p) == "form" else 1)}
-    if huge:
-        skipped["too large"] += len(huge)
+    run_skips.update(dict.fromkeys(huge, "too large"))
     blobs = read_blobs(repo_dir, head, [p for p in wanted if p not in huge])
     parsed: dict[str, tuple[list[Chunk], list[Symbol]]] = {}
     for path, src in list(blobs.items()):
@@ -533,18 +562,21 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
             print(f"{repo}: left out {path}: cannot read it ({type(exc).__name__}: {str(exc)[:120]})",
                   file=sys.stderr, flush=True)
             del blobs[path]
-            skipped["unreadable"] += 1
+            run_skips[path] = "unreadable"
             continue
         if reason:  # out of the index: out of the secret scan too, so a sample key there cannot stop the run
-            skipped[reason] += 1
+            run_skips[path] = reason
             del blobs[path]
     if scan and settings.index.secret_scan:
         # what gets indexed, as UTF-8: gitleaks does not read UTF-16, and form images look like tokens
         normalized = {p: normalize_source(chunker.indexed_source(p, b), settings.index.legacy_encoding)
                       for p, b in blobs.items()}
         found = secret_scan({p: b for p, b in normalized.items() if b is not None})
-        if removed := apply_secret_policy(found, blobs, settings.index.secret_action):
-            skipped["secret"] = removed
+        if apply_secret_policy(found, blobs, settings.index.secret_action):
+            run_skips.update(dict.fromkeys(found, "secret"))
+    seen = set(paths) | gone
+    skipped_map = {p: r for p, r in before.items() if p not in seen} | run_skips
+    skipped = Counter(run_skips.values())
     chunks: list[Chunk] = []
     symbols: list[Symbol] = []
     for path in blobs:
@@ -599,7 +631,7 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
             """INSERT INTO index_state (repo, commit_sha, embed_model, fingerprint, skipped) VALUES (%s, %s, %s, %s, %s)
                ON CONFLICT (repo) DO UPDATE SET commit_sha = EXCLUDED.commit_sha, embed_model = EXCLUDED.embed_model,
                fingerprint = EXCLUDED.fingerprint, skipped = EXCLUDED.skipped, indexed_at = now()""",
-            (repo, head, emb.model, fingerprint, json.dumps(skipped)),
+            (repo, head, emb.model, fingerprint, json.dumps(skipped_map, ensure_ascii=False)),
         )
         conn.execute("DELETE FROM embedding_checkpoint WHERE model = %s AND content_hash = ANY(%s)", (emb.model, hashes))
     return Result(repo, mode, head, len(blobs), len(chunks), deleted, round(time.monotonic() - t0, 1),
