@@ -139,7 +139,7 @@ docker compose down
 ./scripts/smoke.sh myapp --target k8s
 ```
 
-O `up.sh` pode rodar de novo e recarrega `repos.toml`, `acl.json` e `server.toml`, além das chaves de modelo do `.env`. Ele instala versões fixas de metrics-server 0.9.0, CloudNativePG 1.30.1 e KEDA 2.21.0, e depois cria:
+O `up.sh` pode rodar de novo e recarrega `repos.toml`, `acl.json` e `server.toml`, além das chaves de modelo do `.env`. Ele também reconstrói as imagens. Quando o Docker Desktop roda o Kubernetes com o provisionador kind, cada nó guarda a própria cópia das imagens, então o `up.sh` copia para os nós toda imagem que mudou e reinicia os pods que a usam. Ele instala versões fixas de metrics-server 0.9.0, CloudNativePG 1.30.1 e KEDA 2.21.0, e depois cria:
 
 | Recurso | O que é | Escala |
 | --- | --- | --- |

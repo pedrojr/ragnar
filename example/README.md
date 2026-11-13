@@ -139,7 +139,7 @@ docker compose down
 ./scripts/smoke.sh myapp --target k8s
 ```
 
-`up.sh` is safe to run again, and it reloads `repos.toml`, `acl.json` and `server.toml`, plus the model keys in `.env`. It installs fixed versions of metrics-server 0.9.0, CloudNativePG 1.30.1 and KEDA 2.21.0, then creates:
+`up.sh` is safe to run again, and it reloads `repos.toml`, `acl.json` and `server.toml`, plus the model keys in `.env`. It also rebuilds the images. When Docker Desktop runs Kubernetes with the kind provisioner, each node keeps its own copy of the images, so `up.sh` copies any image that changed into the nodes and restarts the pods that use it. It installs fixed versions of metrics-server 0.9.0, CloudNativePG 1.30.1 and KEDA 2.21.0, then creates:
 
 | Resource | What it is | Scaling |
 | --- | --- | --- |

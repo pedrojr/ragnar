@@ -35,9 +35,26 @@ kubectl -n keda rollout status deploy/keda-metrics-apiserver --timeout=300s
 kubectl -n keda rollout status deploy/keda-admission --timeout=300s
 kubectl -n kube-system rollout status deploy/metrics-server --timeout=300s
 
-step "images (Docker Desktop Kubernetes sees local images)"
+step "images"
 docker build -q --target app -t ragnar-app:0.1.0 -f docker/Dockerfile .. >/dev/null
 docker build -q --target embedder -t ragnar-embedder:0.1.0 -f docker/Dockerfile .. >/dev/null
+# The kubeadm provisioner of Docker Desktop sees the images built above. The kind provisioner runs each node in
+# a container with its own containerd, which keeps whatever image it loaded first under the same tag: copy every
+# image whose ID differs into each node.
+images_changed=false
+for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
+  docker exec "$node" true 2>/dev/null || continue   # not a node container: the cluster shares Docker's images
+  for image in ragnar-app:0.1.0 ragnar-embedder:0.1.0; do
+    # layers, not IDs: a BuildKit rebuild of the same content gets a new image ID
+    want=$(docker image inspect --format '{{join .RootFS.Layers " "}}' "$image")
+    have=$(docker exec "$node" crictl inspecti -o go-template \
+      --template '{{range .info.imageSpec.rootfs.diff_ids}}{{.}} {{end}}' "$image" 2>/dev/null || true)
+    [ "$want" = "${have% }" ] && continue
+    echo "loading $image into node $node"
+    docker save "$image" | docker exec -i "$node" ctr -n k8s.io images import - >/dev/null
+    images_changed=true
+  done
+done
 
 step "namespace, secrets (from .env), repos.toml and server.toml"
 kubectl apply -f k8s/base/namespace.yaml >/dev/null
@@ -72,6 +89,9 @@ kubectl -n ragnar wait --for=condition=complete job/ragnar-migrate --timeout=300
 kubectl -n ragnar logs job/ragnar-migrate
 
 step "waiting for the embedder and the MCP server"
+if [ "$images_changed" = true ]; then   # the MCP server restarts below anyway
+  kubectl -n ragnar rollout restart deploy/ragnar-embedder >/dev/null
+fi
 kubectl -n ragnar rollout status deploy/ragnar-embedder --timeout=600s
 kubectl -n ragnar rollout restart deploy/ragnar-mcp >/dev/null   # reloads the ACL and server.toml if they changed
 kubectl -n ragnar rollout status deploy/ragnar-mcp --timeout=300s
