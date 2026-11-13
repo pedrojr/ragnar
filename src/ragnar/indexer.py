@@ -127,6 +127,23 @@ def changed_files(repo_dir: Path, old: str, new: str) -> list[str] | None:
     return _safe([p for p in out.split("\0") if p])
 
 
+FORM_SLACK = 16  # a form may be this many times max_file_kb on disk: embedded images make most of it
+
+
+def blob_sizes(repo_dir: Path, sha: str, paths: list[str]) -> dict[str, int]:
+    """Size of each file at the commit, without reading it."""
+    if not paths:
+        return {}
+    out = git(repo_dir, "cat-file", "--batch-check=%(objecttype) %(objectsize)",
+              input="".join(f"{sha}:{p}\n" for p in paths).encode()).decode(errors="replace").splitlines()
+    sizes = {}
+    for path, line in zip(paths, out):
+        kind, _, size = line.partition(" ")
+        if kind == "blob" and size.isdigit():
+            sizes[path] = int(size)
+    return sizes
+
+
 def read_blobs(repo_dir: Path, sha: str, paths: list[str]) -> dict[str, bytes]:
     """File contents at the commit, with a single `git cat-file --batch` call."""
     if not paths:
@@ -469,8 +486,16 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
         changed = changed_files(repo_dir, state[0], head)
         mode, paths = ("incremental", with_form_pairs(changed)) if changed is not None else ("full", list_files(repo_dir, head))
 
-    blobs = read_blobs(repo_dir, head, [p for p in paths if chunker.eligible(p)])
+    wanted = [p for p in paths if chunker.eligible(p)]
+    sizes = blob_sizes(repo_dir, head, wanted)
     skipped: Counter = Counter()
+    # a 200 MB dump must not be read into memory only to be skipped: forms get room for the image data
+    # form_source drops, everything else must fit max_file_kb as stored
+    limit = settings.index.max_file_kb * 1024
+    huge = {p for p in wanted if sizes.get(p, 0) > limit * (FORM_SLACK if chunker.source_kind(p) == "form" else 1)}
+    if huge:
+        skipped["too large"] += len(huge)
+    blobs = read_blobs(repo_dir, head, [p for p in wanted if p not in huge])
     parsed: dict[str, tuple[list[Chunk], list[Symbol]]] = {}
     for path, src in list(blobs.items()):
         try:
@@ -484,8 +509,9 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
             del blobs[path]
             skipped["unreadable"] += 1
             continue
-        if reason:
+        if reason:  # out of the index: out of the secret scan too, so a sample key there cannot stop the run
             skipped[reason] += 1
+            del blobs[path]
     if scan and settings.index.secret_scan:
         # what gets indexed, as UTF-8: gitleaks does not read UTF-16, and form images look like tokens
         normalized = {p: normalize_source(chunker.indexed_source(p, b), settings.index.legacy_encoding)

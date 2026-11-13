@@ -416,11 +416,13 @@ class Chunker:
         kind = "test" if is_test(lang, path) else "code"
         comment, language = (lang.comment, lang.name) if lang else ("#", "text")
         size, step = self.index.window_lines, self.index.window_lines - self.index.window_overlap
-        out = []
+        out, seen = [], set()
         for start in range(0, max(len(lines) - self.index.window_overlap, 1), step):
             text = "".join(lines[start : start + size])
             for piece, first, last in self._pieces(text, start + 1, min(start + size, len(lines))):
-                if piece.strip():
+                # the overlap would repeat every piece of a long line that sits in it
+                if piece.strip() and (first, last, piece) not in seen:
+                    seen.add((first, last, piece))
                     out.append(_make(comment, path, name, language, kind, first, last, piece))
         return out
 

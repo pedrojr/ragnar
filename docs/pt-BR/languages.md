@@ -58,7 +58,7 @@ Assim o agente vai de uma pergunta de negócio ao formulário, e do formulário 
 
 **Formulários binários.** Projetos antigos podem guardar formulários em binário (`TPF0`), puro ou dentro de um cabeçalho de recurso. O Ragnar os converte antes para o formato texto, como faz o `convert.exe`, e eles entram no índice como qualquer formulário. Os números de linha se referem a esse texto, não ao arquivo.
 
-**Formulários com imagens.** Imagens embutidas fazem um formulário de vários megabytes em volta de poucos kilobytes de SQL e eventos. O Ragnar descarta os dados da imagem antes de aplicar `index.max_file_kb` e antes da varredura de segredos: dados hexadecimais de imagem muitas vezes parecem um token de acesso.
+**Formulários com imagens.** Imagens embutidas fazem um formulário de vários megabytes em volta de poucos kilobytes de SQL e eventos. O Ragnar descarta os dados da imagem antes de aplicar `index.max_file_kb` e antes da varredura de segredos: dados hexadecimais de imagem muitas vezes parecem um token de acesso. Um formulário com mais de 16 vezes o `index.max_file_kb` em disco fica de fora sem ser lido.
 
 **Testes.** Os nomes de DUnit e DUnitX são reconhecidos: `TestOrders.pas`, `OrderTests.pas` e tudo em pastas `test/`.
 

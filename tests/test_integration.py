@@ -236,6 +236,20 @@ def test_file_summaries_are_cached_and_stay_out_of_line_tools(dsn, tmp_path, mon
         assert read["lines"][0] == (1, "package widget")
 
 
+def test_a_file_over_the_size_limit_is_never_read(dsn, tmp_path, monkeypatch):
+    import ragnar.indexer as indexer
+
+    requested = []
+    real = indexer.read_blobs
+    monkeypatch.setattr(indexer, "read_blobs", lambda r, sha, paths: requested.extend(paths) or real(r, sha, paths))
+    repo, emb = make_repo(tmp_path), FakeEmbedder(768)
+    (repo / "dump.sql").write_text("INSERT INTO t VALUES (1);\n" * 400, encoding="utf-8")  # about 10 KB
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "dump")
+    r = index(str(repo), "demo", dsn, emb, load_settings(overrides=["index.max_file_kb=4"], environ={}), scan=False)
+    assert r.skipped.get("too large") == 1 and "dump.sql" not in requested and "widget/button.go" in requested
+
+
 def test_an_unreadable_file_is_left_out_and_the_rest_is_indexed(dsn, tmp_path, monkeypatch, capsys):
     from ragnar.chunker import Chunker
 

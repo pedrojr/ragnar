@@ -79,6 +79,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - Fetches and clones give up on a stalled connection instead of freezing the worker.
 - A malformed Delphi form no longer stops the index worker. A negative length in a binary form looped forever, and a character code outside Unicode or a form nested too deep raised an error that failed the whole repository. Now the form stays as it is, the bad code is dropped, and any file that still cannot be read is left out and counted as `unreadable`. The example CronJob has `activeDeadlineSeconds`, so one stuck run cannot block the later ones.
 - Files without a grammar, documents and form components are cut to the chunk budget like code. One long line, such as a SQL dump with an extended `INSERT`, used to become a single chunk that Postgres refused (`string is too long for tsvector`), failing the repository on every run. The chunker version change triggers a full reindex.
+- A file above `index.max_file_kb` is skipped before it is read, so a large dump no longer takes hundreds of megabytes of memory. Forms get 16 times the limit on disk, for the image data they drop. Files left out of the index for any reason also stay out of the secret scan, so a sample key in a generated file no longer stops the repository.
+- The line-window chunker no longer repeats the pieces of a long line that falls in the overlap of two windows.
+- `index.legacy_encoding` must be a text encoding: `hex` or `rot13` passed the check and failed every run later.
 - Chunking a large data literal (a byte array, a constant table) takes linear time. A 1 MB array took close to two minutes.
 - Line numbers of windows, documents, forms and graph edges count only `\n`. A form feed used to shift every line after it.
 - `ragnar init` counts accented file names when it detects languages, and `ragnar init-env` writes `.env` only after it reads `acl.json`.

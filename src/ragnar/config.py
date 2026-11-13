@@ -292,8 +292,11 @@ def _validate(s: Settings) -> None:
             raise RagnarError(f"project.languages: unknown {', '.join(map(repr, unknown))}; "
                               f"valid names: {', '.join(sorted(BY_NAME))}")
     try:
-        codecs.lookup(s.index.legacy_encoding)
+        # hex, rot13 and base64 are codecs too, but not text encodings: decoding with them raises later
+        text_codec = getattr(codecs.lookup(s.index.legacy_encoding), "_is_text_encoding", True)
     except LookupError:
+        text_codec = False
+    if not text_codec:
         raise RagnarError(f"index.legacy_encoding: unknown encoding {s.index.legacy_encoding!r}") from None
 
 

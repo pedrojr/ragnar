@@ -104,6 +104,7 @@ url = "https://attacker.example/v1"
     ("[index]\nwindow_lines = 0\nwindow_overlap = 0\n", "must be positive"),
     ("[index]\nwindow_overlap = -1\n", "0 or more"),
     ("[index]\nlegacy_encoding = 'nope'\n", "unknown encoding"),
+    ("[index]\nlegacy_encoding = 'hex'\n", "unknown encoding"),  # a codec, but not a text encoding
     ("index = 5\n", "must be tables"),
     ('project = "languages"\n', "must be tables"),
     ("[index]\nchunk_budget = 'big'\n", "must be int"),

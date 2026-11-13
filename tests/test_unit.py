@@ -14,7 +14,7 @@ from ragnar.chunker import Chunker
 from ragnar.cli import main
 from ragnar.config import Index, RagnarError
 from ragnar.embedder import FakeEmbedder, to_pgvector
-from ragnar.indexer import changed_files, list_files, read_blobs, safe_path, scrub, secret_scan
+from ragnar.indexer import blob_sizes, changed_files, list_files, read_blobs, safe_path, scrub, secret_scan
 from ragnar.mcp_server import render_hits
 from ragnar.search import like_prefix
 
@@ -136,6 +136,13 @@ def test_acl_repos_must_be_a_list(tmp_path):
 ])
 def test_safe_path_keeps_tree_paths_inside_the_checkout(path, safe):
     assert safe_path(path) is safe
+
+
+def test_blob_sizes_reads_no_content(tmp_path):
+    repo = make_repo(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    sizes = blob_sizes(repo, sha, ["widget/button.go", "missing.go"])
+    assert sizes == {"widget/button.go": len((repo / "widget" / "button.go").read_bytes())}
 
 
 def test_secret_scan_refuses_a_path_outside_its_folder(tmp_path):

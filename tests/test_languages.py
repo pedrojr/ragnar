@@ -315,6 +315,14 @@ def test_one_huge_line_is_cut_to_the_budget(path, text):
     assert all(c.start_line <= c.end_line for c in chunks)
 
 
+def test_window_overlap_does_not_repeat_the_pieces_of_a_long_line():
+    long_line = "INSERT INTO t VALUES " + ",".join(f"({i})" for i in range(30_000)) + ";\n"
+    src = ("".join(f"-- line {i}\n" for i in range(74)) + long_line + "select 1;\n").encode()
+    chunks = Chunker().chunk_file("db/seed.sql", src)
+    keys = [(c.start_line, c.end_line, c.content) for c in chunks]
+    assert len(keys) == len(set(keys))
+
+
 def test_a_form_component_with_a_huge_sql_is_cut():
     sql = "\n".join(f"    'select col{i} from TABELA{i}'" for i in range(20_000))
     src = f"object F: TForm\n  object Q: TQuery\n    SQL.Strings = (\n{sql})\n  end\nend\n".encode()

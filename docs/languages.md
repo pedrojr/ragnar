@@ -58,7 +58,7 @@ An agent can then go from a business question to the form, and from the form to 
 
 **Binary forms.** Old projects may store forms as binary (`TPF0`), bare or inside a resource header. Ragnar turns them into the text format first, as `convert.exe` does, so they are indexed like any other form. Their line numbers refer to that text, not to the file.
 
-**Forms with images.** Embedded pictures can make a form of several megabytes around a few kilobytes of SQL and events. Ragnar drops the image data before it applies `index.max_file_kb`, and before the secret scan: hex image data often looks like an access token.
+**Forms with images.** Embedded pictures can make a form of several megabytes around a few kilobytes of SQL and events. Ragnar drops the image data before it applies `index.max_file_kb`, and before the secret scan: hex image data often looks like an access token. A form above 16 times `index.max_file_kb` on disk is skipped without being read.
 
 **Tests.** DUnit and DUnitX naming is recognized: `TestOrders.pas`, `OrderTests.pas`, and anything in a `test/` folder.
 
