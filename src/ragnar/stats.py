@@ -31,7 +31,7 @@ def parse(lines: Iterable[str]) -> list[dict]:
             event = json.loads(line[start:].strip())
         except ValueError:
             continue
-        if event.get("event") == "tool":
+        if event.get("event") == "tool" and isinstance(event.get("tool"), str):  # the report keys on it
             events.append(event)
     return events
 

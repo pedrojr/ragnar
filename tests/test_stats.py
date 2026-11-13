@@ -36,6 +36,10 @@ def test_log_prefixes_are_ignored():
     assert parse(prefixed) == parse(LOG) and len(parse(prefixed)) == 5
 
 
+def test_a_tool_event_without_a_tool_name_is_skipped():
+    assert parse(['{"event": "tool", "ts": "x"}', '{"event": "tool", "tool": null}']) == []
+
+
 def test_a_read_soon_after_a_search_labels_the_file():
     assert labels(parse(LOG)) == [{"id": "use-1", "query": "onde grava o pedido", "relevant": ["src/Order.pas"],
                                    "client": "dev"}]
