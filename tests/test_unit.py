@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from ragnar.chunker import Chunker
 from ragnar.cli import main
 from ragnar.config import Index, RagnarError
 from ragnar.embedder import FakeEmbedder, to_pgvector
-from ragnar.indexer import blob_sizes, changed_files, list_files, read_blobs, safe_path, scrub, secret_scan
+from ragnar.indexer import _disk_name, blob_sizes, changed_files, list_files, read_blobs, safe_path, scrub, secret_scan
 from ragnar.mcp_server import render_hits
 from ragnar.search import like_prefix
 
@@ -156,6 +157,21 @@ def test_paths_that_are_not_utf8_are_reported(tmp_path, capsys):
     files = list_files(repo, _git(repo, "rev-parse", "HEAD").strip())
     assert "widget/button.go" in files and not any("�" in f for f in files)
     assert "names are not UTF-8" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(("name", "disk"), [
+    ("Cfg.py", "Cfg.py"), ("what?.txt", "what_.txt"), ("a<b>.pas", "a_b_.pas"), ("trail. ", "trail"),
+    ("aux.c", "_aux.c"), ("NUL", "_NUL"), ("auxiliar.pas", "auxiliar.pas"),
+])
+def test_disk_names_are_valid_on_every_os(name, disk):
+    assert _disk_name(name) == disk
+
+
+@pytest.mark.skipif(not (shutil.which("gitleaks") or shutil.which("docker")), reason="needs gitleaks or docker")
+def test_secret_scan_sees_files_that_differ_only_in_case():
+    key = b'AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLQ"\n'
+    found = secret_scan({"Cfg.py": key, "cfg.py": b"x = 1\n", "what?.txt": b"x = 1\n"})
+    assert list(found) == ["Cfg.py"]  # before: cfg.py overwrote Cfg.py on Windows and macOS, and the key passed
 
 
 def test_secret_scan_refuses_a_path_outside_its_folder(tmp_path):

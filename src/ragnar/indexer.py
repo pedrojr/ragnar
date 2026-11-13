@@ -175,10 +175,16 @@ def secret_scan(files: dict[str, bytes]) -> dict[str, list[str]]:
         return {}
     with tempfile.TemporaryDirectory(prefix="ragnar-scan-") as tmp:
         root = Path(tmp) / "src"
-        for path, content in files.items():
-            f = root / path
-            if not safe_path(path) or not f.resolve().is_relative_to(root.resolve()):
+        # One folder per file, named by its position, holding the file under a name every OS accepts. A tree
+        # path as it is could collide on a case-insensitive disk (Cfg.py and cfg.py: one overwrites the other,
+        # and its secret goes unscanned) or be invalid on Windows (what?.txt).
+        back: dict[str, str] = {}
+        for i, (path, content) in enumerate(files.items()):
+            if not safe_path(path):
                 raise RagnarError(f"refusing to scan a path outside the checkout: {path!r}")
+            written = f"{i}/{_disk_name(path.rsplit('/', 1)[-1])}"
+            back[written] = path
+            f = root / written
             f.parent.mkdir(parents=True, exist_ok=True)
             f.write_bytes(content)
         report = Path(tmp) / "report.json"
@@ -202,8 +208,19 @@ def secret_scan(files: dict[str, bytes]) -> dict[str, list[str]]:
             raise RagnarError(f"gitleaks failed (exit code {r.returncode}): {r.stderr.strip()[-500:]}")
         found: dict[str, list[str]] = {}
         for f in findings:
-            found.setdefault(_relative(f["File"], root), []).append(f"{f['StartLine']} ({f['RuleID']})")
+            rel = _relative(f["File"], root)
+            found.setdefault(back.get(rel, rel), []).append(f"{f['StartLine']} ({f['RuleID']})")
         return found
+
+
+WINDOWS_RESERVED = re.compile(r"^(con|prn|aux|nul|com\d|lpt\d)(\.|$)", re.I)
+
+
+def _disk_name(name: str) -> str:
+    """A file name any OS writes as it is: no <>:"/\\|?* or control characters, no trailing dot or space,
+    and no reserved device name. The extension stays, so gitleaks rules that look at it still apply."""
+    clean = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).rstrip(". ") or "_"
+    return "_" + clean if WINDOWS_RESERVED.match(clean) else clean
 
 
 def apply_secret_policy(found: dict[str, list[str]], blobs: dict[str, bytes], action: str) -> int:
