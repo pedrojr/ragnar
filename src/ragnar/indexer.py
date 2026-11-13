@@ -182,7 +182,8 @@ def secret_scan(files: dict[str, bytes]) -> dict[str, list[str]]:
         for i, (path, content) in enumerate(files.items()):
             if not safe_path(path):
                 raise RagnarError(f"refusing to scan a path outside the checkout: {path!r}")
-            written = f"{i}/{_disk_name(path.rsplit('/', 1)[-1])}"
+            # the whole path, each part made writable: gitleaks allowlists folders such as env/lib/
+            written = f"{i}/" + "/".join(_disk_name(part) for part in path.split("/"))
             back[written] = path
             f = root / written
             f.parent.mkdir(parents=True, exist_ok=True)
@@ -209,11 +210,13 @@ def secret_scan(files: dict[str, bytes]) -> dict[str, list[str]]:
         found: dict[str, list[str]] = {}
         for f in findings:
             rel = _relative(f["File"], root)
-            found.setdefault(back.get(rel, rel), []).append(f"{f['StartLine']} ({f['RuleID']})")
+            if rel not in back:  # fail closed: with secret_action = skip, an unmapped file would be indexed
+                raise RagnarError(f"gitleaks reported a file the scan did not write: {rel!r}")
+            found.setdefault(back[rel], []).append(f"{f['StartLine']} ({f['RuleID']})")
         return found
 
 
-WINDOWS_RESERVED = re.compile(r"^(con|prn|aux|nul|com\d|lpt\d)(\.|$)", re.I)
+WINDOWS_RESERVED = re.compile(r"^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\.|$)", re.I)
 
 
 def _disk_name(name: str) -> str:
