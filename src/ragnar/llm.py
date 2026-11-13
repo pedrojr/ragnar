@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+import sys
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import httpx
 
@@ -139,11 +141,15 @@ def contextualize(chat: Chat, cfg: Contextual, chunks: list[Chunk], documents: d
         return list(pool.map(one, chunks))
 
 
-def summarize(chat: Chat, cfg: Summaries, files: list[dict]) -> list[str]:
+def summarize(chat: Chat, cfg: Summaries, files: list[dict],
+              on_done: Callable[[dict, str], None] | None = None, skip_errors: bool = False) -> list[str | None]:
     """One summary per file: {"path", "text", "declarations", "refers"} in, sentences out, in order.
 
     A question in business words ("onde calcula a multa da mensalidade atrasada?") rarely shares words with the
     code. A summary written in those words gives the file a way in (Meta-RAG, Code-Craft).
+
+    on_done(file, summary) runs in the calling thread as each summary arrives, so a caller can keep it even if a
+    later call fails. With skip_errors, a failed call leaves None for that file instead of raising.
     """
     language = f"\nWrite in {cfg.language}." if cfg.language else ""
 
@@ -152,5 +158,20 @@ def summarize(chat: Chat, cfg: Summaries, files: list[dict]) -> list[str]:
                                                    declarations=f["declarations"] or "(none)",
                                                    refers=f["refers"] or "(none)") + language)
 
+    out: list[str | None] = [None] * len(files)
     with ThreadPoolExecutor(max_workers=max(1, cfg.concurrency)) as pool:
-        return list(pool.map(one, files))
+        futures = {pool.submit(one, f): i for i, f in enumerate(files)}
+        for future in as_completed(futures):
+            i = futures[future]
+            try:
+                out[i] = future.result()
+            except RagnarError as exc:
+                if not skip_errors:
+                    for pending in futures:
+                        pending.cancel()
+                    raise
+                print(f"summaries: {files[i]['path']} left out: {exc}", file=sys.stderr, flush=True)
+                continue
+            if on_done:
+                on_done(files[i], out[i])
+    return out

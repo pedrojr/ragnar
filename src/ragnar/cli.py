@@ -37,7 +37,7 @@ SERVER_COMMANDS = {"mcp", "embedder", "embed-preload"}
 def cmd_init(args) -> None:
     from .project import init_project
 
-    r = init_project(Path(args.dir), args.preset, args.branch, args.name, args.agents_md, args.force)
+    r = init_project(Path(args.dir), args.preset, args.branch, args.name, not args.no_agent_notes, args.force)
     found = ", ".join(f"{name} ({count})" for name, count in r.languages.most_common()) or "none"
     print(f"project: {r.name}, branch: {r.branch}")
     print(f"languages: {found}")
@@ -45,8 +45,8 @@ def cmd_init(args) -> None:
     for rel in (ENV_FILE, LOCAL_CONFIG_FILE):
         print(f"{rel}: " + ("written" if rel in r.local_written else "kept"))
     print(".gitignore: " + ("updated" if r.gitignore_changed else "already up to date"))
-    if args.agents_md:
-        print("AGENTS.md: " + ("updated" if r.agents_changed else "already up to date"))
+    for name, status in r.agent_notes.items():
+        print(f"{name}: {status}")
 
 
 def cmd_doctor(args) -> None:
@@ -156,7 +156,7 @@ def cmd_search(args) -> None:
     settings = load_settings(overrides=args.set)
     pipeline = Pipeline(settings, from_settings(settings), chat_from(settings), reranker_from(settings))
     with psycopg.connect(read_dsn()) as conn:
-        hits, timing = pipeline.search(conn, [args.repo], args.query, args.k, args.path_prefix)
+        hits, timing = pipeline.search(conn, [args.repo], args.query, args.k, args.path_prefix, args.kind)
     print(render_hits(hits))
     print(", ".join(f"{phase} {seconds * 1000:.0f} ms" for phase, seconds in timing.items()), file=sys.stderr)
 
@@ -278,7 +278,9 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--preset", default="balanced", help="economy, balanced or precise")
     s.add_argument("--branch", help="branch the index follows (default: the repository's default branch)")
     s.add_argument("--name", help="repository name in the index (default: folder name)")
-    s.add_argument("--agents-md", action="store_true", help="adds a search note to AGENTS.md")
+    s.add_argument("--no-agent-notes", action="store_true",
+                   help="leaves AGENTS.md and CLAUDE.md alone (by default, init writes the search rules there)")
+    s.add_argument("--agents-md", action="store_true", help=argparse.SUPPRESS)  # now the default; kept so old scripts still run
     s.add_argument("--force", action="store_true", help="rewrites an existing .ragnar/config.toml")
     s.set_defaults(fn=cmd_init)
 
@@ -329,6 +331,7 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--repo", required=True)
     s.add_argument("-k", type=int)
     s.add_argument("--path-prefix", default="")
+    s.add_argument("--kind", choices=("code", "test", "doc", "summary"))
     with_overrides(s)
     s.set_defaults(fn=cmd_search)
 

@@ -192,6 +192,7 @@ Qualquer endpoint no formato de `/rerank` usado por Jina, Cohere e TEI funciona.
 | `min_lines` | `30` | Arquivos menores ficam sem resumo |
 | `max_chars` | `12000` | Texto do arquivo enviado ao modelo |
 | `concurrency` | `4` | Chamadas paralelas ao modelo |
+| `timeout` | `300.0` | Segundos por chamada ao modelo. `0`: usa `llm.timeout` |
 
 ## `[llm]`
 

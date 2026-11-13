@@ -18,15 +18,15 @@ Goal: leave the project ready to use its code index, with no secret in the repos
 1. Check the prerequisites with `ragnar --version`. If `uv` is missing, send the user to https://docs.astral.sh/uv/getting-started/installation/ and stop.
 2. Ragnarize:
    ```bash
-   ragnar init --preset <preset> --branch <branch> --agents-md
+   ragnar init --preset <preset> --branch <branch>
    ```
-   The command writes `.ragnar/config.toml`, creates `.rag/` with `.env` and `config.local.toml` templates, adds the managed block to `.gitignore`, and appends a search note to `AGENTS.md`. Drop `--agents-md` if the user does not want that file changed.
+   The command writes `.ragnar/config.toml`, creates `.rag/` with `.env` and `config.local.toml` templates, and adds the managed block to `.gitignore`. It also writes the search rules, in a managed block, to `AGENTS.md` and to `CLAUDE.md` when the project has one. A `CLAUDE.md` that imports `@AGENTS.md` is left as it is. Pass `--no-agent-notes` if the user does not want those files changed. In Claude Code, the plugin's hooks repeat the rule at session start and on the first local search.
 3. Show the detected languages. Ask the user to confirm them. Edit `project.languages` and `index.exclude` in `.ragnar/config.toml` if vendored or generated code slipped in.
 4. For a Delphi project, tell the user about binary forms: forms stored as binary (`TPF0`) cannot be indexed. Run `git grep -lI "^object " -- '*.dfm'` and compare against all `.dfm` files. Suggest converting the rest to text in the IDE.
 5. Connect the MCP server. Call the `list_repos` tool.
    - It answers: go to step 6.
    - It fails: the server is unreachable or the token is wrong. Offer the `infra` skill if the user has no server yet. Otherwise tell the user to set `mcp_url` and `mcp_token` in `/plugin` config.
-6. Show the files to commit: `.ragnar/config.toml`, `.gitignore`, and `AGENTS.md`. Never commit `.rag/`. Commit only if the user asks. The worker reads `.ragnar/config.toml` from the tracked branch, so `[index]` settings take effect after they reach that branch.
+6. Show the files to commit: `.ragnar/config.toml`, `.gitignore`, and the instruction files `ragnar init` reported as written or updated. Never commit `.rag/`. Commit only if the user asks. The worker reads `.ragnar/config.toml` from the tracked branch, so `[index]` settings take effect after they reach that branch.
 7. Hand over to the `index` skill for the first index.
 
 ## Rules

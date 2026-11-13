@@ -126,7 +126,15 @@ def test_summaries_with_their_own_provider_ignore_the_llm_endpoint(tmp_path):
     assert chat_settings(s).url == "http://ollama:11434/v1"
 
 
+def test_summaries_have_their_own_timeout(tmp_path):
+    s = load_settings(tmp_path, ['llm.url="http://llm/v1"', 'llm.model="m"', "summaries.enabled=true"], {})
+    assert (summary_settings(s).timeout, chat_settings(s).timeout) == (300.0, 60.0)
+    s = load_settings(tmp_path, ['llm.url="http://llm/v1"', 'llm.model="m"', "summaries.timeout=0", "llm.timeout=20"], {})
+    assert summary_settings(s).timeout == 20.0
+
+
 @pytest.mark.parametrize("text, message", [
+    ("[summaries]\ntimeout = -1\n", "summaries.timeout positive or 0"),
     ("[summaries]\nenabled = true\n", "summaries.enabled requires a chat model"),
     ("[summaries]\nprovider = 'gpt'\n", "summaries.provider must be one of"),
     ("[llm]\nprovider = 'gpt'\n", "llm.provider must be one of"),

@@ -74,7 +74,7 @@ Searching:
 .claude-plugin/   plugin and marketplace manifests
 .mcp.json         MCP connection, filled from the plugin settings
 bin/              the ragnar command, for agents
-hooks/            SessionStart hook
+hooks/            SessionStart and PreToolUse hooks
 skills/           agent workflows
 src/ragnar/       Python package
 tests/            test suite

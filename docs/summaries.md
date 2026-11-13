@@ -154,7 +154,7 @@ ragnar summarize src/Secretaria/uTrancamento.pas --set summaries.provider=anthro
    ragnar search "trancamento de matrícula" --repo myapp
    ```
 
-   Summary hits carry the symbol `(summary)`. Through MCP, `search_code` with `kind = "summary"` returns only summaries.
+   Summary hits carry the symbol `(summary)`. To get only summaries, pass `--kind summary`, or `kind = "summary"` to `search_code` through MCP.
 
 Changing the model, `min_lines`, `language`, `summaries.exclude` or `index.summary_exclude` triggers a full reindex on the next run. Summaries already in the cache for the same model and language are reused.
 
@@ -174,8 +174,9 @@ All keys of `[summaries]`. Empty keys fall back to `[llm]`; see [Configuration](
 | `min_lines` | `30` | Shorter files get no summary |
 | `max_chars` | `12000` | File text sent to the model |
 | `concurrency` | `4` | Parallel model calls. Lower it for Ollama on a small machine |
+| `timeout` | `300.0` | Seconds per model call. `0`: use `llm.timeout`, which guards searches and stays short |
 
-`temperature`, `max_tokens` and `timeout` come from `[llm]`. For Ollama on CPU, raise `llm.timeout` from 60 to 300 seconds.
+`temperature` and `max_tokens` come from `[llm]`. A call that times out leaves only that file without a summary, and the run goes on. The file gets its summary when it changes, or on the next `ragnar index --full`, which asks the model only for the files missing from the cache.
 
 When `summaries.provider` is set, the section stands alone: `url` and `model` never come from `[llm]`. This lets summaries run on Haiku while multi-query runs on Ollama, or the reverse.
 
@@ -187,4 +188,4 @@ When `summaries.provider` is set, the section stands alone: `url` and `model` ne
 | `the anthropic provider needs an API key: set RAGNAR_LLM_API_KEY` | The variable is empty in this process | Add it to `.rag/.env` or `example/.env` |
 | `chat model unavailable at http://127.0.0.1:11434/v1 (ollama): ... refused` | Ollama is not running, or the indexer runs in a container | Start Ollama, or use `url = "http://host.docker.internal:11434/v1"` |
 | `chat model unavailable ... 404` | The model is not pulled, or the name is wrong | `ollama pull <model>`, or check `model` |
-| `chat model unavailable ... timed out` | The model is slow on this machine | Raise `llm.timeout` or lower `summaries.concurrency` |
+| `chat model unavailable ... timed out` | The model is slow on this machine | Raise `summaries.timeout` or lower `summaries.concurrency` |

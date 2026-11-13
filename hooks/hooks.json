@@ -2,12 +2,25 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup",
+        "matcher": "startup|resume|clear|compact",
         "hooks": [
           {
             "type": "command",
             "command": "bash",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Grep|Glob|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pre-search.sh"],
             "timeout": 5
           }
         ]

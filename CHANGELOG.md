@@ -28,6 +28,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `summaries.exclude` on the server and `index.summary_exclude` in a repository leave folders out of file summaries.
 - `ragnar summarize`, to preview summaries of local files with the configured model.
 - [File summaries](docs/summaries.md) guide.
+- `summaries.timeout` (300 seconds): summaries run at index time and no longer share the short `llm.timeout` that guards searches.
+- `ragnar search --kind`, the same filter `search_code` has.
 - `exclude` per repository in `repos.toml`.
 - An interrupted first index resumes from its embedding checkpoint (migration 006).
 - `RAGNAR_BENCH_SUITE` and `RAGNAR_BENCH_DSN` run the benchmark on a private suite, and `benchmark/summarize_suite.py` publishes its aggregates only.
@@ -45,6 +47,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Changed
 
+- `ragnar init` writes the search rules into a managed block in `AGENTS.md`, and in `CLAUDE.md` when the project has one, by default. `--no-agent-notes` turns it off; `--agents-md` still parses. A rerun updates the block and replaces the older appended note. `ragnar doctor` warns when neither file has the rules.
+- The plugin's `SessionStart` hook also runs after `/clear`, resume and compaction, and tells the agent that the project is indexed and that the `search` skill picks the tool. A new `PreToolUse` hook adds a one-line reminder of the index tools to the first `Grep`, `Glob` or shell search of a session. Both run only in projects with `.ragnar/config.toml` and never block a call.
+- The `search` skill starts with three questions that pick between local tools and the index, covers shell `grep`, `rg` and `find`, and says how to check a low-confidence or possibly stale hit.
 - **Breaking:** a project keeps Ragnar's files in two folders. `.ragnar/` is committed and holds `config.toml` (formerly the root `ragnar.toml`) and the golden questions in `eval/`. `.rag/` is ignored by git and holds `config.local.toml` (formerly `ragnar.local.toml`), a `.env` file the CLI loads, and generated reports. Ragnar no longer reads the root files, and `ragnar doctor` points them out. The `mcp` and `embedder` commands never load `.rag/.env`.
 - `ragnar init` writes every key a repository can set into `.ragnar/config.toml`, commented out with its default, and creates the `.rag/` templates. `ragnar eval run` saves its report to `.rag/eval/report.json` by default.
 - **Breaking:** renamed the project from `raglib` to Ragnar, including the CLI, environment variables, database, roles and images. Indexes built by the prototype must be rebuilt.
@@ -68,6 +73,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Fixed
 
+- Each file summary reaches the cache as the model returns it, and a failed model call leaves only that file without a summary. Before, one timeout stopped the whole indexing run and lost every summary already written.
+- A database error in one repository of `ragnar sync` no longer stops the worker: the other repositories and the next pass still run.
 - Accented words stay whole in the lexical index.
 - Comments stay with the declaration that follows them.
 - Folders named `build`, `target` or `Win32` no longer hide real sources.

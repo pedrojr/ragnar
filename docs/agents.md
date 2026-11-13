@@ -12,10 +12,10 @@ Skills and project setup use the `ragnar` command:
 
 ```bash
 uv tool install git+https://github.com/pedrojr/ragnar
-ragnar init --agents-md
+ragnar init
 ```
 
-`--agents-md` adds the search rules to `AGENTS.md`, which many agents read.
+`ragnar init` writes the search rules into a managed block in `AGENTS.md`, which many agents read, and in `CLAUDE.md` when the project has one. A `CLAUDE.md` that imports `@AGENTS.md` is left as it is. Running it again updates only the block. To leave those files alone, pass `--no-agent-notes`.
 
 ## Connect the server
 

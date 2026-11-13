@@ -23,7 +23,25 @@ from .languages import BY_EXTENSION, is_denied
 BEGIN, END = "# >>> ragnar >>>", "# <<< ragnar <<<"
 IGNORED = (f"{LOCAL_DIR}/",)
 LEGACY_FILES = {"ragnar.toml": CONFIG_FILE, "ragnar.local.toml": LOCAL_CONFIG_FILE}  # doctor flags them
-AGENT_NOTE = """
+AGENT_BEGIN, AGENT_END = "<!-- >>> ragnar >>> -->", "<!-- <<< ragnar <<< -->"
+AGENT_HEADING = "## Code search (Ragnar)"
+# Managed block in AGENTS.md and CLAUDE.md: `ragnar init` rewrites what sits between the markers.
+# Self-contained on purpose: agents without the plugin never see the search skill.
+AGENT_NOTE = f"""{AGENT_BEGIN}
+{AGENT_HEADING}
+
+This repository is indexed by Ragnar. On every prompt that needs to find or understand code, follow the
+Ragnar `search` skill before you search; without the skill, apply these rules:
+
+- Concept or behavior, such as "where do we validate tax IDs?": the `search_code` MCP tool.
+- A known name: `find_symbol`. Its callers or uses: `find_references`. What it calls: `call_graph`.
+- An exact string, an error message, or a file changed since the indexed commit: grep, then read the file.
+- A large file: `file_outline`, then read only the lines you need.
+- If the Ragnar tools fail, say so once and continue with local tools.
+{AGENT_END}
+"""
+# The note `ragnar init --agents-md` appended before the managed block existed: replaced on the next init.
+LEGACY_AGENT_NOTE = """
 ## Code search (Ragnar)
 
 This project is indexed by Ragnar. For any question about where or how something works, call the
@@ -31,6 +49,7 @@ This project is indexed by Ragnar. For any question about where or how something
 for a known name, `find_references` for its callers, and `file_outline` before reading a large file.
 Use grep for exact strings and for files changed locally: the index covers the tracked branch.
 """
+AGENT_FILES = ("AGENTS.md", "CLAUDE.md")
 # One line per [index] key a repository owns. A test checks that every key in REPO_OWNED has one.
 INDEX_HELP = {
     "include": 'extra globs indexed by line windows, for example "*.vue"',
@@ -123,6 +142,47 @@ def ensure_gitignore(root: Path) -> bool:
     return True
 
 
+def _upsert_agent_note(path: Path) -> str:
+    """Writes the managed block into one instruction file. Returns what happened, for the report."""
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    if AGENT_BEGIN in text and AGENT_END in text:
+        head, rest = text.split(AGENT_BEGIN, 1)
+        updated = head + AGENT_NOTE + rest.split(AGENT_END, 1)[1].lstrip("\r\n")
+    elif LEGACY_AGENT_NOTE in text:
+        updated = text.replace(LEGACY_AGENT_NOTE, "\n" + AGENT_NOTE, 1)
+    elif AGENT_HEADING in text:
+        return "kept (has a Ragnar section without the managed markers)"
+    else:
+        updated = text + ("" if not text or text.endswith("\n") else "\n") + ("\n" if text else "") + AGENT_NOTE
+    if updated == text:
+        return "already up to date"
+    path.write_text(updated, encoding="utf-8")
+    return "updated" if text else "written"
+
+
+def ensure_agent_notes(root: Path) -> dict[str, str]:
+    """The search rules in AGENTS.md, which most agents read, and in CLAUDE.md when the project has one.
+
+    Claude Code reads CLAUDE.md, not AGENTS.md. A CLAUDE.md that imports @AGENTS.md already gets the rules.
+    """
+    report = {"AGENTS.md": _upsert_agent_note(root / "AGENTS.md")}
+    claude = root / "CLAUDE.md"
+    if claude.is_file():
+        if "@AGENTS.md" in claude.read_text(encoding="utf-8"):
+            report["CLAUDE.md"] = "already imports AGENTS.md"
+        else:
+            report["CLAUDE.md"] = _upsert_agent_note(claude)
+    return report
+
+
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
+
+
+def has_agent_note(root: Path) -> bool:
+    return any(AGENT_HEADING in _read(root / name) for name in AGENT_FILES)
+
+
 def tracked_files(root: Path) -> list[str]:
     listed = _git(root, "ls-files")
     if listed is not None:
@@ -153,11 +213,11 @@ def default_branch(root: Path) -> str:
 class InitReport:
     config_written: bool
     gitignore_changed: bool
-    agents_changed: bool
     name: str
     branch: str
     languages: Counter = field(default_factory=Counter)
     local_written: list[str] = field(default_factory=list)  # files created in .rag/
+    agent_notes: dict[str, str] = field(default_factory=dict)  # instruction file -> what init did to it
 
 
 def _write_once(path: Path, text: str) -> bool:
@@ -168,8 +228,11 @@ def _write_once(path: Path, text: str) -> bool:
 
 
 def init_project(root: Path, preset: str = "balanced", branch: str | None = None, name: str | None = None,
-                 agents_md: bool = False, force: bool = False) -> InitReport:
-    """Idempotent. An existing .ragnar/config.toml stays unless force is set; files in .rag/ always stay."""
+                 agent_notes: bool = True, force: bool = False) -> InitReport:
+    """Idempotent. An existing .ragnar/config.toml stays unless force is set; files in .rag/ always stay.
+
+    agent_notes writes the search rules into AGENTS.md and CLAUDE.md, inside a managed block.
+    """
     if preset not in PRESETS:
         raise RagnarError(f"unknown preset {preset!r}; use one of {', '.join(PRESETS)}")
     root = root.resolve()
@@ -185,14 +248,8 @@ def init_project(root: Path, preset: str = "balanced", branch: str | None = None
     (root / LOCAL_DIR).mkdir(exist_ok=True)
     local_written = [rel for rel, text in ((ENV_FILE, ENV_TEMPLATE), (LOCAL_CONFIG_FILE, LOCAL_CONFIG_TEMPLATE))
                      if _write_once(root / rel, text)]
-    agents_changed = False
-    if agents_md:
-        path = root / "AGENTS.md"
-        text = path.read_text(encoding="utf-8") if path.exists() else ""
-        if "Code search (Ragnar)" not in text:
-            path.write_text(text + AGENT_NOTE, encoding="utf-8")
-            agents_changed = True
-    return InitReport(write, ensure_gitignore(root), agents_changed, project, tracked, languages, local_written)
+    notes = ensure_agent_notes(root) if agent_notes else {}
+    return InitReport(write, ensure_gitignore(root), project, tracked, languages, local_written, notes)
 
 
 @dataclass
@@ -222,6 +279,12 @@ def doctor(root: Path, indexed_commit: str | None = None) -> list[Check]:
     ignored = _git(root, "check-ignore", "-q", "--no-index", f"{LOCAL_DIR}/{Path(ENV_FILE).name}") is not None
     checks.append(Check("ok" if ignored else "warn", f"{LOCAL_DIR}/",
                         "ignored by git" if ignored else "not ignored by git; run `ragnar init`"))
+
+    if has_agent_note(root):
+        checks.append(Check("ok", "agent notes", "search rules in " + " and ".join(
+            name for name in AGENT_FILES if AGENT_HEADING in _read(root / name))))
+    else:
+        checks.append(Check("warn", "agent notes", "no search rules in AGENTS.md or CLAUDE.md; run `ragnar init`"))
 
     branch = settings.project.branch if settings else "main"
     head = _git(root, "rev-parse", "--verify", "--quiet", f"{branch}^{{commit}}")

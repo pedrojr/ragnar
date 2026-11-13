@@ -152,7 +152,9 @@ def apply_secret_policy(found: dict[str, list[str]], blobs: dict[str, bytes], ac
     where = sorted(f"{path}:{line}" for path, lines in found.items() for line in lines)
     if action == "fail":
         raise RagnarError("secret found; indexing cancelled. Rotate the credential and remove it from the repository:\n  "
-                          + "\n  ".join(where))
+                          + "\n  ".join(where)
+                          + "\nIf these are false positives, such as sample keys in tests, the server can set "
+                          'index.secret_action = "skip" to leave these files out of the index.')
     print("secret found; files left out of the index:\n  " + "\n  ".join(where), file=sys.stderr, flush=True)
     for path in found:
         blobs.pop(path, None)
@@ -320,13 +322,26 @@ def summary_chunks(chat, settings: Settings, dsn: str, chunker: Chunker, blobs: 
     missing = [f for f in files if f["hash"] not in cached]
     if missing:
         print(f"summaries: {len(missing)} files to the model, {len(files) - len(missing)} cached", file=sys.stderr, flush=True)
-        fresh = summarize(chat, cfg, missing)
-        with psycopg.connect(dsn, autocommit=True) as conn, conn.cursor() as cur:
-            cur.executemany("INSERT INTO summary_cache (model, source_hash, summary) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-                            [(model, f["hash"], text) for f, text in zip(missing, fresh)])
-        cached |= {f["hash"]: text for f, text in zip(missing, fresh)}
+        # Each summary reaches the cache as it arrives, outside the run's transaction: a run that stops halfway
+        # keeps what the model already wrote. A file whose call fails gets no summary in this run.
+        done = [0]
+        with psycopg.connect(dsn, autocommit=True) as conn:
+            def keep(f: dict, text: str) -> None:
+                conn.execute("INSERT INTO summary_cache (model, source_hash, summary) VALUES (%s, %s, %s) "
+                             "ON CONFLICT DO NOTHING", (model, f["hash"], text))
+                cached[f["hash"]] = text
+                done[0] += 1
+                if done[0] % 10 == 0 or done[0] == len(missing):
+                    print(f"summaries: {done[0]}/{len(missing)}", file=sys.stderr, flush=True)
+
+            summarize(chat, cfg, missing, on_done=keep, skip_errors=True)
+        if failed := len(missing) - done[0]:
+            print(f"summaries: {failed} files left without a summary; they get one when they change "
+                  "or on the next full run (ragnar index --full)", file=sys.stderr, flush=True)
     out = []
     for f in files:
+        if f["hash"] not in cached:
+            continue
         lang = language_for(f["path"])
         comment, language = (lang.comment, lang.name) if lang else ("#", "text")
         content = f"{comment} file: {f['path']}\n{comment} symbol: {SUMMARY_SYMBOL}\n{cached[f['hash']]}"

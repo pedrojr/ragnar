@@ -8,7 +8,22 @@ import tomllib
 from ragnar.cli import SERVER_COMMANDS, main
 from ragnar.config import CONFIG_FILE, ENV_FILE, LOCAL_CONFIG_FILE, REPO_OWNED, Index, Settings, load_settings
 from ragnar.indexer import repo_settings
-from ragnar.project import BEGIN, END, IGNORED, INDEX_HELP, detect_languages, doctor, ensure_gitignore, init_project
+from ragnar.project import (
+    AGENT_BEGIN,
+    AGENT_END,
+    AGENT_HEADING,
+    AGENT_NOTE,
+    BEGIN,
+    END,
+    IGNORED,
+    INDEX_HELP,
+    LEGACY_AGENT_NOTE,
+    detect_languages,
+    doctor,
+    ensure_agent_notes,
+    ensure_gitignore,
+    init_project,
+)
 
 from .test_unit import _git, make_repo
 
@@ -45,8 +60,8 @@ def test_detect_languages_counts_tracked_files(tmp_path):
 
 def test_init_writes_a_valid_config_and_keeps_it(tmp_path):
     repo = make_repo(tmp_path)
-    report = init_project(repo, preset="economy", agents_md=True)
-    assert report.config_written and report.gitignore_changed and report.agents_changed
+    report = init_project(repo, preset="economy")
+    assert report.config_written and report.gitignore_changed and report.agent_notes == {"AGENTS.md": "written"}
     settings = load_settings(repo, environ={})
     assert settings.project.name == "repo" and settings.project.branch == "main"
     assert settings.project.languages == ("go",) and settings.project.preset == "economy"
@@ -56,6 +71,41 @@ def test_init_writes_a_valid_config_and_keeps_it(tmp_path):
     assert not again.config_written and not again.gitignore_changed and again.local_written == []
     assert load_settings(repo, environ={}).project.name == "mine"
     assert (repo / "AGENTS.md").read_text(encoding="utf-8").count("Code search (Ragnar)") == 1
+    assert again.agent_notes == {"AGENTS.md": "already up to date"}
+
+
+def test_agent_notes_go_to_claude_md_unless_it_imports_agents_md(tmp_path):
+    (tmp_path / "CLAUDE.md").write_text("# Team rules\n", encoding="utf-8")
+    assert ensure_agent_notes(tmp_path) == {"AGENTS.md": "written", "CLAUDE.md": "updated"}
+    claude = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert claude.startswith("# Team rules\n\n" + AGENT_BEGIN) and claude.endswith(AGENT_END + "\n")
+    (tmp_path / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
+    assert ensure_agent_notes(tmp_path)["CLAUDE.md"] == "already imports AGENTS.md"
+
+
+def test_agent_note_block_updates_in_place_and_replaces_the_legacy_note(tmp_path):
+    path = tmp_path / "AGENTS.md"
+    path.write_text(f"intro\n{AGENT_BEGIN}\nold rules\n{AGENT_END}\noutro\n", encoding="utf-8")
+    assert ensure_agent_notes(tmp_path)["AGENTS.md"] == "updated"
+    assert path.read_text(encoding="utf-8") == "intro\n" + AGENT_NOTE + "outro\n"
+    path.write_text("# Rules" + LEGACY_AGENT_NOTE + "\n## Other\n", encoding="utf-8")
+    assert ensure_agent_notes(tmp_path)["AGENTS.md"] == "updated"
+    text = path.read_text(encoding="utf-8")
+    assert text.count(AGENT_HEADING) == 1 and AGENT_BEGIN in text and text.endswith("\n## Other\n")
+
+
+def test_agent_note_written_by_hand_is_kept(tmp_path):
+    (tmp_path / "AGENTS.md").write_text(f"{AGENT_HEADING}\nOur own words.\n", encoding="utf-8")
+    assert ensure_agent_notes(tmp_path)["AGENTS.md"].startswith("kept")
+    assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == f"{AGENT_HEADING}\nOur own words.\n"
+
+
+def test_init_can_leave_agent_files_alone(tmp_path, capsys):
+    repo = make_repo(tmp_path)
+    main(["init", "--dir", str(repo), "--no-agent-notes"])
+    assert not (repo / "AGENTS.md").exists() and "AGENTS.md" not in capsys.readouterr().out
+    main(["init", "--dir", str(repo), "--agents-md"])  # the old flag still parses
+    assert "AGENTS.md: written" in capsys.readouterr().out
 
 
 def test_init_creates_both_folders(tmp_path):
@@ -109,7 +159,10 @@ def test_doctor_reports_a_fresh_project(tmp_path):
     repo = make_repo(tmp_path)
     assert levels(doctor(repo))[CONFIG_FILE] == "fail"
     init_project(repo)
-    assert levels(doctor(repo)) == {CONFIG_FILE: "ok", ".rag/": "ok", "branch": "ok", "working tree": "ok"}
+    assert levels(doctor(repo)) == {CONFIG_FILE: "ok", ".rag/": "ok", "agent notes": "ok", "branch": "ok",
+                                    "working tree": "ok"}
+    (repo / "AGENTS.md").unlink()
+    assert levels(doctor(repo))["agent notes"] == "warn"
 
 
 def test_doctor_flags_an_unignored_local_folder_and_stray_root_files(tmp_path):

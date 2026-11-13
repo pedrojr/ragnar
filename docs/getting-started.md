@@ -66,13 +66,16 @@ The skill runs `ragnar init`, which detects the languages and the default branch
 | `.ragnar/config.toml` | Yes | Project name, branch, preset, languages, and the `[index]` keys a repository may set, commented out with their defaults |
 | `.ragnar/eval/golden.jsonl` | Yes | Evaluation questions. Created by `/ragnar:evaluate` |
 | `.gitignore` | Yes | The managed block that ignores `.rag/` |
+| `AGENTS.md`, and `CLAUDE.md` if it exists | Yes | A managed block with the search rules: when to use the index and when to use grep. Skip it with `--no-agent-notes` |
 | `.rag/.env` | Never | Secrets for the `ragnar` command, commented out: `RAGNAR_DSN_READ`, `RAGNAR_MCP_TOKEN` and the embedding, rerank and LLM API keys |
 | `.rag/config.local.toml` | Never | Your personal overrides |
 | `.rag/eval/` | Never | Evaluation reports |
 
 The command loads `.rag/.env` at startup and never replaces a variable already set in your shell. The server never reads it. Compose reads the server's keys from `example/.env`.
 
-When it worked, `ragnar init` prints `.ragnar/config.toml: written`, `.rag/.env: written`, `.rag/config.local.toml: written` and `.gitignore: updated`. Running it again is safe: it keeps existing files.
+When it worked, `ragnar init` prints `.ragnar/config.toml: written`, `.rag/.env: written`, `.rag/config.local.toml: written`, `.gitignore: updated` and `AGENTS.md: written`. Running it again is safe: it keeps existing files and rewrites only the managed blocks.
+
+In Claude Code, the plugin's hooks repeat the rule without spending a turn. At session start, and again after `/clear` or a compaction, the agent learns that the project is indexed and that the `search` skill picks the tool. On its first `Grep`, `Glob` or shell `grep` of the session, it gets a one-line reminder of the index tools. The hooks run only in projects with a `.ragnar/config.toml`, and they never block a call.
 
 Commit `.ragnar/` and `.gitignore`. The worker reads `.ragnar/config.toml` from the tracked branch, so `[index]` changes take effect once they reach that branch. See [Configuration](configuration.md).
 

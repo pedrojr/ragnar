@@ -19,7 +19,7 @@ import pytest
 from psycopg.conninfo import make_conninfo
 
 from ragnar.acl import hash_token
-from ragnar.config import load_settings
+from ragnar.config import RagnarError, load_settings
 from ragnar.embedder import FakeEmbedder
 from ragnar.indexer import index
 from ragnar.migrate import migrate, resize_embeddings
@@ -206,6 +206,29 @@ def test_file_summaries_are_cached_and_stay_out_of_line_tools(dsn, tmp_path, mon
         assert "widget/button.go" in kinds
         read = read_code(conn, ["sums"], "widget/button.go", 1, 1)
         assert read["lines"][0] == (1, "package widget")
+
+
+def test_a_failed_summary_keeps_the_others_and_the_index(dsn, tmp_path, monkeypatch):
+    class Flaky:
+        def complete(self, prompt: str) -> str:
+            if 'path="widget/button.go"' in prompt:
+                raise RagnarError("chat model unavailable at http://llm (ollama): timed out")
+            return "Handles the orders."
+
+    monkeypatch.setattr("ragnar.indexer.summary_chat_from", lambda settings: Flaky())
+    repo, emb = make_repo(tmp_path), FakeEmbedder(768)
+    (repo / "orders.py").write_text("def total(items):\n    return sum(items)\n\n\ndef count(items):\n"
+                                    "    return len(items)\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "orders")
+    settings = load_settings(tmp_path, overrides=["summaries.enabled=true", "summaries.min_lines=3",
+                                                  'llm.url="http://llm"', 'llm.model="flaky"'], environ={})
+    r = index(str(repo), "sumsf", dsn, emb, settings, scan=False)
+    assert r.mode == "full" and r.chunks > 0
+    with psycopg.connect(dsn) as conn:
+        paths = {p for (p,) in conn.execute("SELECT path FROM code_chunk WHERE repo = 'sumsf' AND kind = 'summary'")}
+        cached = conn.execute("SELECT count(*) FROM summary_cache WHERE model = 'flaky'").fetchone()[0]
+    assert "widget/button.go" not in paths and paths and cached == len(paths)
 
 
 def test_excluded_directories_get_no_summary(dsn, tmp_path, monkeypatch):

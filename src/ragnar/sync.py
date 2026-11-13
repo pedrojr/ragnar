@@ -24,6 +24,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import psycopg
+
 from .config import RagnarError, Settings
 from .embedder import Embedder, FakeEmbedder
 from .indexer import Result, index
@@ -84,9 +86,11 @@ def sync_once(repos: list[RepoSource], dsn: str, emb: Embedder | FakeEmbedder, s
             results.append(result)
             print(f"{result.repo}: {result.mode} at {result.commit_sha[:12]}: {result.files} files, "
                   f"{result.chunks} chunks, {result.seconds}s", flush=True)
-        except RagnarError as exc:
-            errors.append(f"{source.name}: {exc}")
-            print(f"error: {source.name}: {exc}", file=sys.stderr, flush=True)
+        except (RagnarError, psycopg.Error) as exc:
+            # a database that drops mid-pass fails this repository; the next ones and the next pass still run
+            message = str(exc).strip() if isinstance(exc, RagnarError) else f"database error: {str(exc).strip()}"
+            errors.append(f"{source.name}: {message}")
+            print(f"error: {source.name}: {message}", file=sys.stderr, flush=True)
     return results, errors
 
 

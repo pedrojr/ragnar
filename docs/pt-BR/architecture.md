@@ -74,7 +74,7 @@ Busca:
 .claude-plugin/   manifestos do plugin e do marketplace
 .mcp.json         conexão MCP, preenchida pelas opções do plugin
 bin/              o comando ragnar, para os agentes
-hooks/            hook de SessionStart
+hooks/            hooks de SessionStart e PreToolUse
 skills/           fluxos para agentes
 src/ragnar/       pacote Python
 tests/            testes

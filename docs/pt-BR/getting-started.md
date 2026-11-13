@@ -66,13 +66,16 @@ A skill roda `ragnar init`, que detecta as linguagens e o branch padrão, cria o
 | `.ragnar/config.toml` | Sim | Nome do projeto, branch, preset, linguagens e as chaves de `[index]` que um repositório pode definir, comentadas com os valores padrão |
 | `.ragnar/eval/golden.jsonl` | Sim | Perguntas de avaliação. Criado por `/ragnar:evaluate` |
 | `.gitignore` | Sim | O bloco gerenciado que ignora `.rag/` |
+| `AGENTS.md`, e `CLAUDE.md` se existir | Sim | Um bloco gerenciado com as regras de busca: quando usar o índice e quando usar grep. Pule com `--no-agent-notes` |
 | `.rag/.env` | Nunca | Segredos do comando `ragnar`, comentados: `RAGNAR_DSN_READ`, `RAGNAR_MCP_TOKEN` e as chaves de API de embedding, rerank e LLM |
 | `.rag/config.local.toml` | Nunca | Seus ajustes pessoais |
 | `.rag/eval/` | Nunca | Relatórios de avaliação |
 
 O comando carrega `.rag/.env` ao iniciar e nunca substitui uma variável já definida no seu shell. O servidor nunca o lê. O Compose lê as chaves do servidor em `example/.env`.
 
-Quando deu certo, o `ragnar init` imprime `.ragnar/config.toml: written`, `.rag/.env: written`, `.rag/config.local.toml: written` e `.gitignore: updated`. Rodar de novo é seguro: ele mantém os arquivos existentes.
+Quando deu certo, o `ragnar init` imprime `.ragnar/config.toml: written`, `.rag/.env: written`, `.rag/config.local.toml: written`, `.gitignore: updated` e `AGENTS.md: written`. Rodar de novo é seguro: ele mantém os arquivos existentes e reescreve só os blocos gerenciados.
+
+No Claude Code, os hooks do plugin repetem a regra sem gastar um turno. No início da sessão, e de novo depois de `/clear` ou de uma compactação, o agente fica sabendo que o projeto está indexado e que a skill `search` escolhe a ferramenta. No primeiro `Grep`, `Glob` ou `grep` no shell da sessão, ele recebe um lembrete de uma linha com as ferramentas do índice. Os hooks só rodam em projetos com `.ragnar/config.toml` e nunca bloqueiam uma chamada.
 
 Faça commit de `.ragnar/` e `.gitignore`. O worker lê o `.ragnar/config.toml` do branch acompanhado, então mudanças em `[index]` valem quando chegam a esse branch. Veja [Configuração](configuration.md).
 

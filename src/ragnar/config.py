@@ -143,6 +143,9 @@ class Summaries:
     concurrency: int = 4
     exclude: tuple[str, ...] = ()  # globs, or directories ending in /, left out of file summaries
     language: str = ""  # language the summaries are written in, e.g. "Brazilian Portuguese"; empty: the model picks
+    # Seconds per model call. Summaries run at index time, often on a local model that queues requests,
+    # so they get more time than llm.timeout, which guards searches. 0: use llm.timeout.
+    timeout: float = 300.0
     # The model that writes the summaries. Empty keys fall back to [llm]. Setting provider here
     # makes the section stand alone: url and model then come from the provider defaults, not [llm].
     provider: str = ""  # "" | openai | ollama | anthropic
@@ -273,6 +276,8 @@ def _validate(s: Settings) -> None:
     if s.summaries.enabled and not (summary.url and summary.model):
         raise RagnarError("summaries.enabled requires a chat model: set summaries.provider (ollama | anthropic), "
                           "or summaries.url and summaries.model, or the same keys in [llm]")
+    if s.summaries.timeout < 0 or s.llm.timeout <= 0:
+        raise RagnarError("llm.timeout must be positive, and summaries.timeout positive or 0 (use llm.timeout)")
     if s.index.window_overlap >= s.index.window_lines:
         raise RagnarError("index.window_overlap must be smaller than index.window_lines")
 
@@ -290,13 +295,14 @@ def summary_settings(s: Settings) -> Llm:
     another provider. The key variable and the request limits still do.
     """
     own = s.summaries
+    timeout = own.timeout or s.llm.timeout
     if not own.provider:
         base = chat_settings(dataclasses.replace(s, llm=dataclasses.replace(
             s.llm, url=own.url or s.llm.url, model=own.model or s.llm.model)))
-        return dataclasses.replace(base, api_key_env=own.api_key_env or s.llm.api_key_env)
+        return dataclasses.replace(base, api_key_env=own.api_key_env or s.llm.api_key_env, timeout=timeout)
     url, model = PROVIDERS[own.provider]
     return dataclasses.replace(s.llm, provider=own.provider, url=own.url or url, model=own.model or model,
-                               api_key_env=own.api_key_env or s.llm.api_key_env)
+                               api_key_env=own.api_key_env or s.llm.api_key_env, timeout=timeout)
 
 
 def matches_path(patterns: tuple[str, ...], path: str) -> bool:

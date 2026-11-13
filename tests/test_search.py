@@ -205,6 +205,22 @@ def test_summarize_asks_for_the_configured_language():
     assert Recorder.prompt.endswith("Write in Brazilian Portuguese.")
 
 
+def test_summarize_reports_each_summary_and_can_skip_failures():
+    class Flaky:
+        def complete(self, prompt):
+            if 'path="bad.pas"' in prompt:
+                raise RagnarError("chat model unavailable at http://llm (ollama): timed out")
+            return "ok"
+
+    files = [{"path": p, "text": "begin end.", "declarations": "", "refers": ""} for p in ("a.pas", "bad.pas", "c.pas")]
+    seen = []
+    out = llm.summarize(Flaky(), Summaries(concurrency=2), files, on_done=lambda f, s: seen.append(f["path"]),
+                        skip_errors=True)
+    assert out == ["ok", None, "ok"] and sorted(seen) == ["a.pas", "c.pas"]
+    with pytest.raises(RagnarError, match="timed out"):
+        llm.summarize(Flaky(), Summaries(concurrency=1), files)
+
+
 def test_chat_failure_is_a_clear_error():
     chat = llm.Chat(Llm(url="http://model.test/v1", model="any"))
     chat._client = mock_client(lambda _: httpx.Response(500))

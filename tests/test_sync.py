@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import threading
 
+import psycopg
 import pytest
 
 from ragnar.config import RagnarError, load_settings
@@ -76,6 +77,18 @@ def test_one_failure_does_not_stop_the_other_repositories(tmp_path):
     results, errors = sync_once(repos, "dsn", FakeEmbedder(8), load_settings(tmp_path, environ={}), fake_index)
     assert calls == [("bad", "main"), ("good", "develop")]
     assert [r.repo for r in results] == ["good"] and errors == ["bad: secret found"]
+
+
+def test_a_database_error_fails_only_its_repository(tmp_path):
+    def fake_index(url, name, dsn, emb, settings, ref, git_env):
+        if name == "bad":
+            raise psycopg.OperationalError("server closed the connection unexpectedly")
+        return Result(name, "unchanged", "a" * 40, 0, 0, 0, 0.0)
+
+    repos = [RepoSource("bad", "u"), RepoSource("good", "u")]
+    results, errors = sync_once(repos, "dsn", FakeEmbedder(8), load_settings(tmp_path, environ={}), fake_index)
+    assert [r.repo for r in results] == ["good"]
+    assert errors == ["bad: database error: server closed the connection unexpectedly"]
 
 
 def test_watch_rereads_the_repository_list_on_each_pass(tmp_path, monkeypatch):
