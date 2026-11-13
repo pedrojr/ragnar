@@ -68,7 +68,8 @@ WITH seed AS (
 ), near AS (SELECT * FROM callee UNION ALL SELECT * FROM caller)
 SELECT c.id FROM near
 JOIN code_chunk c ON c.repo = near.repo AND c.path = near.path AND c.start_line <= near.line AND c.end_line >= near.line
-WHERE c.id <> ALL(%(ids)s)
+WHERE c.id <> ALL(%(ids)s) AND c.repo = ANY(%(repos)s) AND c.path LIKE %(prefix)s ESCAPE '\\'
+  AND (%(kind)s::text IS NULL OR c.kind = %(kind)s)
 GROUP BY c.id ORDER BY min(near.ord), count(*) DESC, c.id LIMIT %(limit)s"""
 CHARS_PER_TOKEN = 4  # rough on purpose: the budget only needs the order of magnitude
 RANK_WEIGHTS = [0.1, 0.2, 0.2, 0.5]  # D (body), C (unused), B (string literals), A (path and symbol)
@@ -508,7 +509,7 @@ class Pipeline:
         scores = fused_scores(ranked, cfg.rrf_k)
         if cfg.graph_weight:
             seeds = sorted(scores, key=lambda i: (-scores[i], i))[: cfg.graph_seeds]
-            self.graph_ids = [r[0] for r in conn.execute(GRAPH_SQL, {"ids": seeds, "limit": cfg.candidates}).fetchall()]
+            self.graph_ids = [r[0] for r in conn.execute(GRAPH_SQL, {**base, "ids": seeds}).fetchall()]
             if self.graph_ids:
                 ranked.append((cfg.graph_weight, self.graph_ids))
                 scores = fused_scores(ranked, cfg.rrf_k)

@@ -77,7 +77,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - An error in one repository of `ragnar sync`, from the database or unexpected, no longer stops the worker: the other repositories and the next pass still run.
 - A repository's `.ragnar/config.toml` can no longer hang or crash the index worker. `[index]` sizes must be positive, `legacy_encoding` must name a known encoding, and `[index]` and `[project]` must be tables.
 - Fetches and clones give up on a stalled connection instead of freezing the worker.
-- Tree paths with `..` or a leading `/` are left out of the index, and the secret scan refuses to write outside its folder. Git hosts reject such trees, but a local source or a host without fsck could carry one.
+- With `retrieval.graph_weight` on, graph neighbors honor `path_prefix` and `kind` like the other lists.
+- Tree paths with `..`, a leading `/` or a control character such as a newline are left out of the index, and the secret scan refuses to write outside its folder. Git hosts reject such trees, but a local source or a host without fsck could carry one.
 - `search_code` calls the embedder, the chat model and the reranker without holding a database connection, and waits at most 10 seconds per query vector. Before, a stalled embedder could take every pooled connection and fail the readiness check of every MCP replica.
 - `exclude` in `repos.toml` and `repos` in the ACL must be lists. A string used to become its characters, so `"vendor/*"` excluded every file through its `*`.
 - `project.languages` must name known languages, such as `python`, instead of indexing nothing for an unknown name.

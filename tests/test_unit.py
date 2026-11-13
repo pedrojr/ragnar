@@ -132,6 +132,7 @@ def test_acl_repos_must_be_a_list(tmp_path):
 @pytest.mark.parametrize(("path", "safe"), [
     ("src/a.py", True), (".github/workflows/ci.yml", True), ("a..b/c", True),
     ("a/../../x.py", False), ("../x", False), ("./x", False), ("/etc/passwd", False), ("a//b", False), ("", False),
+    ("x\nz.py", False), ("a\tb", False),
 ])
 def test_safe_path_keeps_tree_paths_inside_the_checkout(path, safe):
     assert safe_path(path) is safe

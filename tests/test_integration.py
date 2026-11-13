@@ -204,6 +204,13 @@ def test_code_graph_links_a_button_to_the_table_it_writes(dsn, tmp_path):
         pipeline = Pipeline(one_seed, emb)
         hits, _ = pipeline.search(conn, ["shop"], "btnSaveClick", k=5)
         assert pipeline.graph_ids and hits[0]["id"] not in pipeline.graph_ids
+        # graph neighbors honor the same filters as the other lists
+        pipeline.search(conn, ["shop"], "btnSaveClick", k=5)
+        everywhere = conn.execute("SELECT DISTINCT path FROM code_chunk WHERE id = ANY(%s)", (pipeline.graph_ids,)).fetchall()
+        assert ("OrderRepo.pas",) in everywhere  # the callee of the button handler
+        pipeline.search(conn, ["shop"], "btnSaveClick", k=5, path_prefix="Order.")
+        paths = conn.execute("SELECT DISTINCT path FROM code_chunk WHERE id = ANY(%s)", (pipeline.graph_ids,)).fetchall()
+        assert all(p.startswith("Order.") for (p,) in paths)
 
 
 def test_file_summaries_are_cached_and_stay_out_of_line_tools(dsn, tmp_path, monkeypatch):

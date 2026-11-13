@@ -99,6 +99,8 @@ def safe_path(path: str) -> bool:
     every path to disk."""
     if os.name == "nt" and ("\\" in path or ":" in path):  # separators and drive letters only on Windows
         return False
+    if any(ord(ch) < 32 for ch in path):  # a newline would break the `git cat-file --batch` protocol
+        return False
     return bool(path) and not path.startswith("/") and all(part not in ("", ".", "..") for part in path.split("/"))
 
 
