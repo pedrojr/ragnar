@@ -40,7 +40,12 @@ def build_app() -> Starlette:
         return [v.tolist() for v in model.embed(texts, batch_size=batch_size)]
 
     async def embeddings(request: Request) -> Response:
-        body = await request.json()
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        if not isinstance(body, dict):
+            return JSONResponse({"error": "the body must be a JSON object"}, status_code=400)
         texts = body.get("input")
         if isinstance(texts, str):
             texts = [texts]
