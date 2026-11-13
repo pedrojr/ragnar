@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import tomllib
 
+import pytest
+
 from ragnar.cli import SERVER_COMMANDS, main
 from ragnar.config import CONFIG_FILE, ENV_FILE, LOCAL_CONFIG_FILE, REPO_OWNED, Index, Settings, load_settings
 from ragnar.indexer import repo_settings
@@ -98,6 +100,25 @@ def test_agent_note_written_by_hand_is_kept(tmp_path):
     (tmp_path / "AGENTS.md").write_text(f"{AGENT_HEADING}\nOur own words.\n", encoding="utf-8")
     assert ensure_agent_notes(tmp_path)["AGENTS.md"].startswith("kept")
     assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == f"{AGENT_HEADING}\nOur own words.\n"
+
+
+@pytest.mark.parametrize("eol", ["\n", "\r\n"])
+def test_managed_blocks_keep_the_line_endings_of_the_file(tmp_path, eol):
+    for name in ("AGENTS.md", ".gitignore"):
+        (tmp_path / name).write_bytes(f"one{eol}two{eol}".encode())
+    ensure_agent_notes(tmp_path), ensure_gitignore(tmp_path)
+    for name in ("AGENTS.md", ".gitignore"):
+        raw = (tmp_path / name).read_bytes()
+        assert raw.startswith(f"one{eol}two{eol}".encode()) and raw.count(b"\n") == raw.count(eol.encode())
+
+
+def test_markers_out_of_order_are_left_to_the_owner(tmp_path):
+    text = f"mentions {AGENT_END} first\nmine\n{AGENT_BEGIN}\nmore of mine\n"
+    (tmp_path / "AGENTS.md").write_text(text, encoding="utf-8", newline="\n")
+    assert ensure_agent_notes(tmp_path)["AGENTS.md"].startswith("kept")
+    assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == text
+    (tmp_path / ".gitignore").write_text(f"{BEGIN}\nmine\n", encoding="utf-8", newline="\n")
+    assert ensure_gitignore(tmp_path) is False
 
 
 def test_init_can_leave_agent_files_alone(tmp_path, capsys):

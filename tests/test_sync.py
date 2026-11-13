@@ -91,6 +91,19 @@ def test_a_database_error_fails_only_its_repository(tmp_path):
     assert errors == ["bad: database error: server closed the connection unexpectedly"]
 
 
+def test_an_unexpected_error_fails_only_its_repository(tmp_path, capsys):
+    def fake_index(url, name, dsn, emb, settings, ref, git_env):
+        if name == "bad":
+            raise LookupError("unknown encoding: nope")
+        return Result(name, "unchanged", "a" * 40, 0, 0, 0, 0.0)
+
+    repos = [RepoSource("bad", "u"), RepoSource("good", "u")]
+    results, errors = sync_once(repos, "dsn", FakeEmbedder(8), load_settings(tmp_path, environ={}), fake_index)
+    assert [r.repo for r in results] == ["good"]
+    assert errors == ["bad: unexpected LookupError: unknown encoding: nope"]
+    assert "Traceback" in capsys.readouterr().err
+
+
 def test_watch_rereads_the_repository_list_on_each_pass(tmp_path, monkeypatch):
     lists = [[RepoSource("a", "u")], [RepoSource("a", "u"), RepoSource("b", "u")]]
     seen, stop = [], threading.Event()

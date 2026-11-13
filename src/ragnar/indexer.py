@@ -55,12 +55,27 @@ def scrub(text: str) -> str:
     return URL_CREDENTIALS.sub("***@", text)
 
 
-def git(repo_dir: Path, *args: str, input: bytes | None = None, env: dict[str, str] | None = None) -> bytes:
-    r = subprocess.run(["git", "-C", str(repo_dir), *args], input=input, capture_output=True,
-                       env={**os.environ, "GIT_TERMINAL_PROMPT": "0", **(env or {})})
+# A stalled connection must not freeze the worker for every repository: below 1 KB/s for 2 minutes, git gives
+# up over HTTP; NETWORK_TIMEOUT bounds a fetch or clone over any transport.
+GIT_ENV = {"GIT_TERMINAL_PROMPT": "0", "GIT_HTTP_LOW_SPEED_LIMIT": "1000", "GIT_HTTP_LOW_SPEED_TIME": "120"}
+NETWORK_TIMEOUT = 3600.0
+
+
+def _run_git(cmd: list[str], what: str, input: bytes | None, env: dict[str, str] | None,
+             timeout: float | None) -> bytes:
+    try:
+        r = subprocess.run(cmd, input=input, capture_output=True, timeout=timeout,
+                           env={**os.environ, **GIT_ENV, **(env or {})})
+    except subprocess.TimeoutExpired:
+        raise RagnarError(f"{what}: no answer after {timeout:.0f}s") from None
     if r.returncode != 0:
-        raise RagnarError(f"git {' '.join(args)}: {scrub(r.stderr.decode(errors='replace').strip())}")
+        raise RagnarError(f"{what}: {scrub(r.stderr.decode(errors='replace').strip())}")
     return r.stdout
+
+
+def git(repo_dir: Path, *args: str, input: bytes | None = None, env: dict[str, str] | None = None,
+        timeout: float | None = None) -> bytes:
+    return _run_git(["git", "-C", str(repo_dir), *args], f"git {' '.join(args)}", input, env, timeout)
 
 
 def resolve_source(source: str, name: str, env: dict[str, str] | None = None) -> Path:
@@ -70,13 +85,11 @@ def resolve_source(source: str, name: str, env: dict[str, str] | None = None) ->
         return local
     mirror = CACHE_DIR / f"{name}.git"
     if mirror.exists():
-        git(mirror, "remote", "update", "--prune", env=env)
+        git(mirror, "remote", "update", "--prune", env=env, timeout=NETWORK_TIMEOUT)
     else:
         mirror.parent.mkdir(parents=True, exist_ok=True)
-        r = subprocess.run(["git", "clone", "--mirror", source, str(mirror)], capture_output=True,
-                           env={**os.environ, "GIT_TERMINAL_PROMPT": "0", **(env or {})})
-        if r.returncode != 0:
-            raise RagnarError(f"git clone {scrub(source)}: {scrub(r.stderr.decode(errors='replace').strip())}")
+        _run_git(["git", "clone", "--mirror", source, str(mirror)], f"git clone {scrub(source)}", None, env,
+                 NETWORK_TIMEOUT)
     return mirror
 
 
@@ -133,7 +146,10 @@ def secret_scan(files: dict[str, bytes]) -> dict[str, list[str]]:
                    "--report-format", "json", "--report-path", "/scan/report.json"]
         else:
             raise RagnarError("gitleaks not found (and no docker to run its image). Install it to index.")
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=NETWORK_TIMEOUT)  # docker may pull
+        except subprocess.TimeoutExpired:
+            raise RagnarError(f"gitleaks: no answer after {NETWORK_TIMEOUT:.0f}s") from None
         if r.returncode == 0:
             return {}
         findings = json.loads(report.read_text(encoding="utf-8") or "[]") if report.exists() else []

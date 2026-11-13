@@ -176,7 +176,7 @@ All keys of `[summaries]`. Empty keys fall back to `[llm]`; see [Configuration](
 | `concurrency` | `4` | Parallel model calls. Lower it for Ollama on a small machine |
 | `timeout` | `300.0` | Seconds per model call. `0`: use `llm.timeout`, which guards searches and stays short |
 
-`temperature` and `max_tokens` come from `[llm]`. A call that times out leaves only that file without a summary, and the run goes on. The file gets its summary when it changes, or on the next `ragnar index --full`, which asks the model only for the files missing from the cache.
+`temperature` and `max_tokens` come from `[llm]`. A call that times out leaves only that file without a summary, and the run goes on. The file gets its summary when it changes, or on the next `ragnar index --full`, which asks the model only for the files missing from the cache. After three failed calls in a row, Ragnar treats the model as down and stops the run. The index keeps the previous commit, the summaries written so far stay in the cache, and the next run picks up from there.
 
 When `summaries.provider` is set, the section stands alone: `url` and `model` never come from `[llm]`. This lets summaries run on Haiku while multi-query runs on Ollama, or the reverse.
 

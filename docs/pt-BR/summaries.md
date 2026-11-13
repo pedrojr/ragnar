@@ -176,7 +176,7 @@ Todas as chaves de `[summaries]`. Chaves vazias usam o valor de `[llm]`; veja [C
 | `concurrency` | `4` | Chamadas paralelas ao modelo. Reduza para o Ollama em uma máquina pequena |
 | `timeout` | `300.0` | Segundos por chamada ao modelo. `0`: usa `llm.timeout`, que protege as buscas e fica curto |
 
-`temperature` e `max_tokens` vêm de `[llm]`. Uma chamada que estoura o tempo deixa sem resumo só aquele arquivo, e a execução continua. O arquivo ganha o resumo quando mudar, ou no próximo `ragnar index --full`, que pede ao modelo só os arquivos que faltam no cache.
+`temperature` e `max_tokens` vêm de `[llm]`. Uma chamada que estoura o tempo deixa sem resumo só aquele arquivo, e a execução continua. O arquivo ganha o resumo quando mudar, ou no próximo `ragnar index --full`, que pede ao modelo só os arquivos que faltam no cache. Depois de três chamadas seguidas com falha, o Ragnar considera o modelo fora do ar e para a execução. O índice fica no commit anterior, os resumos já feitos ficam no cache, e a próxima execução continua dali.
 
 Quando `summaries.provider` está definido, a seção fica independente: `url` e `model` nunca vêm de `[llm]`. Assim os resumos podem rodar no Haiku enquanto o multi-query roda no Ollama, ou o contrário.
 

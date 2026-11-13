@@ -61,7 +61,7 @@ def run(q: dict, entry: dict, arm: str, model: str, budget: float, mcp_config: s
     cmd = ["claude", "-p", PROMPT.format(question=q["query"]), "--model", model, "--output-format", "stream-json", "--verbose",
            "--no-session-persistence", "--setting-sources", "project", "--tools", LOCAL_TOOLS, "--allowedTools", tools,
            "--max-budget-usd", str(budget), "--strict-mcp-config", "--disable-slash-commands"]
-    if arm == "ragnar":  # the note `ragnar init --agents-md` adds to a project
+    if arm == "ragnar":  # the search rules `ragnar init` writes into a project's AGENTS.md
         cmd += ["--mcp-config", mcp_config, "--append-system-prompt", AGENT_NOTE]
     env = {k: v for k, v in os.environ.items() if not SKIP_ENV.match(k)}
     t0 = time.perf_counter()

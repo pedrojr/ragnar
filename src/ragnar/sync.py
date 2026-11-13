@@ -20,6 +20,7 @@ import signal
 import sys
 import threading
 import tomllib
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -91,6 +92,10 @@ def sync_once(repos: list[RepoSource], dsn: str, emb: Embedder | FakeEmbedder, s
             message = str(exc).strip() if isinstance(exc, RagnarError) else f"database error: {str(exc).strip()}"
             errors.append(f"{source.name}: {message}")
             print(f"error: {source.name}: {message}", file=sys.stderr, flush=True)
+        except Exception as exc:  # a bug, or input nobody foresaw: log it and keep the worker serving the others
+            errors.append(f"{source.name}: unexpected {type(exc).__name__}: {exc}")
+            print(f"error: {source.name}: unexpected error", file=sys.stderr, flush=True)
+            traceback.print_exc()
     return results, errors
 
 

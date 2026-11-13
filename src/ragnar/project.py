@@ -125,38 +125,65 @@ def _git(root: Path, *args: str) -> str | None:
     return r.stdout.strip() if r.returncode == 0 else None
 
 
+def _read_lf(path: Path) -> tuple[str, str]:
+    """The text with LF line endings, and the line ending the file uses, so a rewrite keeps it."""
+    if not path.exists():
+        return "", "\n"
+    with path.open(encoding="utf-8", newline="") as f:  # Path.read_text takes newline only from Python 3.13
+        raw = f.read()
+    return raw.replace("\r\n", "\n"), "\r\n" if "\r\n" in raw else "\n"
+
+
+def _write_eol(path: Path, text: str, eol: str) -> None:
+    path.write_text(text.replace("\n", eol), encoding="utf-8", newline="")
+
+
+def _replace_block(text: str, begin: str, end: str, block: str) -> str | None:
+    """Swaps the block between the markers; None when they are missing or out of order."""
+    head, found, rest = text.partition(begin)
+    if not found or end not in rest:
+        return None
+    return head + block + rest.split(end, 1)[1].lstrip("\n")
+
+
+def _append(text: str, block: str) -> str:
+    return text + ("" if not text or text.endswith("\n") else "\n") + ("\n" if text else "") + block
+
+
 def ensure_gitignore(root: Path) -> bool:
     """Adds the managed block to .gitignore. Returns True when the file changed."""
     path = root / ".gitignore"
-    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    text, eol = _read_lf(path)
     block = "\n".join((BEGIN, *IGNORED, END)) + "\n"
-    if BEGIN in text and END in text:
-        head, rest = text.split(BEGIN, 1)
-        tail = rest.split(END, 1)[1].lstrip("\r\n")
-        updated = head + block + tail
-    else:
-        updated = text + ("" if not text or text.endswith("\n") else "\n") + ("\n" if text else "") + block
+    updated = _replace_block(text, BEGIN, END, block)
+    if updated is None and BEGIN in text:
+        return False  # a begin marker without its end: leave the file to its owner, as the session hook does
+    if updated is None:
+        updated = _append(text, block)
     if updated == text:
         return False
-    path.write_text(updated, encoding="utf-8")
+    _write_eol(path, updated, eol)
     return True
 
 
 def _upsert_agent_note(path: Path) -> str:
     """Writes the managed block into one instruction file. Returns what happened, for the report."""
-    text = path.read_text(encoding="utf-8") if path.exists() else ""
-    if AGENT_BEGIN in text and AGENT_END in text:
-        head, rest = text.split(AGENT_BEGIN, 1)
-        updated = head + AGENT_NOTE + rest.split(AGENT_END, 1)[1].lstrip("\r\n")
+    text, eol = _read_lf(path)
+    updated = _replace_block(text, AGENT_BEGIN, AGENT_END, AGENT_NOTE)
+    if updated is not None:
+        pass
+    elif AGENT_BEGIN in text or AGENT_END in text:
+        # one marker alone, or both out of order: a rewrite could swallow the text between them
+        return "kept (the Ragnar markers are incomplete or out of order; fix them by hand)"
     elif LEGACY_AGENT_NOTE in text:
         updated = text.replace(LEGACY_AGENT_NOTE, "\n" + AGENT_NOTE, 1)
     elif AGENT_HEADING in text:
         return "kept (has a Ragnar section without the managed markers)"
     else:
-        updated = text + ("" if not text or text.endswith("\n") else "\n") + ("\n" if text else "") + AGENT_NOTE
+        updated = _append(text, AGENT_NOTE)
     if updated == text:
         return "already up to date"
-    path.write_text(updated, encoding="utf-8")
+    _write_eol(path, updated, eol)
     return "updated" if text else "written"
 
 
@@ -223,7 +250,7 @@ class InitReport:
 def _write_once(path: Path, text: str) -> bool:
     if path.exists():
         return False
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", newline="\n")
     return True
 
 
@@ -244,7 +271,7 @@ def init_project(root: Path, preset: str = "balanced", branch: str | None = None
     write = force or not config.exists()
     if write:
         text = config_template(project, tracked, preset, [lang for lang, _ in languages.most_common()])
-        config.write_text(text, encoding="utf-8")
+        config.write_text(text, encoding="utf-8", newline="\n")
     (root / LOCAL_DIR).mkdir(exist_ok=True)
     local_written = [rel for rel, text in ((ENV_FILE, ENV_TEMPLATE), (LOCAL_CONFIG_FILE, LOCAL_CONFIG_TEMPLATE))
                      if _write_once(root / rel, text)]

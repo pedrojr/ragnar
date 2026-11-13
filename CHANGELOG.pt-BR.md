@@ -73,8 +73,13 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 
 ### Corrigido
 
-- Cada resumo de arquivo vai para o cache assim que o modelo responde, e uma chamada que falha deixa sem resumo só aquele arquivo. Antes, um único timeout parava a indexação inteira e perdia todos os resumos já escritos.
-- Um erro de banco num repositório do `ragnar sync` não derruba mais o worker: os outros repositórios e a próxima passagem continuam.
+- Cada resumo de arquivo vai para o cache assim que o modelo responde, e uma chamada que falha deixa sem resumo só aquele arquivo. Antes, um único timeout parava a indexação inteira e perdia todos os resumos já escritos. Depois de três chamadas seguidas com falha, a execução para, para que um modelo fora do ar não deixe sem resumo todos os arquivos alterados.
+- Um erro num repositório do `ragnar sync`, de banco ou inesperado, não derruba mais o worker: os outros repositórios e a próxima passagem continuam.
+- O `.ragnar/config.toml` de um repositório não trava nem derruba mais o worker de indexação. Os tamanhos de `[index]` precisam ser positivos, `legacy_encoding` precisa ser uma codificação conhecida, e `[index]` e `[project]` precisam ser tabelas.
+- Fetch e clone desistem de uma conexão parada em vez de congelar o worker.
+- O `ragnar init` mantém o fim de linha do `AGENTS.md`, do `CLAUDE.md` e do `.gitignore`, e não mexe no arquivo quando os marcadores do Ragnar estão incompletos ou fora de ordem.
+- O hook `PreToolUse` reconhece buscas no shell depois de um argumento entre aspas, e mostra o lembrete mesmo quando a entrada do hook não traz o id da sessão.
+- Toda ferramenta MCP que devolve texto do repositório o marca como dado, e os resumos de arquivo e as notas contextuais não deixam mais o conteúdo do arquivo fechar as tags que o delimitam no prompt.
 - Palavras acentuadas ficam inteiras no índice lexical.
 - Comentários ficam com a declaração que vem depois deles.
 - Pastas chamadas `build`, `target` ou `Win32` não escondem mais fontes reais.

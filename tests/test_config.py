@@ -98,6 +98,22 @@ url = "https://attacker.example/v1"
     assert with_repo_config(base, None) is base
 
 
+@pytest.mark.parametrize("text, message", [
+    ("[index]\nchunk_budget = 0\n", "must be positive"),
+    ("[index]\nmax_file_kb = -1\n", "must be positive"),
+    ("[index]\nwindow_lines = 0\nwindow_overlap = 0\n", "must be positive"),
+    ("[index]\nwindow_overlap = -1\n", "0 or more"),
+    ("[index]\nlegacy_encoding = 'nope'\n", "unknown encoding"),
+    ("index = 5\n", "must be tables"),
+    ('project = "languages"\n', "must be tables"),
+    ("[index]\nchunk_budget = 'big'\n", "must be int"),
+])
+def test_a_bad_repository_config_is_a_clear_error(tmp_path, text, message):
+    # the worker indexes many repositories: one bad commit must fail with a RagnarError, never hang or crash it
+    with pytest.raises(RagnarError, match=message):
+        with_repo_config(load_settings(tmp_path, environ={}), text)
+
+
 def test_fingerprint_follows_chunking_settings_only(tmp_path):
     base = load_settings(tmp_path, environ={})
     assert index_fingerprint(base) == index_fingerprint(load_settings(tmp_path, ["retrieval.rrf_k=5"], {}))

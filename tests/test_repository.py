@@ -127,6 +127,7 @@ def test_session_start_hook_adds_context_and_the_ignore_block(tmp_path):
     ("Bash", {"command": "cd src && rg -n Validate"}, True),
     ("Bash", {"command": "git grep -n foo"}, True),
     ("Bash", {"command": "rtk grep -rn foo ."}, True),
+    ("Bash", {"command": 'cd "src" && grep -rn foo .'}, True),  # escaped quotes in the JSON string
     ("Bash", {"command": "git status"}, False),
     ("Bash", {"command": "uv run pytest -k grep"}, False),
 ])
@@ -148,6 +149,17 @@ def test_pre_search_hook_hints_once_per_session(tmp_path, tool, tool_input, hint
     assert _hook("pre-search.sh", project, payload, tmp) == ""
     other = payload.replace("s-1", "s-2")
     assert _hook("pre-search.sh", project, other, tmp) != ""
+
+
+@needs_bash
+def test_pre_search_hook_without_a_session_id_leaves_no_marker(tmp_path):
+    project, tmp = tmp_path / "p", tmp_path / "tmp"
+    (project / ".ragnar").mkdir(parents=True), tmp.mkdir()
+    (project / ".ragnar" / "config.toml").write_text("", encoding="utf-8")
+    payload = json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Grep", "tool_input": {"pattern": "x"}})
+    assert _hook("pre-search.sh", project, payload, tmp) != ""
+    assert _hook("pre-search.sh", project, payload, tmp) != ""
+    assert not list(tmp.iterdir())
 
 
 def test_hook_writes_the_same_block_as_the_cli():

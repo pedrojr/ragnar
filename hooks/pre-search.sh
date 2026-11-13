@@ -10,13 +10,17 @@ field() { printf '%s' "$input" | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\(
 tool="$(field tool_name)"
 if [ "$tool" = "Bash" ]; then
   # only commands that search code: grep, rg, git grep, find, ag, ack, at the start or after && ; |
-  printf '%s' "$input" | grep -Eq '"command"[[:space:]]*:[[:space:]]*"([^"]*(&&|;|\|)[[:space:]]*)?(rtk[[:space:]]+)?(grep|egrep|rg|git[[:space:]]+grep|find|ag|ack)[[:space:]]' || exit 0
+  # ([^"\\]|\\.)* walks over escaped quotes inside the JSON string, as in: cd \"src\" && grep -rn foo .
+  printf '%s' "$input" | grep -Eq '"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*(&&|;|\|)[[:space:]]*)?(rtk[[:space:]]+)?(grep|egrep|rg|git[[:space:]]+grep|find|ag|ack)[[:space:]]' || exit 0
 fi
 
+# once per session; without a session id there is nothing to key the marker on, so the hint shows every time
 session="$(field session_id | tr -cd 'A-Za-z0-9_-')"
-marker="${TMPDIR:-${TEMP:-/tmp}}/ragnar-search-hint-${session:-none}"
-[ -e "$marker" ] && exit 0
-: > "$marker" 2>/dev/null
+if [ -n "$session" ]; then
+  marker="${TMPDIR:-${TEMP:-/tmp}}/ragnar-search-hint-${session}"
+  [ -e "$marker" ] && exit 0
+  : > "$marker" 2>/dev/null
+fi
 
 printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"Ragnar: this project is indexed. If this search looks for a concept or behavior, not an exact string, also call search_code with the question in plain words before you answer: it finds code that shares no words with the pattern and code outside the paths you filtered. For a known name, use find_symbol or find_references. Keep grep for exact strings and for files changed since the indexed commit. This reminder shows once per session."}}'
 exit 0

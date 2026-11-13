@@ -13,6 +13,7 @@ RAGNAR_DSN_READ (replicas).
 
 from __future__ import annotations
 
+import codecs
 import dataclasses
 import fnmatch
 import hashlib
@@ -278,8 +279,15 @@ def _validate(s: Settings) -> None:
                           "or summaries.url and summaries.model, or the same keys in [llm]")
     if s.summaries.timeout < 0 or s.llm.timeout <= 0:
         raise RagnarError("llm.timeout must be positive, and summaries.timeout positive or 0 (use llm.timeout)")
+    if min(s.index.max_file_kb, s.index.chunk_budget, s.index.window_lines) < 1 or s.index.window_overlap < 0:
+        raise RagnarError("index.max_file_kb, index.chunk_budget and index.window_lines must be positive, "
+                          "and index.window_overlap 0 or more")
     if s.index.window_overlap >= s.index.window_lines:
         raise RagnarError("index.window_overlap must be smaller than index.window_lines")
+    try:
+        codecs.lookup(s.index.legacy_encoding)
+    except LookupError:
+        raise RagnarError(f"index.legacy_encoding: unknown encoding {s.index.legacy_encoding!r}") from None
 
 
 def chat_settings(s: Settings) -> Llm:
@@ -423,8 +431,11 @@ def with_repo_config(settings: Settings, toml_text: str | None) -> Settings:
         data = tomllib.loads(toml_text)
     except tomllib.TOMLDecodeError as exc:
         raise RagnarError(f"invalid {CONFIG_FILE} in the repository: {exc}") from None
-    chosen = {k: v for k, v in data.get("index", {}).items() if k in REPO_OWNED["index"]}
-    project = {"languages": data["project"]["languages"]} if "languages" in data.get("project", {}) else {}
+    index, project_section = data.get("index", {}), data.get("project", {})
+    if not isinstance(index, dict) or not isinstance(project_section, dict):
+        raise RagnarError(f"invalid {CONFIG_FILE} in the repository: [index] and [project] must be tables")
+    chosen = {k: v for k, v in index.items() if k in REPO_OWNED["index"]}
+    project = {"languages": project_section["languages"]} if "languages" in project_section else {}
     merged = {name: dataclasses.asdict(getattr(settings, name)) for name in SECTIONS}
     merged["index"].update(chosen)
     merged["project"].update(project)

@@ -73,8 +73,13 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Fixed
 
-- Each file summary reaches the cache as the model returns it, and a failed model call leaves only that file without a summary. Before, one timeout stopped the whole indexing run and lost every summary already written.
-- A database error in one repository of `ragnar sync` no longer stops the worker: the other repositories and the next pass still run.
+- Each file summary reaches the cache as the model returns it, and a failed model call leaves only that file without a summary. Before, one timeout stopped the whole indexing run and lost every summary already written. After three failed calls in a row, the run stops, so a model that is down does not leave every changed file without a summary.
+- An error in one repository of `ragnar sync`, from the database or unexpected, no longer stops the worker: the other repositories and the next pass still run.
+- A repository's `.ragnar/config.toml` can no longer hang or crash the index worker. `[index]` sizes must be positive, `legacy_encoding` must name a known encoding, and `[index]` and `[project]` must be tables.
+- Fetches and clones give up on a stalled connection instead of freezing the worker.
+- `ragnar init` keeps the line endings of `AGENTS.md`, `CLAUDE.md` and `.gitignore`, and leaves the file alone when its Ragnar markers are incomplete or out of order.
+- The `PreToolUse` hook recognizes shell searches after a quoted argument, and still shows its reminder when the hook input has no session id.
+- Every MCP tool that returns repository text labels it as data, and file summaries and contextual notes no longer let file content close the tags that frame it in the prompt.
 - Accented words stay whole in the lexical index.
 - Comments stay with the declaration that follows them.
 - Folders named `build`, `target` or `Win32` no longer hide real sources.
