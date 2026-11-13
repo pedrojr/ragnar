@@ -164,6 +164,19 @@ def test_embed_all_keeps_the_input_order():
     assert embed_all(emb, texts, "r", 2, 1) == emb.embed_documents(texts)
 
 
+def test_embedder_refuses_an_answer_with_fewer_vectors_than_texts():
+    import httpx
+
+    from ragnar.config import Embedding, RagnarError
+    from ragnar.embedder import Embedder
+
+    emb = Embedder(Embedding(dim=2))
+    emb._client = httpx.Client(base_url="http://embed.test/v1", transport=httpx.MockTransport(
+        lambda _: httpx.Response(200, json={"data": [{"index": 0, "embedding": [0.1, 0.2]}]})))
+    with pytest.raises(RagnarError, match="1 vectors for 2 texts"):
+        emb.embed_documents(["a", "b"])
+
+
 def test_content_hash_follows_text_and_prefix():
     assert content_hash("a", "") != content_hash("b", "")
     assert content_hash("a", "") != content_hash("a", "passage: ")

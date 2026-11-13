@@ -65,6 +65,8 @@ class Embedder:
                     raise RagnarError(f"embedder refused the request ({r.status_code}): {r.text[:200]}")
                 data = sorted(r.json()["data"], key=lambda d: d["index"])
                 vectors = [d["embedding"] for d in data]
+                if len(vectors) != len(texts):  # a short answer would pair the vectors with the wrong chunks
+                    raise RagnarError(f"embedder returned {len(vectors)} vectors for {len(texts)} texts")
                 if any(len(v) != self.dim for v in vectors):
                     raise RagnarError(
                         f"model {self.model} returned dimension {len(vectors[0])}, expected {self.dim} (embedding.dim)"
