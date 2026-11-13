@@ -75,7 +75,7 @@ Each language has its own rules for symbols, tests and generated files. Delphi g
 
 ## Retrieval techniques
 
-Every technique is a setting. The server's `server.toml` owns most of them, and a repository sets only its `[index]` keys. They are AST-aware chunking, hybrid search with weighted RRF, exact symbol boost, reranking, multi-query, HyDE, contextual retrieval, MMR diversity, neighbor chunks and a token budget. Presets cover the common cases. Embeddings are always on; LLM summaries are optional. See [Retrieval techniques](docs/retrieval.md) and [Configuration](docs/configuration.md).
+Every technique is a setting. The server's `server.toml` owns most of them, and a repository sets only its `[index]` keys and `project.languages`. They are AST-aware chunking, hybrid search with weighted RRF, exact symbol boost, reranking, multi-query, HyDE, contextual retrieval, MMR diversity, neighbor chunks and a token budget. Presets cover the common cases. Embeddings are always on; LLM summaries are optional. See [Retrieval techniques](docs/retrieval.md) and [Configuration](docs/configuration.md).
 
 ## Documentation
 

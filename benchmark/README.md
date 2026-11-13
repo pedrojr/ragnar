@@ -60,15 +60,16 @@ git worktree add benchmark/work/v0-src <commit>
 PYTHONPATH=benchmark/work/v0-src/src uv run python benchmark/bench.py index --label v0
 ```
 
-`RAGNAR_BENCH_SUITE` points the same scripts at another folder, with its own `repos.toml`, `questions/`, `repos/` and `work/`. Use it for a private repository: its code, questions and results stay out of this repository. `RAGNAR_BENCH_DSN` points them at another database, such as the primary of the example infrastructure.
+`RAGNAR_BENCH_SUITE` points the same scripts at another folder, with its own `repos.toml`, `questions/`, `repos/` and `work/`. Use it for a private repository: its code, questions and results stay out of this repository. `RAGNAR_BENCH_DSN` points them at another Postgres server. It is an admin DSN with `{db}` in place of the database name, which the scripts fill in, such as `postgresql://postgres:<POSTGRES_PASSWORD>@127.0.0.1:15432/{db}` for the primary of the example infrastructure.
 
 ```bash
 RAGNAR_BENCH_SUITE=/path/to/private-suite uv run python benchmark/bench.py prepare
 ```
 
-For agent runs, start an MCP server on the same database and set a token. Runs spend model usage, so the question count is explicit and each run has a budget cap:
+For agent runs, start an MCP server on the benchmark database with `benchmark/serve.py`, which listens on port 18080. Set the same `RAGNAR_BENCH_TOKEN` in both shells. Runs spend model usage, so the question count is explicit and each run has a budget cap:
 
 ```bash
+RAGNAR_BENCH_TOKEN=<any string> uv run python benchmark/serve.py --db final
 uv run python benchmark/agent.py --label final --questions 3 --model haiku
 ```
 

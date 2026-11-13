@@ -49,7 +49,7 @@ uv run --project .. ragnar init-env
 
 ```toml
 [[repo]]
-name = "myapp"                                # nome no índice
+name = "myapp"                                # nome no índice; único neste arquivo
 url = "https://github.com/acme/myapp.git"
 branch = "main"                               # branch que o índice acompanha
 ```
@@ -118,7 +118,7 @@ As réplicas não são publicadas. Para adicionar réplicas: `docker compose up 
 
 | Tarefa | Comando |
 | --- | --- |
-| Acompanhar outro repositório | Edite `repos.toml` e rode `docker compose restart indexer` |
+| Acompanhar outro repositório | Edite `repos.toml`. O worker relê o arquivo antes de cada passada e mantém a última lista válida se o arquivo tiver erro |
 | Mudar o intervalo | Defina `RAGNAR_SYNC_INTERVAL` no `.env` e rode `docker compose up -d indexer` |
 | Indexar agora, de um clone local | `./scripts/index.sh /caminho/do/myapp myapp` |
 | Refazer um repositório | `./scripts/index.sh /caminho/do/myapp myapp --full` |
@@ -155,7 +155,7 @@ Para indexar logo depois de um merge, rode no CI:
 kubectl -n ragnar create job --from=cronjob/ragnar-indexer idx-$(date +%s)
 ```
 
-O `index.sh --target k8s` roda o indexador num pod temporário, com as configurações do worker e pelos Services, então usa todos os pods do embedder. Um clone local viaja como git bundle, que só leva commits. No primeiro build de um repositório grande, prefira o CronJob: ele não depende de uma sessão `kubectl exec` aberta por horas.
+O `index.sh --target k8s` roda o indexador num pod temporário, com as configurações do worker e pelos Services, então usa todos os pods do embedder. Um clone local viaja como git bundle, que só leva commits. No primeiro build de um repositório grande, prefira o CronJob: ele não depende de uma sessão `kubectl exec` aberta por horas. Cada execução para depois de 6 horas (`activeDeadlineSeconds` em `k8s/base/indexer-cronjob.yaml`), e a seguinte retoma do checkpoint de embeddings.
 
 O Docker Desktop publica o `LoadBalancer` em todas as interfaces de rede, não só em `127.0.0.1`. Outras máquinas da sua rede alcançam a porta 8080, a menos que um firewall bloqueie. O token continua valendo.
 

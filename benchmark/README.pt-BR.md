@@ -60,15 +60,16 @@ git worktree add benchmark/work/v0-src <commit>
 PYTHONPATH=benchmark/work/v0-src/src uv run python benchmark/bench.py index --label v0
 ```
 
-O `RAGNAR_BENCH_SUITE` aponta os mesmos scripts para outra pasta, com seus próprios `repos.toml`, `questions/`, `repos/` e `work/`. Use para um repositório privado: o código, as perguntas e os resultados ficam fora deste repositório. O `RAGNAR_BENCH_DSN` aponta para outro banco, como o primário da infraestrutura de exemplo.
+O `RAGNAR_BENCH_SUITE` aponta os mesmos scripts para outra pasta, com seus próprios `repos.toml`, `questions/`, `repos/` e `work/`. Use para um repositório privado: o código, as perguntas e os resultados ficam fora deste repositório. O `RAGNAR_BENCH_DSN` aponta para outro servidor Postgres. É uma DSN de administrador com `{db}` no lugar do nome do banco, que os scripts preenchem, como `postgresql://postgres:<POSTGRES_PASSWORD>@127.0.0.1:15432/{db}` para o primário da infraestrutura de exemplo.
 
 ```bash
 RAGNAR_BENCH_SUITE=/caminho/da/suite-privada uv run python benchmark/bench.py prepare
 ```
 
-Para as execuções com agente, suba um servidor MCP no mesmo banco e defina um token. As execuções consomem uso de modelo, por isso o número de perguntas é explícito e cada execução tem um teto de gasto:
+Para as execuções com agente, suba um servidor MCP no banco do benchmark com o `benchmark/serve.py`, que escuta na porta 18080. Defina o mesmo `RAGNAR_BENCH_TOKEN` nos dois terminais. As execuções consomem uso de modelo, por isso o número de perguntas é explícito e cada execução tem um teto de gasto:
 
 ```bash
+RAGNAR_BENCH_TOKEN=<qualquer texto> uv run python benchmark/serve.py --db final
 uv run python benchmark/agent.py --label final --questions 3 --model haiku
 ```
 

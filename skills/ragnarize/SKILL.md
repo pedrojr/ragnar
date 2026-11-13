@@ -22,7 +22,7 @@ Goal: leave the project ready to use its code index, with no secret in the repos
    ```
    The command writes `.ragnar/config.toml`, creates `.rag/` with `.env` and `config.local.toml` templates, and adds the managed block to `.gitignore`. It also writes the search rules, in a managed block, to `AGENTS.md` and to `CLAUDE.md` when the project has one. A `CLAUDE.md` that imports `@AGENTS.md` is left as it is. Pass `--no-agent-notes` if the user does not want those files changed. In Claude Code, the plugin's hooks repeat the rule at session start and on the first local search.
 3. Show the detected languages. Ask the user to confirm them. Edit `project.languages` and `index.exclude` in `.ragnar/config.toml` if vendored or generated code slipped in.
-4. For a Delphi project, tell the user about binary forms: forms stored as binary (`TPF0`) cannot be indexed. Run `git grep -lI "^object " -- '*.dfm'` and compare against all `.dfm` files. Suggest converting the rest to text in the IDE.
+4. For a Delphi project, tell the user that forms stored as binary (`TPF0`) are converted to text and indexed like text forms. Nothing needs converting in the IDE.
 5. Connect the MCP server. Call the `list_repos` tool.
    - It answers: go to step 6.
    - It fails: the server is unreachable or the token is wrong. Offer the `infra` skill if the user has no server yet. Otherwise tell the user to set `mcp_url` and `mcp_token` in `/plugin` config.

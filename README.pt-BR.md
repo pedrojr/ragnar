@@ -75,7 +75,7 @@ Cada linguagem tem regras próprias para símbolos, testes e arquivos gerados. D
 
 ## Técnicas de recuperação
 
-Toda técnica é uma configuração. O `server.toml` do servidor é dono da maioria, e um repositório define só as chaves de `[index]`. São elas: chunking por AST, busca híbrida com RRF ponderado, reforço por símbolo exato, reranking, multi-query, HyDE, recuperação contextual, diversidade MMR, chunks vizinhos e orçamento de tokens. Presets cobrem os casos comuns. Os embeddings estão sempre ligados; os resumos por LLM são opcionais. Veja [Técnicas de recuperação](docs/pt-BR/retrieval.md) e [Configuração](docs/pt-BR/configuration.md).
+Toda técnica é uma configuração. O `server.toml` do servidor é dono da maioria, e um repositório define só as chaves de `[index]` e `project.languages`. São elas: chunking por AST, busca híbrida com RRF ponderado, reforço por símbolo exato, reranking, multi-query, HyDE, recuperação contextual, diversidade MMR, chunks vizinhos e orçamento de tokens. Presets cobrem os casos comuns. Os embeddings estão sempre ligados; os resumos por LLM são opcionais. Veja [Técnicas de recuperação](docs/pt-BR/retrieval.md) e [Configuração](docs/pt-BR/configuration.md).
 
 ## Documentação
 

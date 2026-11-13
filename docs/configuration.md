@@ -74,7 +74,7 @@ Under Compose, set the keys in `example/.env`. `compose.yaml` passes `RAGNAR_EMB
 | --- | --- | --- |
 | `economy` | Lowest token cost per search. Agents may compensate with more greps | 3 hits, 1,000 tokens, 2 chunks per file |
 | `balanced` | The default | No changes |
-| `precise` | Hard questions, higher cost | 10 hits, 8,000 tokens, 100 candidates, neighbor chunks, diversity |
+| `precise` | Hard questions, higher cost | 10 hits, 8,000 tokens, 100 candidates, `ef_search` 200, neighbor chunks, diversity |
 
 ## `[project]`
 
@@ -142,7 +142,7 @@ A hosted provider receives your source code. Choose accordingly.
 | `graph_weight` | `0.0` | Weight of the graph list: what the best hits call, and who calls them. `0` turns it off |
 | `graph_seeds` | `5` | Best hits whose graph neighbors join the graph list |
 | `doc_weight` | `0.5` | Scales the fused score of documentation hits. Below 1, code wins over overview documents that mention every module |
-| `rank_normalization` | `1` | How lexical ranking discounts long chunks: `1` divides by 1 + log(length), `2` by length. `2` helped one large Delphi monorepo and hurt smaller projects |
+| `rank_normalization` | `1` | How lexical ranking discounts long chunks: `1` divides by 1 + log(length), `2` by length. It accepts any PostgreSQL `ts_rank` flag: 0, 1, 2, 4, 8, 16 or 32. `2` helped one large Delphi monorepo and hurt smaller projects |
 | `ef_search` | `100` | HNSW search width |
 | `max_chunks_per_file` | `3` | Cap per file. `0` turns it off |
 | `diversity` | `0.0` | `0` is pure relevance, `1` is pure novelty |
@@ -220,8 +220,8 @@ These configure a process, not retrieval.
 
 | Variable | Used by | Meaning |
 | --- | --- | --- |
-| `RAGNAR_DSN_WRITE` | Indexer, migrations | Primary connection |
-| `RAGNAR_DSN_READ` | MCP server, `ragnar eval`, `ragnar search` | Replica connection |
+| `RAGNAR_DSN_WRITE` | Indexer, migrations, `ragnar smoke` (write barrier checks) | Primary connection |
+| `RAGNAR_DSN_READ` | MCP server, `ragnar eval`, `ragnar search`, `ragnar smoke` (write barrier checks) | Replica connection |
 | `RAGNAR_ACL_FILE` | MCP server | Path to `acl.json` |
 | `RAGNAR_CONFIG` | All | Path to the settings file |
 | `RAGNAR_POOL_MAX` | MCP server | Database connections, default `10` |

@@ -49,7 +49,7 @@ uv run --project .. ragnar init-env
 
 ```toml
 [[repo]]
-name = "myapp"                                # name in the index
+name = "myapp"                                # name in the index; unique in this file
 url = "https://github.com/acme/myapp.git"
 branch = "main"                               # branch the index follows
 ```
@@ -118,7 +118,7 @@ Replicas are not published. To add replicas: `docker compose up -d --scale db-re
 
 | Task | Command |
 | --- | --- |
-| Follow another repository | Edit `repos.toml`, then `docker compose restart indexer` |
+| Follow another repository | Edit `repos.toml`. The worker reads it again before each pass, and keeps the last valid list if the file has an error |
 | Change the polling interval | Set `RAGNAR_SYNC_INTERVAL` in `.env`, then `docker compose up -d indexer` |
 | Index now, from a local clone | `./scripts/index.sh /path/to/myapp myapp` |
 | Rebuild one repository | `./scripts/index.sh /path/to/myapp myapp --full` |
@@ -155,7 +155,7 @@ To index right after a merge, run from CI:
 kubectl -n ragnar create job --from=cronjob/ragnar-indexer idx-$(date +%s)
 ```
 
-`index.sh --target k8s` runs the indexer in a temporary pod, with the worker's settings and through the Services, so it uses every embedder pod. A local clone travels as a git bundle, which holds commits only. For the first build of a large repository, prefer the CronJob: it does not depend on a `kubectl exec` session that stays open for hours.
+`index.sh --target k8s` runs the indexer in a temporary pod, with the worker's settings and through the Services, so it uses every embedder pod. A local clone travels as a git bundle, which holds commits only. For the first build of a large repository, prefer the CronJob: it does not depend on a `kubectl exec` session that stays open for hours. Each run stops after 6 hours (`activeDeadlineSeconds` in `k8s/base/indexer-cronjob.yaml`), and the next run resumes from the embedding checkpoint.
 
 Docker Desktop publishes the `LoadBalancer` on every network interface, not only on `127.0.0.1`. Other machines on your network can reach port 8080 unless a firewall blocks it. The token still applies.
 

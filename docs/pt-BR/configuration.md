@@ -74,7 +74,7 @@ No Compose, defina as chaves em `example/.env`. O `compose.yaml` repassa `RAGNAR
 | --- | --- | --- |
 | `economy` | Menor custo em tokens por busca. Agentes podem compensar com mais greps | 3 resultados, 1.000 tokens, 2 chunks por arquivo |
 | `balanced` | Padrão | Nada |
-| `precise` | Perguntas difíceis, custo maior | 10 resultados, 8.000 tokens, 100 candidatos, chunks vizinhos, diversidade |
+| `precise` | Perguntas difíceis, custo maior | 10 resultados, 8.000 tokens, 100 candidatos, `ef_search` 200, chunks vizinhos, diversidade |
 
 ## `[project]`
 
@@ -142,7 +142,7 @@ Um provedor hospedado recebe seu código-fonte. Escolha com isso em mente.
 | `graph_weight` | `0.0` | Peso da lista do grafo: o que os melhores resultados chamam e quem os chama. `0` desliga |
 | `graph_seeds` | `5` | Melhores resultados cujos vizinhos no grafo entram na lista do grafo |
 | `doc_weight` | `0.5` | Escala a pontuação fundida dos resultados de documentação. Abaixo de 1, o código ganha de documentos de visão geral que citam todos os módulos |
-| `rank_normalization` | `1` | Como o ranking lexical desconta chunks longos: `1` divide por 1 + log(tamanho), `2` pelo tamanho. `2` ajudou um monorepo Delphi grande e atrapalhou projetos menores |
+| `rank_normalization` | `1` | Como o ranking lexical desconta chunks longos: `1` divide por 1 + log(tamanho), `2` pelo tamanho. Aceita qualquer flag do `ts_rank` do PostgreSQL: 0, 1, 2, 4, 8, 16 ou 32. `2` ajudou um monorepo Delphi grande e atrapalhou projetos menores |
 | `ef_search` | `100` | Largura da busca HNSW |
 | `max_chunks_per_file` | `3` | Limite por arquivo. `0` desliga |
 | `diversity` | `0.0` | `0` é só relevância, `1` é só novidade |
@@ -220,8 +220,8 @@ Elas configuram um processo, não a recuperação.
 
 | Variável | Usada por | Significado |
 | --- | --- | --- |
-| `RAGNAR_DSN_WRITE` | Indexador, migrações | Conexão com o primário |
-| `RAGNAR_DSN_READ` | Servidor MCP, `ragnar eval`, `ragnar search` | Conexão com as réplicas |
+| `RAGNAR_DSN_WRITE` | Indexador, migrações, `ragnar smoke` (checagens das barreiras de escrita) | Conexão com o primário |
+| `RAGNAR_DSN_READ` | Servidor MCP, `ragnar eval`, `ragnar search`, `ragnar smoke` (checagens das barreiras de escrita) | Conexão com as réplicas |
 | `RAGNAR_ACL_FILE` | Servidor MCP | Caminho do `acl.json` |
 | `RAGNAR_CONFIG` | Todos | Caminho do arquivo de configuração |
 | `RAGNAR_POOL_MAX` | Servidor MCP | Conexões com o banco, padrão `10` |

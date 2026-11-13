@@ -13,7 +13,7 @@ Conte com uma primeira resposta em até 7 dias. O Ragnar é mantido por melhor e
 - **Segredos no código.** O indexador roda o gitleaks no texto normalizado antes de indexar, e um achado interrompe a execução. O índice fica no último commit bom. O servidor pode escolher `index.secret_action = "skip"`, que deixa de fora os arquivos com achados.
 - **Acesso de escrita.** O servidor MCP conecta com um papel que só lê, nas réplicas, e nunca recebe a senha de escrita.
 - **Acesso a repositórios.** Tokens são guardados como hash. Cada um lista os repositórios que pode ler.
-- **Configuração vinda do repositório.** Um repositório só muda como é dividido em chunks, então não desvia embeddings nem desliga a varredura de segredos.
+- **Configuração vinda do repositório.** Um repositório só muda como é dividido em chunks e quais linguagens entram no índice, então não desvia embeddings nem desliga a varredura de segredos.
 - **Injeção de prompt pelo código.** O conteúdo recuperado vai entre delimitadores, tags de fechamento nele são escapadas, e ele é marcado como dado. Isso reduz o risco, mas não o elimina. Um agente ainda pode seguir instruções plantadas num repositório, então revise o que seus agentes fazem.
 
 ## Antes de expor um servidor

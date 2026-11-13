@@ -36,7 +36,7 @@ If the user has no infrastructure yet, use the `infra` skill first.
    ./scripts/index.sh <path-or-url> <name> --ref <branch> --target k8s    # Kubernetes
    ```
    The last line reads `<name>: full|incremental|unchanged at <sha>: N files, M chunks written, ...`.
-3. Keep it current. Add the repository to `$RAGNAR_HOME/example/repos.toml`, then run `docker compose restart indexer`. On Kubernetes, run `./scripts/up.sh`, which reloads the file.
+3. Keep it current. Add the repository to `$RAGNAR_HOME/example/repos.toml`. The worker reads the file again before each pass; each `name` must be unique. On Kubernetes, run `./scripts/up.sh`, which reloads the file.
 4. Grant access for a new team:
    ```bash
    ragnar token --name <team> --repos <name>[,<other>]

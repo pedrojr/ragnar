@@ -13,7 +13,7 @@ Expect a first reply within 7 days. Ragnar is maintained on a best-effort basis,
 - **Secrets in code.** The indexer runs gitleaks on normalized text before indexing, and a finding stops the run. The index stays on the last good commit. A server can choose `index.secret_action = "skip"` instead, which leaves the files with findings out.
 - **Write access.** The MCP server connects with a role that can only read, on replicas, and it never receives the write password.
 - **Repository access.** Tokens are stored as hashes. Each one lists the repositories it may read.
-- **Repository-driven configuration.** A repository can change only how it is chunked, so it cannot redirect embeddings or turn off the secret scan.
+- **Repository-driven configuration.** A repository can change only how it is chunked and which languages are indexed, so it cannot redirect embeddings or turn off the secret scan.
 - **Prompt injection through code.** Retrieved content goes inside delimiters, closing tags in it are escaped, and it is marked as data. This reduces the risk, but it cannot remove it. An agent may still follow instructions planted in a repository, so review what your agents do.
 
 ## Before you expose a server

@@ -7,6 +7,10 @@
 # CI/CD variables:
 #   RAGNAR_DSN_WRITE (masked)  postgresql://ragnar_writer:...@host:5432/ragnar
 #   RAGNAR__EMBEDDING__URL     http://embedder.internal:8000/v1
+#
+# Give this job the worker's server.toml through RAGNAR_CONFIG, for example from a copy in this repository.
+# With other settings, such as summaries or contextual retrieval on the worker only, each CI run and the
+# next worker pass rebuild the index in full, and CI runs drop the summaries.
 ragnar-index:
   image: ghcr.io/astral-sh/uv:0.11.28-python3.12-bookworm
   rules:
