@@ -85,7 +85,7 @@ def form_source(src: bytes, legacy_encoding: str = "cp1252") -> bytes:
     if is_binary_form(src):
         try:
             return binary_form_to_text(src, legacy_encoding).encode()
-        except (struct.error, IndexError, ValueError):
+        except (struct.error, IndexError, ValueError, RecursionError):  # RecursionError: nesting too deep
             return src
     if b"{" not in src:
         return src
@@ -97,7 +97,7 @@ class _Reader:
         self.data, self.pos, self.encoding = data, 0, encoding
 
     def take(self, n: int) -> bytes:
-        if self.pos + n > len(self.data):
+        if n < 0 or self.pos + n > len(self.data):  # a negative length would move back and loop forever
             raise ValueError("truncated form")
         out = self.data[self.pos : self.pos + n]
         self.pos += n
@@ -204,7 +204,9 @@ def _value(raw: str) -> str:
     out = []
     for part in re.findall(r"'((?:[^']|'')*)'|(#\d+)", raw):
         if part[1]:
-            out.append(chr(int(CHAR_CODE.match(part[1]).group(1))))
+            code = int(CHAR_CODE.match(part[1]).group(1))
+            if code <= 0x10FFFF and not 0xD800 <= code <= 0xDFFF:  # no code point, or a lone surrogate: drop it
+                out.append(chr(code))
         else:
             out.append(part[0].replace("''", "'"))
     return "".join(out) if out else raw.strip()

@@ -22,6 +22,9 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 1
+      # with Forbid, a run that never ends blocks every later one. A first index with summaries can take
+      # hours; an interrupted run resumes from its embedding checkpoint and its summary cache.
+      activeDeadlineSeconds: 21600
       template:
         spec:
           restartPolicy: Never

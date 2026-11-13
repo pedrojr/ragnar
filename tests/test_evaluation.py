@@ -44,6 +44,20 @@ def test_grep_baseline_ranks_files_with_more_terms(tmp_path):
     assert grep_baseline(str(repo), snapshot, "redraws the button") == ["widget/button.go"]
 
 
+def test_accented_file_names_are_not_quoted(tmp_path):
+    # git quotes non-ASCII paths by default: "configura\303\247\303\243o.go" would match no file
+    repo = make_repo(tmp_path)
+    name = "widget/configuração.go"
+    (repo / name).write_text("package widget\n\nfunc Ajusta() { println(\"tributação\") }\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "add the settings unit")
+    snapshot = _git(repo, "rev-parse", "HEAD").strip()
+    (repo / name).write_text("package widget\n\nfunc Ajusta() { println(\"tributação nova\") }\n", encoding="utf-8")
+    _git(repo, "commit", "-qam", "change how the settings screen computes the tax")
+    assert [q["relevant"] for q in build_golden(str(repo), snapshot)] == [[name]]
+    assert grep_baseline(str(repo), snapshot, "tributação") == [name]
+
+
 def test_grep_terms_keep_accented_words_whole_and_add_the_plain_form():
     assert grep_terms("validação do CNPJ para emissão", STOPWORDS) == [
         ("validação", "validacao"), ("CNPJ",), ("emissão", "emissao")]

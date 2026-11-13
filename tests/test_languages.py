@@ -272,6 +272,23 @@ def test_truncated_binary_form_is_skipped():
     assert Chunker().chunk_file("src/Old.dfm", b"TPF0\x06TForm1") == []
 
 
+@pytest.mark.parametrize("src", [
+    b"TPF0\x05TForm\x01F\x01P\x0a" + (-7).to_bytes(4, "little", signed=True) + b"\x00\x00",  # negative length
+    b"TPF0" + b"\x01C\x00\x00" * 3000 + b"\x00" * 3001,  # nested deeper than the recursion limit
+])
+def test_malformed_binary_form_ends_and_stays_as_it_is(src):
+    from ragnar.delphi import form_source
+
+    assert form_source(src) == src  # before: an endless loop, or a RecursionError that stopped the run
+
+
+def test_character_codes_outside_unicode_are_dropped():
+    src = b"object F: TForm\n  Caption = 'a'#1114112'b'#55296'c'#233\nend\n"
+    body = Chunker().chunk_file("a.dfm", src)[0].content
+    assert "Caption=abcé" in body
+    body.encode("utf-8")  # no lone surrogate left
+
+
 def test_form_size_limit_ignores_image_data():
     image = "  Picture.Data = {\n" + "    0954506E67496D616765\n" * 2000 + "  }\n"
     src = f"object F: TForm\n{image}  OnShow = FormShow\nend\n".encode()

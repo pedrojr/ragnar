@@ -236,6 +236,26 @@ def test_file_summaries_are_cached_and_stay_out_of_line_tools(dsn, tmp_path, mon
         assert read["lines"][0] == (1, "package widget")
 
 
+def test_an_unreadable_file_is_left_out_and_the_rest_is_indexed(dsn, tmp_path, monkeypatch, capsys):
+    from ragnar.chunker import Chunker
+
+    real = Chunker.chunk_file
+
+    def chunk_file(self, path, src):
+        if path == "widget/button.go":
+            raise ValueError("chr() arg not in range(0x110000)")  # stands for any parser bug on odd input
+        return real(self, path, src)
+
+    monkeypatch.setattr(Chunker, "chunk_file", chunk_file)
+    repo, emb = make_repo(tmp_path), FakeEmbedder(768)
+    r = index(str(repo), "demo", dsn, emb, load_settings(environ={}), scan=False)
+    assert r.mode == "full" and r.skipped.get("unreadable") == 1
+    assert "left out widget/button.go" in capsys.readouterr().err
+    with psycopg.connect(dsn) as conn:
+        paths = {p for (p,) in conn.execute("SELECT DISTINCT path FROM code_chunk WHERE repo = 'demo'")}
+    assert paths and "widget/button.go" not in paths
+
+
 def test_a_failed_summary_keeps_the_others_and_the_index(dsn, tmp_path, monkeypatch):
     class Flaky:
         def complete(self, prompt: str) -> str:

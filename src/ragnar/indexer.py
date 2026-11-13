@@ -470,7 +470,22 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
         mode, paths = ("incremental", with_form_pairs(changed)) if changed is not None else ("full", list_files(repo_dir, head))
 
     blobs = read_blobs(repo_dir, head, [p for p in paths if chunker.eligible(p)])
-    skipped = Counter(reason for path, src in blobs.items() if (reason := chunker.skip_reason(path, src)))
+    skipped: Counter = Counter()
+    parsed: dict[str, tuple[list[Chunk], list[Symbol]]] = {}
+    for path, src in list(blobs.items()):
+        try:
+            reason = chunker.skip_reason(path, src)
+            parsed[path] = (chunker.chunk_file(path, src), chunker.extract_symbols(path, src))
+        except RagnarError:
+            raise
+        except Exception as exc:  # one malformed file (a broken form, bad bytes) must not stop the repository
+            print(f"{repo}: left out {path}: cannot read it ({type(exc).__name__}: {str(exc)[:120]})",
+                  file=sys.stderr, flush=True)
+            del blobs[path]
+            skipped["unreadable"] += 1
+            continue
+        if reason:
+            skipped[reason] += 1
     if scan and settings.index.secret_scan:
         # what gets indexed, as UTF-8: gitleaks does not read UTF-16, and form images look like tokens
         normalized = {p: normalize_source(chunker.indexed_source(p, b), settings.index.legacy_encoding)
@@ -480,9 +495,9 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
             skipped["secret"] = removed
     chunks: list[Chunk] = []
     symbols: list[Symbol] = []
-    for path, src in blobs.items():
-        chunks += chunker.chunk_file(path, src)
-        symbols += chunker.extract_symbols(path, src)
+    for path in blobs:
+        chunks += parsed[path][0]
+        symbols += parsed[path][1]
     extra_head = handler_words(chunks, symbols, blobs, chunker)
     edges = code_edges(chunker, blobs, chunks, symbols, definition_counts(dsn, repo, symbols, None if mode == "full" else paths))
     if settings.contextual.enabled and (chat := chat_from(settings)):

@@ -41,8 +41,12 @@ GREP_FILES_READ = 5  # files an agent would open from a grep result, for the cos
 GREP_WORD = re.compile(r"[^\W\d]\w{2,}")  # Unicode letters: "configuração" stays one word
 
 
+# paths as they are: by default git quotes non-ASCII names ("configura\303\247\303\243o.py"), which then match nothing
+UNQUOTED = ("-c", "core.quotePath=false")
+
+
 def _git(repo: str, *args: str) -> str:
-    return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, encoding="utf-8",
+    return subprocess.run(["git", *UNQUOTED, "-C", repo, *args], capture_output=True, text=True, encoding="utf-8",
                           errors="replace", check=True).stdout
 
 
@@ -118,7 +122,7 @@ def grep_baseline(repo: str, snapshot: str, query: str, k: int = 20) -> list[str
     score: Counter = Counter()
     for forms in grep_terms(query, STOPWORDS):
         patterns = [arg for form in forms for arg in ("-e", form)]
-        r = subprocess.run(["git", "-C", repo, "grep", "-c", "-i", "-w", *patterns, snapshot, "--", *globs],
+        r = subprocess.run(["git", *UNQUOTED, "-C", repo, "grep", "-c", "-i", "-w", *patterns, snapshot, "--", *globs],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
         for line in r.stdout.splitlines():
             score[line.split(":", 2)[1]] += 1  # format: <sha>:<path>:<n>

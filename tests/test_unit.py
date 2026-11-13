@@ -196,6 +196,27 @@ def test_init_env_creates_files(tmp_path):
     assert (tmp_path / "repos.toml").is_file()
 
 
+def test_init_env_force_keeps_clients_added_by_hand(tmp_path, capsys):
+    main(["init-env", "--dir", str(tmp_path)])
+    acl_file = tmp_path / "acl.json"
+    data = json.loads(acl_file.read_text(encoding="utf-8"))
+    data["clients"].append({"name": "ci", "token_sha256": hash_token("ci-token"), "repos": ["app"]})
+    acl_file.write_text(json.dumps(data), encoding="utf-8")
+    main(["init-env", "--dir", str(tmp_path), "--force"])
+    env = dict(line.split("=", 1) for line in (tmp_path / ".env").read_text().splitlines() if "=" in line)
+    acl = Acl.from_file(acl_file)
+    assert acl.client_for("Bearer ci-token").name == "ci"
+    assert acl.client_for(f"Bearer {env['RAGNAR_MCP_TOKEN']}").name == "dev-local"
+    assert [c["name"] for c in json.loads(acl_file.read_text(encoding="utf-8"))["clients"]] == \
+        ["dev-local", "restricted", "ci"]
+
+
+def test_token_strips_spaces_around_repository_names(capsys):
+    main(["token", "--name", "x", "--repos", "a, b,,"])
+    entry = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert entry["repos"] == ["a", "b"]
+
+
 def test_extract_symbols_finds_every_declaration():
     syms = {s.symbol: s for s in Chunker().extract_symbols("widget/button.go", GO)}
     assert set(syms) == {"widget > Button", "widget > Button > Refresh", "widget > NewButton"}

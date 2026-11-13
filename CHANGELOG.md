@@ -77,6 +77,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - An error in one repository of `ragnar sync`, from the database or unexpected, no longer stops the worker: the other repositories and the next pass still run.
 - A repository's `.ragnar/config.toml` can no longer hang or crash the index worker. `[index]` sizes must be positive, `legacy_encoding` must name a known encoding, and `[index]` and `[project]` must be tables.
 - Fetches and clones give up on a stalled connection instead of freezing the worker.
+- A malformed Delphi form no longer stops the index worker. A negative length in a binary form looped forever, and a character code outside Unicode or a form nested too deep raised an error that failed the whole repository. Now the form stays as it is, the bad code is dropped, and any file that still cannot be read is left out and counted as `unreadable`. The example CronJob has `activeDeadlineSeconds`, so one stuck run cannot block the later ones.
+- `ragnar eval` reads accented file names as they are. Git quoted them, so the golden set and the grep baseline left them out.
+- `ragnar init-env` keeps the clients added by hand to `acl.json` and replaces only its own two entries. `ragnar token --repos "a, b"` no longer stores `" b"`.
 - With `retrieval.graph_weight` on, graph neighbors honor `path_prefix` and `kind` like the other lists.
 - Tree paths with `..`, a leading `/` or a control character such as a newline are left out of the index, and the secret scan refuses to write outside its folder. Git hosts reject such trees, but a local source or a host without fsck could carry one.
 - `search_code` calls the embedder, the chat model and the reranker without holding a database connection, and waits at most 10 seconds per query vector. Before, a stalled embedder could take every pooled connection and fail the readiness check of every MCP replica.
