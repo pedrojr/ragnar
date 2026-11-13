@@ -54,10 +54,11 @@ def test_gitignore_block_updates_in_place(tmp_path):
 def test_detect_languages_counts_tracked_files(tmp_path):
     repo = make_repo(tmp_path)
     (repo / "Orders.pas").write_text("unit Orders;\n", encoding="utf-8")
+    (repo / "Configuração.pas").write_text("unit Configuracao;\n", encoding="utf-8")  # git quotes it by default
     (repo / "dist").mkdir()
     (repo / "dist" / "bundle.js").write_text("x\n", encoding="utf-8")
     _git(repo, "add", ".")
-    assert detect_languages(repo) == {"go": 1, "delphi": 1}
+    assert detect_languages(repo) == {"go": 1, "delphi": 2}
 
 
 def test_init_writes_a_valid_config_and_keeps_it(tmp_path):

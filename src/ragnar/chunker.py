@@ -103,6 +103,13 @@ WHITESPACE = frozenset(b" \t\r\n\f\v")
 OVERSIZE = 1.5  # a span above budget * OVERSIZE is split: one data table must not eat a whole token budget
 
 
+def lines_of(text: str) -> list[str]:
+    """Lines with their ends, split on \\n only: str.splitlines also splits on form feeds and other
+    separators, so its line numbers drift from the ones tree-sitter and editors report."""
+    parts = text.split("\n")
+    return [p + "\n" for p in parts[:-1]] + ([parts[-1]] if parts[-1] else [])
+
+
 def size_index(src: bytes) -> list[int]:
     """Non-whitespace bytes before each offset, so sizing a span costs one subtraction."""
     return [0, *accumulate(b not in WHITESPACE for b in src)]
@@ -205,10 +212,29 @@ def enclosing_symbol(lang: Language, root: Node, s: int, e: int) -> str:
     return " > ".join(p for names in reversed(parts) for p in names)
 
 
-def declared_in(lang: Language, root: Node, s: int, e: int, limit: int = 3) -> str:
-    """Top declarations inside a span. A chunk that holds a whole file has no enclosing symbol."""
+def declared_in(lang: Language, root: Node, s: int, e: int, limit: int = 3,
+                cache: dict[int, tuple[list[Node], list[int]]] | None = None) -> str:
+    """Top declarations inside a span. A chunk that holds a whole file has no enclosing symbol.
+
+    cache keeps each node's children with their end offsets across the chunks of one file: a data literal
+    with 100k elements is cut into hundreds of chunks, and listing every child for each of them took minutes.
+    """
+    cache = {} if cache is None else cache
+
+    def inside(node: Node) -> list[Node]:
+        if node.id not in cache:
+            kids = node.children
+            cache[node.id] = (kids, [k.end_byte for k in kids])
+        kids, ends = cache[node.id]
+        out = []
+        for child in kids[bisect_right(ends, s):]:  # the first child that ends after s
+            if child.start_byte >= e:
+                break
+            out.append(child)
+        return out
+
     names: list[str] = []
-    stack = list(reversed(root.children))
+    stack = list(reversed(inside(root)))
     while stack and len(names) < limit:
         node = stack.pop()
         if node.end_byte <= s or node.start_byte >= e:
@@ -217,7 +243,7 @@ def declared_in(lang: Language, root: Node, s: int, e: int, limit: int = 3) -> s
         if declared and (found := _qualified(lang, node)):
             names.append(".".join(found))
         else:
-            stack.extend(reversed(node.children))
+            stack.extend(reversed(inside(node)))
     return ", ".join(dict.fromkeys(names))
 
 
@@ -328,12 +354,12 @@ class Chunker:
         budget = self.index.chunk_budget
         sizes = size_index(src)
         lines = [m.start() for m in re.finditer(b"\n", src)]
-        out = []
+        out, children = [], {}
         for s, e in bounded(cast_chunks(root, src, budget, sizes), src, budget, sizes):
             text = src[s:e].decode(errors="replace")
             if not text.strip():
                 continue
-            inside = enclosing_symbol(lang, root, s, e) or declared_in(lang, root, s, e)
+            inside = enclosing_symbol(lang, root, s, e) or declared_in(lang, root, s, e, cache=children)
             symbol = " > ".join(p for p in (module, inside) if p)
             out.append(_make(lang.comment, path, symbol, lang.name, kind, bisect_right(lines, s - 1) + 1,
                              bisect_right(lines, e - 1) + 1, text))
@@ -370,8 +396,22 @@ class Chunker:
                                      bisect_right(offsets, max(s, e - 1)), text))
         return out
 
+    def _pieces(self, text: str, first: int, last: int) -> list[tuple[str, int, int]]:
+        """The text with its first and last line, cut at line ends when it is over budget * OVERSIZE.
+
+        A window or a section can hold one huge line, such as a SQL dump with an extended INSERT: as one
+        chunk it overflows Postgres' tsvector limit (1 MB) and the input limit of hosted embedders.
+        """
+        data = text.encode()
+        budget = self.index.chunk_budget
+        if nws(data) <= budget * OVERSIZE:
+            return [(text, first, last)]
+        sizes = size_index(data)
+        return [(data[s:e].decode(errors="replace"), first + data.count(b"\n", 0, s),
+                 first + data.count(b"\n", 0, max(s, e - 1))) for s, e in bounded([(0, len(data))], data, budget, sizes)]
+
     def _window(self, path: str, src: bytes, lang: Language | None) -> list[Chunk]:
-        lines = src.decode(errors="replace").splitlines(keepends=True)
+        lines = lines_of(src.decode(errors="replace"))
         name = PurePosixPath(path).name
         kind = "test" if is_test(lang, path) else "code"
         comment, language = (lang.comment, lang.name) if lang else ("#", "text")
@@ -379,9 +419,9 @@ class Chunker:
         out = []
         for start in range(0, max(len(lines) - self.index.window_overlap, 1), step):
             text = "".join(lines[start : start + size])
-            if text.strip():
-                out.append(_make(comment, path, name, language, kind, start + 1,
-                                 min(start + size, len(lines)), text))
+            for piece, first, last in self._pieces(text, start + 1, min(start + size, len(lines))):
+                if piece.strip():
+                    out.append(_make(comment, path, name, language, kind, first, last, piece))
         return out
 
     def _form(self, path: str, raw: bytes, text: bytes) -> list[Chunk]:
@@ -397,12 +437,17 @@ class Chunker:
             if groups[-1] and nws("\n".join(x.describe() for x in [*groups[-1], c]).encode()) > self.index.chunk_budget:
                 groups.append([])
             groups[-1].append(c)
-        return [_make("//", path, form, "delphi", kind, g[0].start_line, g[-1].end_line,
-                      "\n".join(c.describe() for c in g) + "\n", form_literals(g)) for g in groups]
+        out = []
+        for g in groups:  # one component can hold a large SQL: its description is cut like any other text
+            literals = form_literals(g)
+            pieces = self._pieces("\n".join(c.describe() for c in g) + "\n", g[0].start_line, g[-1].end_line)
+            out += [_make("//", path, form, "delphi", kind, g[0].start_line, g[-1].end_line, piece, literals)
+                    for piece, _, _ in pieces if piece.strip()]
+        return out
 
     def _markdown(self, path: str, src: bytes) -> list[Chunk]:
         """One section per heading; small neighboring sections merge up to the budget."""
-        lines = src.decode(errors="replace").splitlines(keepends=True)
+        lines = lines_of(src.decode(errors="replace"))
         sections: list[tuple[str, int, int]] = []  # (heading trail, first line, last line)
         trail: list[tuple[int, str]] = []
         start, fence = 1, False
@@ -432,10 +477,10 @@ class Chunker:
         doc = PurePosixPath(path).name
         chunks = []
         for title, s, e in merged:
-            text = "".join(lines[s - 1 : e])
-            if text.strip():
-                symbol = f"{doc} > {title}" if title else doc
-                chunks.append(_make("//", path, symbol, "markdown", "doc", s, e, text))
+            symbol = f"{doc} > {title}" if title else doc
+            for piece, first, last in self._pieces("".join(lines[s - 1 : e]), s, e):
+                if piece.strip():
+                    chunks.append(_make("//", path, symbol, "markdown", "doc", first, last, piece))
         return chunks
 
     def extract_symbols(self, path: str, src: bytes) -> list[Symbol]:

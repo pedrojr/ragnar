@@ -25,6 +25,9 @@ def test_reference_edges_skip_declarations_and_repeat_names():
     names = graph.useful_names({"save": 1, "writeorder": 1})
     edges = graph.reference_edges("a.pas", text, symbols, names)
     assert [(e.line, e.src_symbol, e.dst_name) for e in edges] == [(3, "Save", "writeorder")]
+    # a form feed is not a line break for tree-sitter or editors: edges keep their line numbers
+    edges = graph.reference_edges("a.pas", "\f" + text, symbols, names)
+    assert [(e.line, e.src_symbol) for e in edges] == [(3, "Save")]
 
 
 def test_useful_names_drop_short_and_common_names():

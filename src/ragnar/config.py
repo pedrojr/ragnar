@@ -29,7 +29,7 @@ LOCAL_DIR = ".rag"  # git-ignored: personal overrides, secrets, generated output
 CONFIG_FILE = f"{CONFIG_DIR}/config.toml"  # a posix path: the indexer also reads it from a commit
 LOCAL_CONFIG_FILE = f"{LOCAL_DIR}/config.local.toml"
 ENV_FILE = f"{LOCAL_DIR}/.env"
-CHUNKER_VERSION = 5  # bump when chunk boundaries or chunk fields change: forces a full reindex
+CHUNKER_VERSION = 6 # bump when chunk boundaries or chunk fields change: forces a full reindex
 
 
 class RagnarError(Exception):

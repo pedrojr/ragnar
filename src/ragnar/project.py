@@ -121,7 +121,9 @@ def config_template(name: str, branch: str, preset: str, languages: list[str]) -
 
 
 def _git(root: Path, *args: str) -> str | None:
-    r = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    # core.quotePath=false: accented paths as they are, not "configura\303\247\303\243o.pas"
+    r = subprocess.run(["git", "-c", "core.quotePath=false", "-C", str(root), *args], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
     return r.stdout.strip() if r.returncode == 0 else None
 
 

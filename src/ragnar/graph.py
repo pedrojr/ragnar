@@ -68,7 +68,7 @@ def reference_edges(path: str, text: str, symbols: list[Symbol], names: set[str]
     declared = {(s.start_line, s.name.lower()) for s in symbols}
     seen: set[tuple[str, str]] = set()
     out: list[Edge] = []
-    for number, line in enumerate(text.splitlines(), 1):
+    for number, line in enumerate(text.split("\n"), 1):  # not splitlines: a form feed would shift every line after it
         found = {w.lower() for w in IDENTIFIER.findall(line)} & names
         if not found:
             continue

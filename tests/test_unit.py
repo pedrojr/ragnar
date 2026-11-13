@@ -211,6 +211,15 @@ def test_init_env_force_keeps_clients_added_by_hand(tmp_path, capsys):
         ["dev-local", "restricted", "ci"]
 
 
+def test_init_env_with_a_broken_acl_leaves_env_alone(tmp_path):
+    main(["init-env", "--dir", str(tmp_path)])
+    before = (tmp_path / ".env").read_text(encoding="utf-8")
+    (tmp_path / "acl.json").write_text("{not json", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        main(["init-env", "--dir", str(tmp_path), "--force"])
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == before  # old tokens still match the old ACL
+
+
 def test_token_strips_spaces_around_repository_names(capsys):
     main(["token", "--name", "x", "--repos", "a, b,,"])
     entry = json.loads(capsys.readouterr().out.splitlines()[-1])

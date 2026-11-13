@@ -232,7 +232,7 @@ def event_bindings(components: list[Component]) -> dict[str, str]:
 
 def parse_form(text: str) -> list[Component]:
     """Components in file order. Multi-line values of kept properties are joined."""
-    lines = text.splitlines()
+    lines = [line.rstrip("\r") for line in text.split("\n")]  # line numbers as editors count them
     components: list[Component] = []
     stack: list[Component] = []
     i = 0

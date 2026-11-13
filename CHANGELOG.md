@@ -78,6 +78,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - A repository's `.ragnar/config.toml` can no longer hang or crash the index worker. `[index]` sizes must be positive, `legacy_encoding` must name a known encoding, and `[index]` and `[project]` must be tables.
 - Fetches and clones give up on a stalled connection instead of freezing the worker.
 - A malformed Delphi form no longer stops the index worker. A negative length in a binary form looped forever, and a character code outside Unicode or a form nested too deep raised an error that failed the whole repository. Now the form stays as it is, the bad code is dropped, and any file that still cannot be read is left out and counted as `unreadable`. The example CronJob has `activeDeadlineSeconds`, so one stuck run cannot block the later ones.
+- Files without a grammar, documents and form components are cut to the chunk budget like code. One long line, such as a SQL dump with an extended `INSERT`, used to become a single chunk that Postgres refused (`string is too long for tsvector`), failing the repository on every run. The chunker version change triggers a full reindex.
+- Chunking a large data literal (a byte array, a constant table) takes linear time. A 1 MB array took close to two minutes.
+- Line numbers of windows, documents, forms and graph edges count only `\n`. A form feed used to shift every line after it.
+- `ragnar init` counts accented file names when it detects languages, and `ragnar init-env` writes `.env` only after it reads `acl.json`.
 - `ragnar eval` reads accented file names as they are. Git quoted them, so the golden set and the grep baseline left them out.
 - `ragnar init-env` keeps the clients added by hand to `acl.json` and replaces only its own two entries. `ragnar token --repos "a, b"` no longer stores `" b"`.
 - With `retrieval.graph_weight` on, graph neighbors honor `path_prefix` and `kind` like the other lists.

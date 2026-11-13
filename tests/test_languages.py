@@ -301,6 +301,42 @@ def test_cp1252_form_is_decoded():
     assert "Caption=Situação" in Chunker().chunk_file("a.dfm", src)[0].content
 
 
+TSVECTOR_LIMIT = 1_048_575  # bytes: Postgres refuses a longer tsvector, and the whole COPY with it
+
+
+@pytest.mark.parametrize(("path", "text"), [
+    ("db/seed.sql", "INSERT INTO t VALUES " + ",".join(f"({i}, 'name {i}')" for i in range(60_000)) + ";\n"),
+    ("docs/dump.md", "intro\n" + "word " * 200_000 + "\n"),
+])
+def test_one_huge_line_is_cut_to_the_budget(path, text):
+    chunks = Chunker().chunk_file(path, text.encode())
+    assert len(chunks) > 10
+    assert max(len(c.search_text.encode()) for c in chunks) < TSVECTOR_LIMIT // 100
+    assert all(c.start_line <= c.end_line for c in chunks)
+
+
+def test_a_form_component_with_a_huge_sql_is_cut():
+    sql = "\n".join(f"    'select col{i} from TABELA{i}'" for i in range(20_000))
+    src = f"object F: TForm\n  object Q: TQuery\n    SQL.Strings = (\n{sql})\n  end\nend\n".encode()
+    chunks = Chunker().chunk_file("a.dfm", src)
+    assert len(chunks) > 10 and max(len(c.content) for c in chunks) < 20_000
+
+
+def test_a_wide_data_literal_chunks_in_linear_time():
+    import time
+
+    src = ("DATA = [\n" + "".join(f"    {i},\n" for i in range(60_000)) + "]\n").encode()  # about 700 KB
+    t0 = time.perf_counter()
+    chunks = Chunker().chunk_file("app/data.py", src)
+    assert chunks and time.perf_counter() - t0 < 10  # was minutes: declared_in listed every element per chunk
+
+
+def test_window_line_numbers_ignore_form_feeds():
+    src = b"a\n\x0cb\nc\n"  # splitlines would see four lines
+    chunks = Chunker().chunk_file("notes.txt", src) or Chunker(Index(include=("*.txt",))).chunk_file("notes.txt", src)
+    assert chunks[0].end_line == 3
+
+
 def test_large_form_splits_by_budget():
     body = "".join(f"  object b{i}: TButton\n    OnClick = Handler{i}\n  end\n" for i in range(60))
     chunks = Chunker(Index(chunk_budget=200)).chunk_file("a.dfm", f"object F: TForm\n{body}end\n".encode())
