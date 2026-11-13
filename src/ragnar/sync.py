@@ -53,6 +53,12 @@ def load_repos(path: str | Path) -> list[RepoSource]:
         unknown = sorted(set(entry) - {"name", "url", "branch", "token_env", "exclude"})
         if unknown or "name" not in entry or "url" not in entry:
             raise RagnarError(f"each [[repo]] needs name and url, and only branch, token_env and exclude besides: {entry}")
+        wrong = [k for k in ("name", "url", "branch", "token_env") if k in entry and not isinstance(entry[k], str)]
+        if wrong or not entry["name"]:
+            raise RagnarError(f"name, url, branch and token_env of each [[repo]] must be text, and name not empty: {entry}")
+        if any(r.name == entry["name"] for r in repos):
+            # two entries with one name would overwrite each other's index on every pass
+            raise RagnarError(f"repository {entry['name']!r} appears twice in {path}")
         exclude = entry.get("exclude", [])
         if not isinstance(exclude, list) or not all(isinstance(g, str) for g in exclude):
             # a string would become its characters, and a lone "*" among them excludes every file

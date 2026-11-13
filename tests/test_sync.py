@@ -38,7 +38,9 @@ def test_repo_excludes_reach_the_indexer(tmp_path):
 
 
 @pytest.mark.parametrize("text", ['[[repo]]\nname = "a"\n', '[[repo]]\nname = "a"\nurl = "u"\ntoken = "secret"\n',
-                                  '[[repo]]\nname = "a"\nurl = "u"\nexclude = "vendor/*"\n'])  # a string, not a list
+                                  '[[repo]]\nname = "a"\nurl = "u"\nexclude = "vendor/*"\n',  # a string, not a list
+                                  '[[repo]]\nname = "a"\nurl = "u"\nbranch = 1\n', '[[repo]]\nname = ""\nurl = "u"\n',
+                                  '[[repo]]\nname = "a"\nurl = "u"\n[[repo]]\nname = "a"\nurl = "v"\n'])  # twice
 def test_load_repos_rejects_bad_entries(tmp_path, text):
     path = tmp_path / "repos.toml"
     path.write_text(text, encoding="utf-8")
