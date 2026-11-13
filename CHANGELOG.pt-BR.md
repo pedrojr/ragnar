@@ -127,3 +127,5 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - O `scripts/up.sh` funciona com o provisionador kind do Docker Desktop. Os nós dele guardam as próprias imagens, então o Kubernetes continuava rodando a primeira imagem que tinha carregado. Agora o `up.sh` copia cada imagem alterada para os nós e reinicia o embedder.
 - O template do GitHub Actions instala o gitleaks em vez de rodar o `gitleaks-action`, que exige chave de licença em repositórios de organização. O `ragnar index` já varre os arquivos que indexa.
 - O `ragnar stats` ignora linhas de auditoria sem nome de ferramenta. Antes, elas o faziam falhar.
+- No Compose, o `ragnar-mcp` alcança um Ollama rodando no host por `host.docker.internal`, o endereço que o `server.toml` agora sugere para `[llm]`.
+- O `scripts/index.sh --target k8s` não mostra mais a dica do Git sobre o branch padrão ao clonar o bundle no pod.
