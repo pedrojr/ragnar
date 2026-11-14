@@ -15,6 +15,20 @@ def test_metrics():
     assert (gain, low, high) == (1.0, 1.0, 1.0)
 
 
+def test_hand_written_golden_lines_are_checked(tmp_path):
+    import pytest
+
+    from ragnar.config import RagnarError
+    from ragnar.evaluation import read_golden
+
+    path = tmp_path / "golden.jsonl"
+    path.write_text('{"query": "q", "relevant": ["src\\\\a.py"]}\n\n', encoding="utf-8")
+    assert read_golden(str(path)) == [{"query": "q", "relevant": ["src/a.py"]}]
+    path.write_text('{"query": "q", "relevant": ["a"]}\n{"query": "q", "relevant": []}\n', encoding="utf-8")
+    with pytest.raises(RagnarError, match=":2: needs"):
+        read_golden(str(path))
+
+
 def test_report_warns_on_small_samples():
     scores = {"recall_at_10": 0.5, "mrr": 0.4, "avg_context_tokens": 900}
     gain = {"recall_gain": 0.1, "ci95_low": 0.0, "ci95_high": 0.2}

@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -228,6 +229,8 @@ def _coerce(section: str, key: str, type_name: str, value: Any) -> Any:
             raise wrong
         return value
     if type_name == "int":
+        if isinstance(value, bool) or (isinstance(value, float) and not value.is_integer()):
+            raise wrong  # int(true) is 1 and int(3.9) is 3: both hide a mistake
         try:
             return int(value)
         except (TypeError, ValueError):
@@ -291,6 +294,12 @@ def _validate(s: Settings) -> None:
     if min(s.index.max_file_kb, s.index.chunk_budget, s.index.window_lines) < 1 or s.index.window_overlap < 0:
         raise RagnarError("index.max_file_kb, index.chunk_budget and index.window_lines must be positive, "
                           "and index.window_overlap 0 or more")
+    small = [name for name, value in (("embedding.batch", s.embedding.batch), ("embedding.dim", s.embedding.dim),
+                                      ("retrieval.default_k", s.retrieval.default_k),
+                                      ("retrieval.candidates", s.retrieval.candidates),
+                                      ("query.variants", s.query.variants)) if value < 1]
+    if small:
+        raise RagnarError(f"{small[0]} must be 1 or more")
     if s.index.window_overlap >= s.index.window_lines:
         raise RagnarError("index.window_overlap must be smaller than index.window_lines")
     if s.project.languages:
@@ -344,9 +353,33 @@ def _merge(base: dict[str, dict[str, Any]], extra: dict[str, Any]) -> None:
         base.setdefault(section, {}).update(values)
 
 
+ENDPOINT_KEYS = {"url", "api_key_env", "provider"}
+
+
+def _without_endpoints(layer: dict[str, Any], path: Path) -> dict[str, Any]:
+    """A committed project file without endpoints, key names and the secret scan switches.
+
+    Those keys decide where source code and API keys go, so they come only from files on this machine
+    (.rag/config.local.toml, RAGNAR_CONFIG), the environment or --set.
+    """
+    kept: dict[str, Any] = {}
+    dropped = []
+    for section, values in layer.items():
+        if not isinstance(values, dict):
+            kept[section] = values  # _merge reports it
+            continue
+        server = ENDPOINT_KEYS | (SERVER_OWNED if section == "index" else set())
+        dropped += [f"{section}.{k}" for k in values if k in server]
+        kept[section] = {k: v for k, v in values.items() if k not in server}
+    if dropped:
+        print(f"warning: {path}: ignored {', '.join(sorted(dropped))}; a committed file cannot set endpoints, "
+              f"keys or the secret scan. Put them in {LOCAL_CONFIG_FILE} instead.", file=sys.stderr)
+    return kept
+
+
 def _read_toml(path: Path) -> dict[str, Any]:
     try:
-        return tomllib.loads(path.read_text(encoding="utf-8"))
+        return tomllib.loads(path.read_text(encoding="utf-8-sig"))  # -sig: Windows editors may add a BOM
     except tomllib.TOMLDecodeError as exc:
         raise RagnarError(f"invalid TOML in {path}: {exc}") from None
 
@@ -384,8 +417,9 @@ def parse_env_file(text: str) -> dict[str, str]:
         name, value = name.strip(), value.strip()
         if not sep or not name.isidentifier():
             continue
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-            value = value[1:-1]
+        quoted = re.match(r"""^(["'])(.*)\1(\s+#.*)?$""", value)
+        if quoted:  # A="q" # comment -> q
+            value = quoted.group(2)
         elif " #" in value:
             value = value.split(" #", 1)[0].rstrip()
         values[name] = value
@@ -402,7 +436,7 @@ def load_env_file(root: str | Path | None = None, environ: dict[str, str] | None
     if not path.is_file():
         return []
     added = []
-    for name, value in parse_env_file(path.read_text(encoding="utf-8")).items():
+    for name, value in parse_env_file(path.read_text(encoding="utf-8-sig")).items():
         if name not in environ:
             environ[name] = value
             added.append(name)
@@ -420,7 +454,9 @@ def load_settings(root: str | Path | None = None, overrides: list[str] | None = 
 
     layers: list[dict[str, Any]] = []
     if main_file.is_file():
-        layers.append(_read_toml(main_file))
+        layer = _read_toml(main_file)
+        # the committed file came with the clone: it may not pick where code goes or turn off the secret scan
+        layers.append(layer if explicit else _without_endpoints(layer, main_file))
     local = base / LOCAL_CONFIG_FILE
     if local.is_file():
         layers.append(_read_toml(local))
@@ -454,6 +490,9 @@ def with_repo_config(settings: Settings, toml_text: str | None) -> Settings:
     if not isinstance(index, dict) or not isinstance(project_section, dict):
         raise RagnarError(f"invalid {CONFIG_FILE} in the repository: [index] and [project] must be tables")
     chosen = {k: v for k, v in index.items() if k in REPO_OWNED["index"]}
+    if ignored := sorted(set(index) - REPO_OWNED["index"]):  # a typo must not vanish without a word
+        print(f"warning: {CONFIG_FILE} in the repository: ignored [index] keys {', '.join(ignored)} "
+              "(unknown, or set by the server only)", file=sys.stderr)
     project = {"languages": project_section["languages"]} if "languages" in project_section else {}
     merged = {name: dataclasses.asdict(getattr(settings, name)) for name in SECTIONS}
     merged["index"].update(chosen)

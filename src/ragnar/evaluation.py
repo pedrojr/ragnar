@@ -19,7 +19,7 @@ from statistics import mean
 import psycopg
 
 from .chunker import unaccent
-from .config import Settings, load_settings
+from .config import RagnarError, Settings, load_settings
 from .embedder import from_settings
 from .languages import BY_EXTENSION, FORM_EXTENSIONS
 from .llm import chat_from, reranker_from
@@ -217,4 +217,18 @@ def format_report(report: dict) -> str:
 
 
 def read_golden(path: str) -> list[dict]:
-    return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
+    """Questions from a JSONL file. Teams write some by hand, so each line is checked and named on error."""
+    golden = []
+    for number, line in enumerate(Path(path).read_text(encoding="utf-8-sig").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            q = json.loads(line)
+        except ValueError as exc:
+            raise RagnarError(f"{path}:{number}: invalid JSON: {exc}") from None
+        relevant = q.get("relevant") if isinstance(q, dict) else None
+        if not isinstance(q, dict) or not isinstance(q.get("query"), str) or not relevant \
+                or not isinstance(relevant, list) or not all(isinstance(p, str) for p in relevant):
+            raise RagnarError(f'{path}:{number}: needs "query" and a non-empty "relevant" list of paths')
+        golden.append({**q, "relevant": [p.replace("\\", "/") for p in relevant]})
+    return golden

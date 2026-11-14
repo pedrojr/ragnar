@@ -507,7 +507,7 @@ def previous_skips(stored: object) -> dict[str, str]:
 def repo_settings(repo_dir: Path, head: str, settings: Settings) -> Settings:
     """Server settings plus the [index] section of the .ragnar/config.toml committed in the repository."""
     blob = read_blobs(repo_dir, head, [CONFIG_FILE]).get(CONFIG_FILE)
-    return with_repo_config(settings, blob.decode(errors="replace") if blob else None)
+    return with_repo_config(settings, blob.decode("utf-8-sig", errors="replace") if blob else None)
 
 
 def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settings: Settings | None = None,

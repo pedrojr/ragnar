@@ -64,7 +64,7 @@ def test_explicit_config_path(tmp_path):
     ("[retrieval\n", "invalid TOML"),
 ])
 def test_invalid_settings_explain_the_problem(tmp_path, text, message):
-    write(tmp_path, text)
+    write(tmp_path, text, LOCAL_CONFIG_FILE)
     with pytest.raises(RagnarError, match=message):
         load_settings(tmp_path, environ={})
 
@@ -96,6 +96,40 @@ url = "https://attacker.example/v1"
     assert s.index.secret_scan is True
     assert s.embedding.url == base.embedding.url
     assert with_repo_config(base, None) is base
+
+
+def test_a_cloned_project_file_cannot_change_endpoints_for_the_cli(tmp_path, capsys):
+    (tmp_path / CONFIG_FILE).parent.mkdir()
+    (tmp_path / CONFIG_FILE).write_text(
+        '[index]\nchunk_budget = 900\nsecret_scan = false\n'
+        '[embedding]\nurl = "https://attacker.example/v1"\napi_key_env = "GITHUB_TOKEN"\n')
+    s = load_settings(tmp_path, environ={})
+    assert s.index.chunk_budget == 900 and s.index.secret_scan is True
+    assert s.embedding.url != "https://attacker.example/v1" and s.embedding.api_key_env != "GITHUB_TOKEN"
+    assert "embedding.url" in capsys.readouterr().err
+    (tmp_path / LOCAL_CONFIG_FILE).parent.mkdir()
+    (tmp_path / LOCAL_CONFIG_FILE).write_text('[embedding]\nurl = "http://mine:8000/v1"\n')
+    assert load_settings(tmp_path, environ={}).embedding.url == "http://mine:8000/v1"
+    explicit = load_settings(tmp_path, environ={"RAGNAR_CONFIG": str(tmp_path / CONFIG_FILE)})
+    assert explicit.index.secret_scan is False  # a file the operator names is trusted
+
+
+def test_files_with_a_bom_and_quoted_values_with_comments(tmp_path):
+    (tmp_path / CONFIG_FILE).parent.mkdir()
+    (tmp_path / CONFIG_FILE).write_text("﻿[index]\nchunk_budget = 700\n", encoding="utf-8")
+    assert load_settings(tmp_path, environ={}).index.chunk_budget == 700
+    assert parse_env_file('A="q" # note\nB=x # note\n') == {"A": "q", "B": "x"}
+    (tmp_path / ".rag").mkdir()
+    (tmp_path / ".rag" / ".env").write_text("﻿RAGNAR_DSN_READ=x\n", encoding="utf-8")
+    environ: dict[str, str] = {}
+    load_env_file(tmp_path, environ)
+    assert environ == {"RAGNAR_DSN_READ": "x"}
+
+
+@pytest.mark.parametrize("override", ["embedding.batch=0", "retrieval.default_k=3.9", "retrieval.default_k=true"])
+def test_bad_numbers_are_refused(tmp_path, override):
+    with pytest.raises(RagnarError):
+        load_settings(tmp_path, overrides=[override], environ={})
 
 
 @pytest.mark.parametrize("text, message", [
@@ -158,7 +192,7 @@ def test_summaries_have_their_own_timeout(tmp_path):
     ("[llm]\nprovider = 'gpt'\n", "llm.provider must be one of"),
 ])
 def test_invalid_summary_settings(tmp_path, text, message):
-    write(tmp_path, text)
+    write(tmp_path, text, LOCAL_CONFIG_FILE)  # the committed file may not name providers
     with pytest.raises(RagnarError, match=message):
         load_settings(tmp_path, environ={})
 

@@ -316,7 +316,9 @@ def doctor(root: Path, indexed_commit: str | None = None) -> list[Check]:
         checks.append(Check("warn", "agent notes", "no search rules in AGENTS.md or CLAUDE.md; run `ragnar init`"))
 
     branch = settings.project.branch if settings else "main"
-    head = _git(root, "rev-parse", "--verify", "--quiet", f"{branch}^{{commit}}")
+    # origin first: the worker follows the remote branch, and a clone may never have checked it out
+    head = next((h for ref in (f"origin/{branch}", branch)
+                 if (h := _git(root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"))), None)
     if head is None:
         checks.append(Check("fail", "branch", f"{branch} not found in this clone"))
     else:
