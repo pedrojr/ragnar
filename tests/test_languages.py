@@ -345,6 +345,35 @@ def test_window_line_numbers_ignore_form_feeds():
     assert chunks[0].end_line == 3
 
 
+def test_code_chunk_lines_match_their_text():
+    src = ("DATA = [\n" + "".join(f"    {i},\n" for i in range(3000)) + "]\n").encode()
+    lines = src.split(b"\n")
+    for c in Chunker(Index(chunk_budget=200)).chunk_file("app/data.py", src):
+        body = c.content.split("\n", 2)[2]  # after the file and symbol header lines
+        assert c.end_line - c.start_line == body.rstrip("\n").count("\n")
+        assert body.rstrip("\n").split("\n")[-1] in lines[c.end_line - 1].decode()
+
+
+def test_trailing_comment_stays_with_its_statement():
+    src = b"".join(b"x%d = %d  # note %d\n" % (i, i, i) for i in range(30))
+    chunks = Chunker(Index(chunk_budget=40)).chunk_file("a.py", src)
+    assert len(chunks) > 1
+    for c in chunks:
+        assert not c.content.split("\n", 2)[2].startswith("# note")
+
+
+def test_parse_cache_is_per_grammar():
+    src = b"interface Foo {}\nfunction bar() {}\n"
+    c = Chunker()
+    c.chunk_file("a.js", src)
+    assert {s.name for s in c.extract_symbols("b.ts", src)} == {"Foo", "bar"}
+
+
+def test_nul_anywhere_is_binary():
+    assert normalize_source(b"a" * 9000 + b"\0b") is None
+    assert normalize_source(b"\xff\xfe" + "a\0b".encode("utf-16-le")) is None
+
+
 def test_large_form_splits_by_budget():
     body = "".join(f"  object b{i}: TButton\n    OnClick = Handler{i}\n  end\n" for i in range(60))
     chunks = Chunker(Index(chunk_budget=200)).chunk_file("a.dfm", f"object F: TForm\n{body}end\n".encode())

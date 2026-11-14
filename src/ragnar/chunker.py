@@ -10,7 +10,7 @@ from __future__ import annotations
 import codecs
 import re
 import unicodedata
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 from itertools import accumulate
 from pathlib import PurePosixPath
@@ -89,8 +89,9 @@ def normalize_source(src: bytes, legacy_encoding: str = "cp1252") -> bytes | Non
         src = src[len(codecs.BOM_UTF8):]
     for bom, encoding in ((codecs.BOM_UTF16_LE, "utf-16-le"), (codecs.BOM_UTF16_BE, "utf-16-be")):
         if src.startswith(bom):
-            return src[len(bom):].decode(encoding, errors="replace").encode()
-    if bytes(1) in src[:8000]:
+            text = src[len(bom):].decode(encoding, errors="replace")
+            return None if "\0" in text else text.encode()
+    if bytes(1) in src:  # anywhere: Postgres text refuses NUL, and the final COPY would fail the whole run
         return None
     try:
         src.decode()
@@ -123,8 +124,11 @@ def cast_chunks(node: Node, src: bytes, budget: int, sizes: list[int] | None = N
     cur: tuple[int, int] | None = None
     comment_start: int | None = None  # leading comments travel with the declaration after them
     for child in node.children:
+        prev = child.prev_sibling
+        # a comment on the line of the previous statement belongs to it, not to what follows
+        trailing = "comment" in child.type and prev is not None and child.start_point[0] == prev.end_point[0]
         for s, e in cast_chunks(child, src, budget, sizes):
-            if cur and sizes[e] - sizes[cur[0]] <= budget:
+            if cur and (trailing or sizes[e] - sizes[cur[0]] <= budget):
                 cur = (cur[0], e)
             else:
                 if cur and comment_start is not None and comment_start > cur[0]:
@@ -137,7 +141,7 @@ def cast_chunks(node: Node, src: bytes, budget: int, sizes: list[int] | None = N
                     if cur:
                         spans.append(cur)
                     cur = (s, e)
-        if "comment" in child.type:
+        if "comment" in child.type and not trailing:
             comment_start = comment_start if comment_start is not None else child.start_byte
         else:
             comment_start = None
@@ -262,7 +266,7 @@ class Chunker:
 
     index: Index = field(default_factory=Index)
     languages: tuple[str, ...] = ()
-    _parsed: tuple[bytes, Tree] | None = field(default=None, repr=False)  # chunks and symbols share one parse
+    _parsed: tuple[object, bytes, Tree] | None = field(default=None, repr=False)  # chunks and symbols share one parse
 
     @classmethod
     def from_settings(cls, settings: Settings) -> Chunker:
@@ -340,9 +344,10 @@ class Chunker:
             return self._window(path, text, lang)
 
     def _root(self, src: bytes, grammar) -> Node:
-        if self._parsed is None or self._parsed[0] != src:
-            self._parsed = (src, Parser(grammar).parse(src))
-        return self._parsed[1].root_node
+        # keyed by grammar too: the same bytes in a.js and b.ts parse differently
+        if self._parsed is None or self._parsed[0] is not grammar or self._parsed[1] != src:
+            self._parsed = (grammar, src, Parser(grammar).parse(src))
+        return self._parsed[2].root_node
 
     def _code(self, path: str, src: bytes, lang: Language, grammar) -> list[Chunk]:
         root = self._root(src, grammar)
@@ -362,7 +367,7 @@ class Chunker:
             inside = enclosing_symbol(lang, root, s, e) or declared_in(lang, root, s, e, cache=children)
             symbol = " > ".join(p for p in (module, inside) if p)
             out.append(_make(lang.comment, path, symbol, lang.name, kind, bisect_right(lines, s - 1) + 1,
-                             bisect_right(lines, e - 1) + 1, text))
+                             bisect_left(lines, e - 1) + 1, text))  # a newline at e - 1 ends the last line
         return out
 
     def _sections(self, path: str, src: bytes, lang: Language, root: Node,

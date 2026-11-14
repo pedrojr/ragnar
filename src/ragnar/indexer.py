@@ -85,11 +85,18 @@ def resolve_source(source: str, name: str, env: dict[str, str] | None = None) ->
         return local
     mirror = CACHE_DIR / f"{name}.git"
     if mirror.exists():
+        # repos.toml may point the same name at a new URL: a moved repository must not keep the old remote
+        if git(mirror, "config", "--get", "remote.origin.url").decode().strip() != source:
+            git(mirror, "remote", "set-url", "origin", source)
         git(mirror, "remote", "update", "--prune", env=env, timeout=NETWORK_TIMEOUT)
     else:
         mirror.parent.mkdir(parents=True, exist_ok=True)
-        _run_git(["git", "clone", "--mirror", source, str(mirror)], f"git clone {scrub(source)}", None, env,
+        # clone beside it and rename: a clone killed halfway must not pass for a mirror on the next run
+        partial = mirror.with_name(f"{mirror.name}.partial")
+        shutil.rmtree(partial, ignore_errors=True)
+        _run_git(["git", "clone", "--mirror", source, str(partial)], f"git clone {scrub(source)}", None, env,
                  NETWORK_TIMEOUT)
+        partial.rename(mirror)
     return mirror
 
 
@@ -555,7 +562,8 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
     for path, src in list(blobs.items()):
         try:
             reason = chunker.skip_reason(path, src)
-            parsed[path] = (chunker.chunk_file(path, src), chunker.extract_symbols(path, src))
+            if not reason:  # a skipped file gets no chunks anyway: parsing it only costs time
+                parsed[path] = (chunker.chunk_file(path, src), chunker.extract_symbols(path, src))
         except RagnarError:
             raise
         except Exception as exc:  # one malformed file (a broken form, bad bytes) must not stop the repository
@@ -607,8 +615,10 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
     # Short transaction at the end: lock the repo, confirm nobody indexed first, swap the chunks.
     with psycopg.connect(dsn) as conn:
         conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (repo,))
-        now = conn.execute("SELECT commit_sha FROM index_state WHERE repo = %s", (repo,)).fetchone()
-        if (now[0] if now else None) != (state[0] if state else None):
+        # the whole state, not only the commit: a full reindex at the same head changes the fingerprint
+        now = conn.execute("SELECT commit_sha, embed_model, fingerprint FROM index_state WHERE repo = %s",
+                           (repo,)).fetchone()
+        if (tuple(now) if now else None) != (tuple(state[:3]) if state else None):
             raise RagnarError(f"another indexer wrote {repo} during this run; run it again")
         scope, args = ("repo = %s", (repo,)) if mode == "full" else ("repo = %s AND path = ANY(%s)", (repo, paths))
         deleted = conn.execute(f"DELETE FROM code_chunk WHERE {scope}", args).rowcount
