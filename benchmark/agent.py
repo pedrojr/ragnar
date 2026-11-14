@@ -29,8 +29,10 @@ PROMPT = """{question}
 
 Answer in at most three sentences and cite the file paths that hold the answer as path:line."""
 LOCAL_TOOLS = "Read,Grep,Glob"
+# every tool the server offers: AGENT_NOTE names call_graph and trace_flow, and a denied call wastes a turn
 RAGNAR_TOOLS = ",".join(f"mcp__ragnar__{t}" for t in ("search_code", "find_symbol", "find_references", "file_outline",
-                                                      "read_code", "list_repos"))
+                                                      "read_code", "list_repos", "call_graph", "trace_flow",
+                                                      "find_table_usage", "repo_map"))
 SKIP_ENV = re.compile(r"^(CLAUDE|ANTHROPIC_BASE)")  # a child session must not inherit this one
 CATEGORIES = ("concept", "flow", "callers", "ptbr", "config", "form")
 

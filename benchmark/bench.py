@@ -100,8 +100,10 @@ def _settings(entry: dict, extra: list[str]):
     from ragnar.config import load_settings
 
     excludes = json.dumps(entry["exclude"])
+    # neither RAGNAR__ variables nor RAGNAR_CONFIG: every run of the suite starts from the same settings
     return load_settings(ROOT, overrides=[f"index.exclude={excludes}", *extra],
-                         environ={k: v for k, v in os.environ.items() if not k.startswith("RAGNAR__")})
+                         environ={k: v for k, v in os.environ.items()
+                                  if not k.startswith("RAGNAR__") and k != "RAGNAR_CONFIG"})
 
 
 def cmd_index(args: argparse.Namespace) -> None:
@@ -109,6 +111,8 @@ def cmd_index(args: argparse.Namespace) -> None:
     from ragnar.indexer import index
     from ragnar.migrate import migrate
 
+    if not re.fullmatch(r"[a-z0-9_]+", args.label):  # it becomes a database name in DROP DATABASE
+        raise SystemExit(f"--label must use a-z, 0-9 and _, got {args.label!r}")
     db = f"ragnar_{args.label}"
     dsn = ADMIN_DSN.format(db=db)
     if not args.keep:
