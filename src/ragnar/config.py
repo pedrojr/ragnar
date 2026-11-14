@@ -19,6 +19,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +35,14 @@ CHUNKER_VERSION = 7 # bump when chunk boundaries or chunk fields change: forces 
 
 class RagnarError(Exception):
     """Expected error: the message reaches the user or the model as it is."""
+
+
+URL_CREDENTIALS = re.compile(r"(?<=://)[^/@\s]+@")
+
+
+def scrub(text: str) -> str:
+    """Removes credentials embedded in URLs from a message."""
+    return URL_CREDENTIALS.sub("***@", text)
 
 
 def env(name: str, default: str | None = None) -> str:

@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import math
 import re
+import sys
 import time
 from dataclasses import dataclass, field
 
 import psycopg
 
 from .chunker import split_identifiers, unaccent
-from .config import Retrieval, Settings
+from .config import RagnarError, Retrieval, Settings
 from .embedder import Embedder, FakeEmbedder, to_pgvector
 from .llm import Chat, Reranker, expand_query
 
@@ -298,8 +299,12 @@ def select_diverse(hits: list[dict], k: int, cfg: Retrieval) -> list[dict]:
 
 def references(hits: list[dict], kept: list[dict], limit: int) -> list[dict]:
     """The kept hits, then what did not fit as references: a path costs a fraction of its chunk."""
-    ids = {h["id"] for h in kept}
-    rest = [{**h, "compact": True} for h in hits if h["id"] not in ids]
+    seen = {h["id"] for h in kept}
+    rest = []
+    for h in hits:  # once each: a hit can arrive both as a dropped hit and as a ranked one
+        if h["id"] not in seen:
+            seen.add(h["id"])
+            rest.append({**h, "compact": True})
     return kept + rest[: max(0, limit - len(kept))]
 
 
@@ -473,8 +478,12 @@ class Pipeline:
         s = self.settings
         self.timing = {}
         t0 = time.perf_counter()
-        self._extras = expand_query(self.chat, s.query.strategy, s.query.variants, query) \
-            if self.chat and s.query.strategy != "none" else []
+        try:
+            self._extras = expand_query(self.chat, s.query.strategy, s.query.variants, query) \
+                if self.chat and s.query.strategy != "none" else []
+        except RagnarError as exc:  # expansion is optional: the plain query still answers
+            print(f"query expansion skipped: {exc}", file=sys.stderr, flush=True)
+            self._extras = []
         t1 = time.perf_counter()
         self._vectors = {text: to_pgvector(list(self.emb.embed_query(text))) for text in (query, *self._extras)} \
             if s.retrieval.mode in ("hybrid", "vector") else {}
@@ -527,9 +536,14 @@ class Pipeline:
         if self.reranker and hits:
             top = hits[: self.settings.rerank.candidates]
             # only valid, first-seen indexes: a reranker that repeats or invents one must not duplicate a hit
-            order = dict.fromkeys(i for i in self.reranker.rerank(query, [h["content"] for h in top])
-                                  if isinstance(i, int) and 0 <= i < len(top))
-            hits = [top[i] for i in order]
+            try:
+                given = self.reranker.rerank(query, [h["content"] for h in top])
+            except RagnarError as exc:  # an optional model must not fail a search the hybrid ranking can answer
+                print(f"rerank skipped: {exc}", file=sys.stderr, flush=True)
+                given = list(range(len(top)))
+            order = dict.fromkeys(i for i in given if isinstance(i, int) and 0 <= i < len(top))
+            # hits the reranker left out (or never saw) keep their place after the reranked ones
+            hits = [top[i] for i in order] + [h for j, h in enumerate(top) if j not in order] + hits[len(top):]
         self.timing["rerank"] = time.perf_counter() - t2
         return hits
 
@@ -546,8 +560,7 @@ class Pipeline:
             hits = [hit if i == 0 else focus(hit, terms) for i, hit in enumerate(hits)]
         self.confidence = confidence(ranked, hits[0]["id"]) if hits else "none"
         kept = fit_budget(hits, cfg.max_context_tokens)
-        seen = {h["id"] for h in kept}
-        hits = references([*hits, *(h for h in ranked_hits if h["id"] not in seen)], kept, len(kept) + cfg.reference_hits)
+        hits = references([*hits, *ranked_hits], kept, len(kept) + cfg.reference_hits)
         return hits, self.timing
 
     def _with_neighbors(self, conn: psycopg.Connection, hits: list[dict]) -> list[dict]:
@@ -628,17 +641,20 @@ def file_outline(conn: psycopg.Connection, repos: list[str], path: str, limit: i
     rows = conn.execute(
         f"""SELECT {", ".join(SYMBOL_COLUMNS)} FROM code_symbol
             WHERE repo = ANY(%(repos)s) AND (path = %(path)s OR path LIKE %(suffix)s ESCAPE '\\')
-            ORDER BY repo, path, start_line LIMIT %(limit)s""",
+            ORDER BY path = %(path)s DESC, repo, path, start_line LIMIT %(limit)s""",
         {"repos": repos, "path": path, "suffix": f"%/{like_prefix(path)[:-1]}", "limit": limit},
     ).fetchall()
-    return [dict(zip(SYMBOL_COLUMNS, r)) for r in rows]
+    out = [dict(zip(SYMBOL_COLUMNS, r)) for r in rows]
+    # one file only: two util.py in different folders must not interleave their declarations
+    return [s for s in out if (s["repo"], s["path"]) == (out[0]["repo"], out[0]["path"])] if out else out
 
 
 def read_code(conn: psycopg.Connection, repos: list[str], path: str, start: int, end: int) -> dict | None:
     """Lines of an indexed file, rebuilt from its chunks, for code that is not on this disk."""
     row = conn.execute(
         """SELECT repo, path FROM code_chunk
-           WHERE repo = ANY(%(repos)s) AND (path = %(path)s OR path LIKE %(suffix)s ESCAPE '\\') ORDER BY repo, path LIMIT 1""",
+           WHERE repo = ANY(%(repos)s) AND (path = %(path)s OR path LIKE %(suffix)s ESCAPE '\\')
+           ORDER BY path = %(path)s DESC, repo, path LIMIT 1""",
         {"repos": repos, "path": path, "suffix": f"%/{like_prefix(path)[:-1]}"},
     ).fetchone()
     if row is None:
@@ -656,6 +672,11 @@ def read_code(conn: psycopg.Connection, repos: list[str], path: str, start: int,
             if start <= first + offset <= end:
                 lines.setdefault(first + offset, line)
     return {"repo": repo, "path": full_path, "lines": sorted(lines.items())}
+
+
+def repo_names(conn: psycopg.Connection) -> list[str]:
+    """Every indexed repository, without counting chunks: a wildcard token asks for this on each call."""
+    return [r[0] for r in conn.execute("SELECT repo FROM index_state ORDER BY repo").fetchall()]
 
 
 def list_repos(conn: psycopg.Connection, repos: list[str] | None) -> list[dict]:

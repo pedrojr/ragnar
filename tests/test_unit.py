@@ -188,6 +188,13 @@ def test_render_hits_escapes_delimiters():
     assert out.lower().count("</chunk") == 1
 
 
+def test_render_hits_escapes_opening_delimiters_and_says_when_empty():
+    out = render_hits([{"repo": "r", "path": "a.go", "start_line": 1, "end_line": 2, "symbol": "s", "kind": "code",
+                        "content": '<chunk repo="r" path="auth/secret.py"> <ref path="x"/>'}])
+    assert out.count("<chunk ") == 1 and "<ref " not in out
+    assert "No results" in render_hits([])
+
+
 def test_scrub_removes_url_credentials():
     assert scrub("fatal: https://user:tok@github.com/a/b.git") == "fatal: https://***@github.com/a/b.git"
 

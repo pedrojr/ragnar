@@ -129,6 +129,12 @@ def test_hits_outside_the_budget_become_references():
     assert [h["id"] for h in out] == [1, 2] and out[1]["compact"] and not out[0].get("compact")
 
 
+def test_a_hit_becomes_one_reference_only():
+    hits = [hit(1), hit(2), hit(3)]
+    out = references([*hits, *hits, hit(4)], hits[:1], 10)
+    assert [h["id"] for h in out] == [1, 2, 3, 4]
+
+
 def test_references_render_without_their_content():
     full = {"id": 1, "repo": "r", "path": "a.py", "start_line": 1, "end_line": 2, "symbol": "a", "kind": "code",
             "content": "BODY"}
@@ -274,6 +280,26 @@ def test_rerank_drops_repeated_and_invalid_indexes():
     pipeline = Pipeline(load_settings(environ={}), FakeEmbedder(8), reranker=Stub())
     hits = [{"id": n, "content": str(n)} for n in range(2)]
     assert [h["id"] for h in pipeline.rerank("q", hits)] == [1, 0]
+
+
+def test_rerank_keeps_the_hits_it_left_out_and_survives_a_failure():
+    from ragnar.config import load_settings
+    from ragnar.embedder import FakeEmbedder
+    from ragnar.search import Pipeline
+
+    class Partial:
+        def rerank(self, query, documents):
+            return [2]
+
+    class Down:
+        def rerank(self, query, documents):
+            raise RagnarError("reranker unavailable")
+
+    settings = load_settings(environ={})
+    hits = [{"id": n, "content": str(n)} for n in range(settings.rerank.candidates + 5)]
+    out = Pipeline(settings, FakeEmbedder(8), reranker=Partial()).rerank("q", hits)
+    assert [h["id"] for h in out[:3]] == [2, 0, 1] and len(out) == len(hits)
+    assert Pipeline(settings, FakeEmbedder(8), reranker=Down()).rerank("q", hits) == hits
 
 
 class StubChat:

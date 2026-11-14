@@ -15,7 +15,7 @@ from functools import lru_cache
 
 import httpx
 
-from .config import Embedding, RagnarError, Settings, load_settings
+from .config import Embedding, RagnarError, Settings, load_settings, scrub
 
 ATTEMPTS = 3
 BACKOFF_SECONDS = 0.5
@@ -58,13 +58,16 @@ class Embedder:
                 time.sleep(BACKOFF_SECONDS * 2 ** (attempt - 1))
             try:
                 r = self._client.post("/embeddings", json=body)
-                if r.status_code >= 500:
+                if r.status_code >= 500 or r.status_code == 429:  # a hosted provider's rate limit passes too
                     last = RagnarError(f"embedder answered {r.status_code}")
                     continue
                 if r.status_code >= 400:
                     raise RagnarError(f"embedder refused the request ({r.status_code}): {r.text[:200]}")
-                data = sorted(r.json()["data"], key=lambda d: d["index"])
-                vectors = [d["embedding"] for d in data]
+                try:  # a proxy's HTML page answers 200 too
+                    data = sorted(r.json()["data"], key=lambda d: d["index"])
+                    vectors = [d["embedding"] for d in data]
+                except (ValueError, KeyError, TypeError):
+                    raise RagnarError(f"embedder answered without embeddings: {r.text[:200]}") from None
                 if len(vectors) != len(texts):  # a short answer would pair the vectors with the wrong chunks
                     raise RagnarError(f"embedder returned {len(vectors)} vectors for {len(texts)} texts")
                 if any(len(v) != self.dim for v in vectors):
@@ -74,7 +77,7 @@ class Embedder:
                 return vectors
             except httpx.TransportError as exc:
                 last = exc
-        raise RagnarError(f"embedder unavailable at {self._client.base_url}: {last}")
+        raise RagnarError(scrub(f"embedder unavailable at {self._client.base_url}: {last}"))
 
 
 class FakeEmbedder:

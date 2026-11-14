@@ -16,7 +16,17 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 import httpx
 
 from .chunker import Chunk, split_identifiers
-from .config import Contextual, Llm, RagnarError, Rerank, Settings, Summaries, chat_settings, summary_settings
+from .config import (
+    Contextual,
+    Llm,
+    RagnarError,
+    Rerank,
+    Settings,
+    Summaries,
+    chat_settings,
+    scrub,
+    summary_settings,
+)
 
 FAILURE_STREAK = 3  # summary calls in a row that fail before a run stops, even with skip_errors
 _CLOSING_TAG = re.compile(r"</\s*(file|document|chunk)\s*>", re.I)
@@ -93,7 +103,7 @@ class Chat:
                 text = r.json()["choices"][0]["message"]["content"] or ""
             return THINKING.sub("", text).strip()
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
-            raise RagnarError(f"chat model unavailable at {self.cfg.url} ({self.cfg.provider}): {exc}") from None
+            raise RagnarError(scrub(f"chat model unavailable at {self.cfg.url} ({self.cfg.provider}): {exc}")) from None
 
 
 class Reranker:
@@ -110,8 +120,8 @@ class Reranker:
             r.raise_for_status()
             results = sorted(r.json()["results"], key=lambda x: x["relevance_score"], reverse=True)
             return [x["index"] for x in results]
-        except (httpx.HTTPError, KeyError, ValueError) as exc:
-            raise RagnarError(f"reranker unavailable at {self.cfg.url}: {exc}") from None
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+            raise RagnarError(scrub(f"reranker unavailable at {self.cfg.url}: {exc}")) from None
 
 
 def chat_from(settings: Settings) -> Chat | None:

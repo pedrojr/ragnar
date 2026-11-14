@@ -32,6 +32,7 @@ from .config import (
     index_fingerprint,
     load_settings,
     matches_path,
+    scrub,
     summary_settings,
     with_repo_config,
 )
@@ -47,13 +48,6 @@ EDGE_COLUMNS = ("repo", "path", "line", "src_symbol", "dst_name", "kind", "text"
 SYMBOL_COLUMNS = ("repo", "path", "symbol", "name", "node_type", "kind", "start_line", "end_line", "signature", "commit_sha")
 CACHE_DIR = Path.home() / ".cache" / "ragnar" / "repos"
 REPO_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]*$")
-URL_CREDENTIALS = re.compile(r"(?<=://)[^/@\s]+@")
-
-
-def scrub(text: str) -> str:
-    """Removes credentials embedded in URLs from a message."""
-    return URL_CREDENTIALS.sub("***@", text)
-
 
 # A stalled connection must not freeze the worker for every repository: below 1 KB/s for 2 minutes, git gives
 # up over HTTP; NETWORK_TIMEOUT bounds a fetch or clone over any transport.
