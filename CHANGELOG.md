@@ -44,6 +44,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `repo_map` MCP tool: the files of a folder that the rest of the code refers to most, with their main declarations.
 - File summaries (`[summaries]`, off by default, migration 009): a chat model writes two or three sentences per code file in the words a team would use, searched as chunks of kind `summary`. Cached by file content.
 - `ragnar stats`: a usage report from the MCP audit lines (calls, tokens, empty and low-confidence searches, repeated questions), and with `--labels`, questions from real use: a search followed by `read_code` on a file it returned. Audit lines now carry the paths a search returned.
+- `RAGNAR_STATEMENT_TIMEOUT` (default `30s`) caps each query of the MCP server, and its connections are read-only in the session as well as in the role.
+- `RAGNAR_LOCAL_EMBED_MODEL` names the model baked into the example's embedder, apart from the model searches use.
 
 ### Changed
 
@@ -70,6 +72,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `index.include` and `index.exclude` accept a directory written with a trailing `/`, as `index.summary_exclude` does. Files already indexed under such a directory leave the index with `ragnar index --full`.
 - In the Kubernetes example, the MCP server and the worker read `server.toml`, and `scripts/up.sh` passes the model keys from `.env` to them. `k8s/base/embed.env` holds every embedding setting, the URL included.
 - History questions skip commit messages that say nothing, and drop from their answers the files changed by more than 5% of the commits. The benchmark also reports whether any right file is in the top 10 (`hit10`) and records the confidence of each search.
+- **Breaking:** run inside a project, the CLI ignores `url`, `api_key_env` and `provider` in the committed `.ragnar/config.toml`, plus `index.secret_scan` and `index.secret_action`, and warns about them. A cloned repository could point embeddings at its own server with any key variable, or turn the secret scan off. Move those keys to `.rag/config.local.toml`; a file named by `RAGNAR_CONFIG` is still read in full.
+- The chunker version changed, so indexes rebuild in full on the next run. Unchanged chunks keep their vectors.
 
 ### Fixed
 
@@ -117,6 +121,25 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `scripts/index.sh --target k8s` runs the indexer in a temporary pod, through the Services. Before, it went through `kubectl port-forward`, which exits when Postgres closes a forwarded connection, so the run failed after its first queries. A local clone travels as a git bundle.
 - `scripts/index.sh` under Compose uses `server.toml`, like the worker, so the worker's next pass does not reindex in full.
 - An unreachable database is an error message from the CLI, not a traceback.
+- A NUL byte anywhere in a file marks it binary. Past the first 8 KB it reached the final `COPY`, and Postgres refused the whole run on every pass.
+- A code chunk that ends on a newline no longer reports one line too many, and a comment on the line of a statement stays in that statement's chunk.
+- Two files with the same bytes but different grammars, such as `a.js` and `b.ts`, no longer share a parse tree.
+- A mirror follows a new URL for its name in `repos.toml`, and a clone that stops halfway is no longer taken for a mirror on the next run.
+- The guard against two indexers at once compares the model and the settings fingerprint, not only the commit.
+- `search_code` no longer lists a reference twice when the token budget drops hits.
+- `read_code` and `file_outline` prefer the exact path, and `file_outline` returns one file instead of mixing every file with that name.
+- A failing reranker or query expansion falls back to the plain ranking instead of failing the search, and the reranker no longer drops the hits it leaves out.
+- A token with every repository no longer counts every chunk on each call.
+- `/readyz` checks the database without blocking the server, and database errors reach agents without host or role names. Model URLs lose their credentials in error messages.
+- Repository text cannot open a `chunk` or `ref` tag in tool output, a query over 4,000 characters is refused, and an empty search says so.
+- The embedder client retries a 429 and reports an answer without embeddings as an error.
+- Config and `.env` files with a UTF-8 BOM load, and `A="q" # comment` in `.env` gives `q`.
+- Integer settings refuse `true` and fractions, and `embedding.batch`, `embedding.dim`, `retrieval.default_k`, `retrieval.candidates` and `query.variants` must be 1 or more.
+- The worker warns about `[index]` keys it ignores in a repository's `.ragnar/config.toml`, so a typo does not vanish.
+- `ragnar eval run --variant` keeps list values whole and refuses a repeated name or `configured`. Hand-written golden lines are checked and named on error.
+- `ragnar doctor` finds a branch that exists only as `origin/<branch>`.
+- `ragnar init-env` writes `.env` readable by its owner only.
+- In the example, a hosted embedding model no longer crashes the bundled embedder and every service that waits on it. `scripts/index.sh` keeps a hosted URL from `.env`, `RAGNAR_EMBED_BATCH` reaches the Compose embedder, the image installs gitleaks for its own architecture, and the primary's health check uses TCP so `migrate` does not start too early.
 - `ragnar load` opens a new MCP session every 10 seconds. A kept-alive connection stays on the pod it first reached, so before, the pods the autoscaler added got no traffic. A failed connection now counts as an error instead of ending the test.
 - The example docs and `SECURITY.md` say that Docker Desktop publishes the Kubernetes `LoadBalancer` on every network interface, and that WSL needs cgroup v2 for recent Kubernetes versions.
 - `repos.toml` refuses a repository listed twice, an empty name, and a `name`, `url`, `branch` or `token_env` that is not text. Two entries with one name overwrote each other's index on every pass.

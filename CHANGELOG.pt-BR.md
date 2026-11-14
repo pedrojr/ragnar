@@ -44,6 +44,8 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - Ferramenta MCP `repo_map`: os arquivos de uma pasta que o resto do código mais cita, com suas declarações principais.
 - Resumos de arquivo (`[summaries]`, desligado por padrão, migração 009): um modelo de chat escreve duas ou três frases por arquivo de código, com as palavras que o time usaria, buscadas como chunks do tipo `summary`. Ficam em cache pelo conteúdo do arquivo.
 - `ragnar stats`: relatório de uso a partir das linhas de auditoria do MCP (chamadas, tokens, buscas vazias ou com baixa confiança, perguntas repetidas) e, com `--labels`, perguntas do uso real: uma busca seguida de `read_code` num arquivo que ela devolveu. As linhas de auditoria agora trazem os paths que a busca devolveu.
+- `RAGNAR_STATEMENT_TIMEOUT` (padrão `30s`) limita cada consulta do servidor MCP, e as conexões dele são somente leitura na sessão, além de no role.
+- `RAGNAR_LOCAL_EMBED_MODEL` indica o modelo embutido no embedder do exemplo, separado do modelo que as buscas usam.
 
 ### Alterado
 
@@ -70,6 +72,8 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - `index.include` e `index.exclude` aceitam um diretório escrito com `/` no fim, como o `index.summary_exclude`. Arquivos já indexados nesse diretório saem do índice com `ragnar index --full`.
 - No exemplo de Kubernetes, o servidor MCP e o worker leem o `server.toml`, e o `scripts/up.sh` repassa a eles as chaves de modelo do `.env`. O `k8s/base/embed.env` guarda todas as configurações de embedding, inclusive a URL.
 - As perguntas do histórico pulam mensagens de commit que não dizem nada e tiram das respostas os arquivos alterados por mais de 5% dos commits. O benchmark também informa se algum arquivo certo está entre os 10 primeiros (`hit10`) e registra a confiança de cada busca.
+- **Incompatível:** rodando dentro de um projeto, a CLI ignora `url`, `api_key_env` e `provider` no `.ragnar/config.toml` commitado, além de `index.secret_scan` e `index.secret_action`, e avisa sobre eles. Um repositório clonado podia apontar os embeddings para um servidor dele, com qualquer variável de chave, ou desligar a varredura de segredos. Mova essas chaves para o `.rag/config.local.toml`; um arquivo indicado por `RAGNAR_CONFIG` continua sendo lido por inteiro.
+- A versão do chunker mudou, então os índices são refeitos por inteiro na próxima execução. Chunks sem mudança mantêm os vetores.
 
 ### Corrigido
 
@@ -117,6 +121,25 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - `scripts/index.sh --target k8s` roda o indexador num pod temporário, pelos Services. Antes ele passava por `kubectl port-forward`, que encerra quando o Postgres fecha uma conexão encaminhada, e a execução falhava depois das primeiras consultas. Um clone local viaja como git bundle.
 - `scripts/index.sh` no Compose usa o `server.toml`, como o worker, então a próxima passagem do worker não reindexa tudo.
 - Um banco inacessível vira uma mensagem de erro da CLI, não um traceback.
+- Um byte NUL em qualquer ponto do arquivo o marca como binário. Depois dos primeiros 8 KB ele chegava ao `COPY` final, e o Postgres recusava a execução inteira a cada passagem.
+- Um chunk de código que termina numa quebra de linha não informa mais uma linha a mais, e um comentário na linha de um comando fica no chunk desse comando.
+- Dois arquivos com os mesmos bytes e gramáticas diferentes, como `a.js` e `b.ts`, não dividem mais a mesma árvore de parse.
+- Um mirror segue uma URL nova para o seu nome no `repos.toml`, e um clone interrompido no meio não passa mais por mirror na execução seguinte.
+- A proteção contra dois indexadores ao mesmo tempo compara o modelo e a impressão das configurações, não só o commit.
+- O `search_code` não lista mais uma referência duas vezes quando o orçamento de tokens descarta resultados.
+- `read_code` e `file_outline` preferem o caminho exato, e o `file_outline` devolve um arquivo só, em vez de misturar todos os arquivos com esse nome.
+- Uma falha do reranker ou da expansão de consulta volta ao ranking simples em vez de derrubar a busca, e o reranker não descarta mais os resultados que deixa de fora.
+- Um token com acesso a todos os repositórios não conta mais todos os chunks a cada chamada.
+- O `/readyz` confere o banco sem travar o servidor, e erros do banco chegam aos agentes sem host nem nome de role. URLs de modelo perdem as credenciais nas mensagens de erro.
+- Texto do repositório não consegue abrir uma tag `chunk` ou `ref` na saída das ferramentas, uma consulta com mais de 4.000 caracteres é recusada, e uma busca vazia avisa isso.
+- O cliente de embeddings repete a chamada depois de um 429 e trata uma resposta sem embeddings como erro.
+- Arquivos de configuração e `.env` com BOM UTF-8 carregam, e `A="q" # comentário` no `.env` vira `q`.
+- Configurações inteiras recusam `true` e frações, e `embedding.batch`, `embedding.dim`, `retrieval.default_k`, `retrieval.candidates` e `query.variants` precisam ser 1 ou mais.
+- O worker avisa sobre chaves de `[index]` que ignora no `.ragnar/config.toml` de um repositório, para um erro de digitação não sumir calado.
+- `ragnar eval run --variant` mantém valores de lista inteiros e recusa nome repetido ou `configured`. Linhas do golden escritas à mão são conferidas, e o erro diz qual linha.
+- `ragnar doctor` acha um branch que só existe como `origin/<branch>`.
+- `ragnar init-env` grava o `.env` com leitura só para o dono.
+- No exemplo, um modelo de embedding hospedado não derruba mais o embedder incluído e todos os serviços que esperam por ele. O `scripts/index.sh` mantém uma URL hospedada do `.env`, o `RAGNAR_EMBED_BATCH` chega ao embedder do Compose, a imagem instala o gitleaks da própria arquitetura, e o health check do primário usa TCP, para o `migrate` não começar cedo demais.
 - `ragnar load` abre uma sessão MCP nova a cada 10 segundos. Uma conexão mantida aberta fica no pod que alcançou primeiro, então antes os pods criados pelo autoscaler não recebiam tráfego. Uma falha de conexão agora conta como erro, em vez de encerrar o teste.
 - A documentação do exemplo e o `SECURITY.md` dizem que o Docker Desktop publica o `LoadBalancer` do Kubernetes em todas as interfaces de rede, e que o WSL precisa de cgroup v2 para versões recentes do Kubernetes.
 - O `repos.toml` recusa um repositório listado duas vezes, um nome vazio e `name`, `url`, `branch` ou `token_env` que não sejam texto. Duas entradas com o mesmo nome sobrescreviam o índice uma da outra a cada passada.
