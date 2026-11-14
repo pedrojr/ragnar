@@ -21,6 +21,16 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           python-version: ${{ matrix.python }}
+      # Windows runners have Docker in Windows container mode, which cannot run the Linux gitleaks image,
+      # and the secret scan tests matter most there: the file system ignores case
+      - name: Install gitleaks (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = "$env:RUNNER_TEMP\gitleaks"
+          Invoke-WebRequest https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip -OutFile "$dir.zip"
+          Expand-Archive "$dir.zip" -DestinationPath $dir
+          Add-Content $env:GITHUB_PATH $dir
       - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run pytest
