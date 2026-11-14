@@ -61,13 +61,14 @@
   "limits": [
     "A diferença de tokens dos braços roteirizados, 56 mil contra 2,2 mil, não vale para um agente real. Agentes usam grep com leituras parciais, e isso custa bem menos do que o modelo supõe. Para custo, confie na seção do agente real.",
     "O agente acerta quase tudo nos dois modos nestes repositórios, que têm entre 100 e 500 arquivos indexados. Eles não mostram onde um índice deveria ajudar mais: bases grandes e várias bases ao mesmo tempo.",
-    "Em perguntas de fluxo entre arquivos e em português, o arquivo certo costuma vir, mas o trecho com a evidência nem sempre cabe em 2.000 tokens. Em fluxo, a evidência chegou ao contexto em 1 de 8 perguntas, contra 5 de 8 do grep. O agente ainda precisa ler o arquivo.",
+    "Em perguntas de fluxo entre arquivos e em português, o arquivo certo costuma vir, mas o trecho com a evidência nem sempre cabe em 2.000 tokens. Em fluxo, a evidência chegou ao contexto em 2 de 8 perguntas, contra 5 de 8 do grep. O agente ainda precisa ler o arquivo.",
     "A regra de resposta certa do agente é simples: citar um arquivo esperado. Ela não avalia a qualidade da explicação.",
     "As perguntas curadas foram escritas lendo o código, e isso favorece vocabulário próximo ao do projeto. As perguntas do histórico equilibram parte disso, mas favorecem arquivos que mudam muito.",
     "A resposta de quem chama usa find_references quando a pergunta traz o identificador. Numa pergunta em linguagem natural, o agente precisa descobrir esse nome antes.",
     "O Ragnar não sabe dizer que algo não existe: devolve o mais próximo.",
     "A comparação com a v0 cobre só 5 repositórios, porque indexar em CPU levou horas.",
-    "O Serilog caiu de 0,52 para 0,44 no holdout, em 33 perguntas, mas subiu de 0,46 para 0,55 nas 48 de dev. Com amostras desse tamanho, a queda parece variação, não regressão, mas isso não foi provado.",
+    "Nas perguntas em português, a evidência chegou ao contexto em 4 de 17, contra 7 de 17 na rodada de 01/11 e 10 de 17 do grep. O arquivo certo ficou entre os 10 primeiros em 14 delas nas duas rodadas. Parte da queda vem de palavras de tela: \"tela\" também procura form e frm, então os formulários .dfm sobem e, numa pergunta do HeidiSQL, tiram a unit certa do top 10. A expansão fica porque ajuda bases Delphi grandes, onde a pergunta descreve a tela.",
+    "Com o agente real, o modo com Ragnar leu mais contexto do que na rodada de 01/11 (mediana de 41,8 mil tokens, antes 35,9 mil), contra 30,2 mil sem Ragnar. A diferença está na conferência: depois de buscar no Ragnar, o agente usou mais Grep (1,16 por pergunta, antes 0,56) e mais Read (0,58, antes 0,30). A causa não foi medida.",
     "Reranker, multi-query, HyDE e recuperação contextual não foram testados: exigem modelos que não rodaram aqui.",
     "A v0 teve avaliação agregada visível durante o trabalho, mas nenhum ajuste usou resultados do holdout."
   ],
@@ -75,6 +76,6 @@
     "Repetir em um monorepo grande, com milhares de arquivos, onde grep e leitura custam mais.",
     "Medir sessões com edição de código, não só perguntas.",
     "Testar um reranker local leve, porque o ganho restante está na ordem dos primeiros resultados.",
-    "Ligar .dfm, handler e SQL: formulários Delphi ainda dependem de busca textual."
+    "Aumentar o conjunto de perguntas em português: 17 perguntas curadas não separam uma perda real de variação."
   ]
 }
