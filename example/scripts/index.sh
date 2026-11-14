@@ -37,5 +37,6 @@ fi
 
 export RAGNAR_CONFIG=server.toml   # the same server settings as the worker, so its next pass agrees with this run
 export RAGNAR_DSN_WRITE="postgresql://ragnar_writer:${RAGNAR_WRITER_PASSWORD}@127.0.0.1:15432/ragnar"
-export RAGNAR__EMBEDDING__URL="http://127.0.0.1:8001/v1"
+# the bundled embedder through its host port, unless .env points at a hosted endpoint
+export RAGNAR__EMBEDDING__URL="${RAGNAR__EMBEDDING__URL:-http://127.0.0.1:8001/v1}"
 uv run --project .. ragnar index "${args[@]}"

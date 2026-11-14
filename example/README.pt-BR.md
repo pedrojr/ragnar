@@ -177,7 +177,7 @@ O worker não precisa de rede de entrada, então prefira ele. Se quiser indexar 
 
 ## Usar outro embedder
 
-Qualquer endpoint compatível com `/v1/embeddings` funciona. Defina estas variáveis no `.env` e rode `docker compose up -d`:
+Qualquer endpoint compatível com `/v1/embeddings` funciona. Defina estas variáveis no `.env`:
 
 ```bash
 RAGNAR__EMBEDDING__URL=https://api.example.com/v1
@@ -188,15 +188,19 @@ RAGNAR_EMBEDDING_API_KEY=<chave>
 
 **Isso envia seu código-fonte a esse provedor.**
 
-No Kubernetes, defina a URL, `MODEL` e `DIM` em `k8s/base/embed.env`, deixe a chave no `.env` e rode `./scripts/up.sh`.
+O contêiner `embedder` incluído continua servindo o próprio modelo, `RAGNAR_LOCAL_EMBED_MODEL`, então o stack ainda sobe. Nada envia pedidos a ele.
 
-Para embutir outro modelo local na imagem, defina os mesmos `MODEL` e `DIM` e rode `docker compose build embedder`. Precisa ser um modelo aceito pelo fastembed.
-
-Uma dimensão nova exige mudar o schema, o que limpa o índice:
+Uma dimensão nova exige mudar o schema, o que limpa o índice. Pare o worker antes, para ele não gravar vetores do tamanho antigo no meio do caminho:
 
 ```bash
+docker compose stop indexer
 docker compose run --rm tools migrate --resize-embeddings
+docker compose up -d
 ```
+
+No Kubernetes, defina a URL, `MODEL` e `DIM` em `k8s/base/embed.env`, deixe a chave no `.env` e rode `./scripts/up.sh`.
+
+Para embutir outro modelo local na imagem, defina `RAGNAR_LOCAL_EMBED_MODEL` e `RAGNAR__EMBEDDING__MODEL` com ele no `.env`, junto com o `DIM`, e rode `docker compose build embedder`. No Kubernetes, defina `RAGNAR_LOCAL_EMBED_MODEL` e `MODEL` em `k8s/base/embed.env`; o `up.sh` gera a imagem com ele. Precisa ser um modelo aceito pelo fastembed.
 
 ## Problemas comuns
 
@@ -207,7 +211,7 @@ docker compose run --rm tools migrate --resize-embeddings
 | Kubernetes fica em `failed to start` no Windows | O WSL roda cgroup v1, que versões recentes do Kubernetes recusam | `wsl --update`, depois `wsl --shutdown`, e suba o Docker Desktop de novo |
 | `secret found` no log do worker | Há uma credencial no repositório | Troque e remova. O índice fica no último commit bom |
 | `... is empty` no log do worker | A variável de `token_env` não está definida | Defina no `.env` e rode `docker compose up -d indexer` |
-| Embedder reiniciando | Falta de memória | Dê mais memória ao Docker ou reduza `RAGNAR_EMBED_BATCH` |
+| Embedder reiniciando | Falta de memória | Dê mais memória ao Docker ou reduza `RAGNAR_EMBED_BATCH` (padrão 8) no `.env` |
 | `smoke.sh` falha em `list_repos` | O primeiro índice não terminou | Veja `docker compose logs indexer` |
 
 ## Limites

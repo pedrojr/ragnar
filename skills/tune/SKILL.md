@@ -14,8 +14,9 @@ A golden set and a snapshot index must exist. If they do not, run the `evaluate`
 ## Steps
 
 1. Read `docs/configuration.md` and `docs/retrieval.md` in the plugin (`${CLAUDE_PLUGIN_ROOT}/docs/`) for the available settings.
-2. Compare variants on the same questions. Each one is `name:section.key=value[,section.key=value]`:
+2. Compare variants on the same questions. Each one is `name:section.key=value[,section.key=value]`. Use the server's settings, as in the `evaluate` skill, so "configured" is what the server runs:
    ```bash
+   RAGNAR_CONFIG="$RAGNAR_HOME/example/server.toml" RAGNAR__EMBEDDING__URL=http://127.0.0.1:8001/v1 \
    ragnar eval run <repo> "$SNAP" <name>-snap \
      --variant economy:project.preset=economy \
      --variant vector:retrieval.mode=vector \

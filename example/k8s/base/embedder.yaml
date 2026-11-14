@@ -23,6 +23,9 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - { name: RAGNAR_EMBED_THREADS, value: "4" }
+            # the baked model, not the search model: a hosted MODEL in embed.env must not crash this pod
+            - name: RAGNAR__EMBEDDING__MODEL
+              valueFrom: { configMapKeyRef: { name: ragnar-embed, key: RAGNAR_LOCAL_EMBED_MODEL } }
           envFrom:
             - configMapRef: { name: ragnar-embed }
           ports: [{ containerPort: 8000, name: http }]

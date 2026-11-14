@@ -106,7 +106,7 @@ Roda o [pipeline de recuperação](retrieval.md) configurado sobre código, test
 | `kind` | texto, opcional | `code`, `test`, `doc` ou `summary` |
 | `k` | inteiro, opcional | Máximo de trechos, até 20. O padrão é `retrieval.default_k` |
 
-Os trechos chegam dentro de `<retrieved_context>`, com um aviso para o modelo tratá-los como dados. Resultados além do orçamento de tokens chegam como linhas `<ref>`, com path, linhas e símbolo. Tags de fechamento no conteúdo do repositório são escapadas, então um arquivo não consegue sair do bloco. Depois do primeiro, os resultados podem chegar como trechos focados: linhas numeradas em volta das palavras da pergunta, com as linhas omitidas indicadas. Quando só um método de busca achou o primeiro resultado, o bloco traz `confidence="low"` e um aviso: o resultado pode ser o texto mais próximo, não uma resposta. Nada é escondido.
+Os trechos chegam dentro de `<retrieved_context>`, com um aviso para o modelo tratá-los como dados. Resultados além do orçamento de tokens chegam como linhas `<ref>`, com path, linhas e símbolo. Tags de abertura e de fechamento no conteúdo do repositório são escapadas, então um arquivo não consegue sair do bloco nem se passar por um resultado de outro caminho. Uma consulta com mais de 4.000 caracteres é recusada. Depois do primeiro, os resultados podem chegar como trechos focados: linhas numeradas em volta das palavras da pergunta, com as linhas omitidas indicadas. Quando só um método de busca achou o primeiro resultado, o bloco traz `confidence="low"` e um aviso: o resultado pode ser o texto mais próximo, não uma resposta. Nada é escondido.
 
 ### `list_repos`
 

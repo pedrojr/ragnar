@@ -7,6 +7,7 @@
 # Repository settings:
 #   secret   RAGNAR_DSN_WRITE     postgresql://ragnar_writer:...@host:5432/ragnar
 #   variable RAGNAR_EMBEDDING_URL http://embedder.internal:8000/v1
+#   variable RAGNAR_CONFIG        path of a copy of the worker's server.toml in this repository
 #
 # Give this job the worker's server.toml through RAGNAR_CONFIG, for example from a copy in this repository.
 # With other settings, such as summaries or contextual retrieval on the worker only, each CI run and the
@@ -28,7 +29,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
       # ragnar index runs gitleaks on the files it indexes. gitleaks-action would scan again, and it needs a
       # license key in organization repositories.
       - name: Install gitleaks
@@ -37,4 +38,5 @@ jobs:
         env:
           RAGNAR_DSN_WRITE: ${{ secrets.RAGNAR_DSN_WRITE }}
           RAGNAR__EMBEDDING__URL: ${{ vars.RAGNAR_EMBEDDING_URL }}
+          RAGNAR_CONFIG: ${{ vars.RAGNAR_CONFIG }}   # empty when unset: the project's own file applies
         run: uvx --from git+https://github.com/pedrojr/ragnar ragnar index . "${{ github.event.repository.name }}" --ref "${{ github.sha }}"

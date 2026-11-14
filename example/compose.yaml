@@ -30,7 +30,8 @@ services:
       - primary-data:/var/lib/postgresql/data
       - ./docker/postgres/10-roles.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "ragnar"]
+      # over TCP: during the first init the entrypoint runs a socket-only server, and migrate connects over TCP
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "ragnar"]
       interval: 2s
       retries: 30
 
@@ -56,10 +57,12 @@ services:
       dockerfile: example/docker/Dockerfile
       target: embedder
       args:
-        EMBED_MODEL: ${RAGNAR__EMBEDDING__MODEL:-jinaai/jina-embeddings-v2-base-code}
+        # its own variable: pointing RAGNAR__EMBEDDING__* at a hosted model must not break this container
+        EMBED_MODEL: ${RAGNAR_LOCAL_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code}
     environment:
       RAGNAR_EMBED_THREADS: ${RAGNAR_EMBED_THREADS:-4}   # raise it for a first build of a large repository
-      RAGNAR__EMBEDDING__MODEL: ${RAGNAR__EMBEDDING__MODEL:-jinaai/jina-embeddings-v2-base-code}
+      RAGNAR_EMBED_BATCH: ${RAGNAR_EMBED_BATCH:-8}       # lower it if the container runs out of memory
+      RAGNAR__EMBEDDING__MODEL: ${RAGNAR_LOCAL_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code}
     mem_limit: ${RAGNAR_EMBED_MEMORY:-3g}   # going over kills only the container, not the Docker VM
     ports: ["127.0.0.1:8001:8000"]   # only for manual indexing from the host
     healthcheck:

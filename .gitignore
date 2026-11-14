@@ -222,6 +222,7 @@ __marimo__/
 # Local runtime files of the example infrastructure
 acl.json
 example/repos.toml
+example/compose.local.yaml
 
 # Benchmark: clones and run output stay local
 benchmark/repos/

@@ -7,6 +7,7 @@
 # CI/CD variables:
 #   RAGNAR_DSN_WRITE (masked)  postgresql://ragnar_writer:...@host:5432/ragnar
 #   RAGNAR__EMBEDDING__URL     http://embedder.internal:8000/v1
+#   RAGNAR_CONFIG              path of a copy of the worker's server.toml in this repository
 #
 # Give this job the worker's server.toml through RAGNAR_CONFIG, for example from a copy in this repository.
 # With other settings, such as summaries or contextual retrieval on the worker only, each CI run and the

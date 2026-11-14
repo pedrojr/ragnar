@@ -31,7 +31,7 @@ Follow [`example/README.md`](../example/README.md), or ask your agent:
 
 When it worked:
 
-- `docker compose ps` shows `db-primary`, `db-replica` and `embedder` healthy, `ragnar-mcp` and `indexer` up, and `migrate` exited with code 0.
+- `docker compose ps -a` shows `db-primary`, `db-replica` and `embedder` healthy, `ragnar-mcp` and `indexer` up, and `migrate` exited with code 0.
 - `docker compose logs -f indexer` ends the first build with a line such as `myapp: full at 3f2a9c1b7d10: 412 files, 1830 chunks, 1902.4s`.
 - `./scripts/smoke.sh myapp` passes its checks.
 

@@ -37,7 +37,9 @@ description: Checks the health of a ragnarized project and its index, and fixes 
 | --- | --- | --- |
 | `401` or `missing or invalid token` | Wrong token, or the ACL was not reloaded | Set `mcp_token` in `/plugin` config; restart `ragnar-mcp` after changing `acl.json` |
 | `no permission for repository` | The token does not list this repository | Add it to `repos` in `acl.json` and restart `ragnar-mcp` |
-| `read database unavailable` | Replicas are down | `docker compose ps`; `kubectl -n ragnar get cluster` |
+| `read database unavailable` | Replicas are down, or the connection pool is full | `docker compose ps`; `kubectl -n ragnar get cluster`; the server log has the database error |
+| `the query ran past the server's statement timeout` | One call asked for too much, such as a deep `trace_flow` | Narrow it with `repo` or `path_prefix`; raise `RAGNAR_STATEMENT_TIMEOUT` only if it keeps happening |
+| `warning: ... ignored embedding.url` (or another key) | The committed `.ragnar/config.toml` sets an endpoint, a key name or the secret scan, which only local files may set | Move those keys to `.rag/config.local.toml` |
 | `secret found` in the worker logs | A credential reached the branch. The index stays on the last good commit | Rotate the credential and remove it; the next pass resumes |
 | `embedder unavailable` | Embedder down or out of memory | Read its logs; lower `RAGNAR_EMBED_BATCH` |
 | Worker logs `... is empty` | `token_env` names a variable that is not set | Set `RAGNAR_GIT_TOKEN` in `.env` and restart `indexer` |

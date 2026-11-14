@@ -22,6 +22,7 @@ uv run pytest
 Integration tests need Postgres with pgvector. Start the example, then point the tests at it:
 
 ```bash
+[ -f example/.env ] || uv run ragnar init-env --dir example   # passwords for a fresh clone
 cd example && docker compose up -d db-primary && cd ..
 set -a; . example/.env; set +a
 RAGNAR_TEST_ADMIN_DSN="postgresql://postgres:$POSTGRES_PASSWORD@127.0.0.1:15432/postgres" uv run pytest

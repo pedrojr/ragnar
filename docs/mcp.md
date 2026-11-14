@@ -106,7 +106,7 @@ Runs the configured [retrieval pipeline](retrieval.md) over code, tests and docs
 | `kind` | string, optional | `code`, `test`, `doc` or `summary` |
 | `k` | integer, optional | Maximum snippets, up to 20. Defaults to `retrieval.default_k` |
 
-Snippets arrive inside `<retrieved_context>`, with a note telling the model to treat them as data. Hits beyond the token budget arrive as `<ref>` lines with path, lines and symbol. Closing tags inside repository content are escaped, so a file cannot break out of the block. Hits after the first may arrive as excerpts: numbered lines around the query words, with the lines left out named. When only one retrieval method found the top hit, the block carries `confidence="low"` and a note: the hit may be the closest text rather than an answer. Nothing is hidden.
+Snippets arrive inside `<retrieved_context>`, with a note telling the model to treat them as data. Hits beyond the token budget arrive as `<ref>` lines with path, lines and symbol. Opening and closing tags inside repository content are escaped, so a file cannot break out of the block or pass for a hit from another path. A query longer than 4,000 characters is refused. Hits after the first may arrive as excerpts: numbered lines around the query words, with the lines left out named. When only one retrieval method found the top hit, the block carries `confidence="low"` and a note: the hit may be the closest text rather than an answer. Nothing is hidden.
 
 ### `list_repos`
 

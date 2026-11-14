@@ -33,9 +33,10 @@ The commands need access to the primary, the replicas and the embedder. Run the 
    ```bash
    ragnar eval golden <repo> "$SNAP" --branch <branch>
    ```
-3. Comparison:
+3. Comparison, with the server's settings, so queries are embedded the way `index.sh` embedded the snapshot (with a hosted embedder, leave out the URL):
    ```bash
-   ragnar eval run <repo> "$SNAP" <name>-snap --out .rag/eval/report.json
+   RAGNAR_CONFIG="$RAGNAR_HOME/example/server.toml" RAGNAR__EMBEDDING__URL=http://127.0.0.1:8001/v1 \
+     ragnar eval run <repo> "$SNAP" <name>-snap --out .rag/eval/report.json
    ```
 4. Report a table: questions, Recall@10, MRR and tokens per system, the gain with its interval, and the decision under the rule.
 

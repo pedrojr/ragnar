@@ -28,11 +28,13 @@ O projeto e o servidor são donos de configurações diferentes.
 
 O worker lê o `.ragnar/config.toml` do repositório no commit acompanhado e usa só esses dois escopos. Um repositório não muda endpoints nem desliga a varredura de segredos, então um commit malicioso não desvia seu código nem esconde uma credencial.
 
+A CLI aplica a mesma regra na sua máquina. Ao ler o `.ragnar/config.toml` da pasta do projeto, ela ignora `url`, `api_key_env` e `provider` em todas as seções, além de `index.secret_scan` e `index.secret_action`, e mostra um aviso com os nomes. Um repositório clonado não consegue apontar seus embeddings para outro servidor. Coloque essas chaves no `.rag/config.local.toml`, em variáveis de ambiente ou num arquivo indicado por `RAGNAR_CONFIG`, que é lido por inteiro.
+
 ## Segredos
 
 Segredos nunca vão nesses arquivos. Cada seção indica, em `api_key_env`, a variável de ambiente que guarda a chave.
 
-Na máquina de quem desenvolve, coloque essas variáveis em `.rag/.env`. A CLI carrega esse arquivo ao iniciar e nunca substitui uma variável que já existe. Os comandos `mcp` e `embedder` nunca o leem.
+Na máquina de quem desenvolve, coloque essas variáveis em `.rag/.env`. A CLI carrega esse arquivo ao iniciar e nunca substitui uma variável que já existe. Os comandos `mcp`, `embedder` e `embed-preload` nunca o leem.
 
 ## Embeddings e resumos
 
@@ -123,6 +125,8 @@ Qualquer endpoint compatível com `/v1/embeddings` funciona: o embedder incluíd
 | `concurrency` | `2` | Requisições paralelas ao indexar |
 
 Para trocar o modelo, ajuste `model` e `dim`. A execução seguinte reindexa tudo. Outra dimensão também exige `ragnar migrate --resize-embeddings`, que limpa o índice. O índice HNSW aceita até 2.000 dimensões: para modelos maiores, use `send_dimensions` para encurtar os vetores.
+
+A `url` padrão usa a porta 8001, onde a infraestrutura de exemplo publica o embedder. O `ragnar embedder` escuta na 8000 por padrão, então rode com `--port 8001` ou ajuste a `url`.
 
 Um provedor hospedado recebe seu código-fonte. Escolha com isso em mente.
 
@@ -226,6 +230,7 @@ Elas configuram um processo, não a recuperação.
 | `RAGNAR_CONFIG` | Todos | Caminho do arquivo de configuração |
 | `RAGNAR_POOL_MAX` | Servidor MCP | Conexões com o banco, padrão `10` |
 | `RAGNAR_POOL_MAX_LIFETIME` | Servidor MCP | Vida da conexão em segundos, padrão `120` |
+| `RAGNAR_STATEMENT_TIMEOUT` | Servidor MCP | Consulta mais longa, como duração do PostgreSQL, padrão `30s` |
 | `RAGNAR_EMBED_THREADS` | Embedder | Threads de CPU |
 | `RAGNAR_EMBED_MAX_TOKENS` | Embedder | Corte da entrada, padrão `512` |
 | `RAGNAR_EMBED_BATCH` | Embedder | Lote interno, padrão `8` |
@@ -247,5 +252,7 @@ Os arquivos de `example/` leem estas variáveis do `.env`. O `ragnar init-env` g
 | `RAGNAR_WRITER_PASSWORD` | Compose, Kubernetes | Senha do `ragnar_writer`, usada no `RAGNAR_DSN_WRITE` |
 | `RAGNAR_READER_PASSWORD` | Compose, Kubernetes | Senha do `ragnar_reader`, usada no `RAGNAR_DSN_READ` |
 | `RAGNAR_EMBED_MEMORY` | Compose | Limite de memória do contêiner do embedder, padrão `3g` |
+| `RAGNAR_EMBED_THREADS` | Compose | Threads de CPU do contêiner do embedder, padrão `4` |
+| `RAGNAR_LOCAL_EMBED_MODEL` | Compose, `k8s/base/embed.env` | Modelo embutido no embedder incluído, padrão `jinaai/jina-embeddings-v2-base-code`. Separado de `RAGNAR__EMBEDDING__MODEL`, para um modelo hospedado não derrubar o contêiner |
 | `RAGNAR_SYNC_INTERVAL` | Compose | Segundos entre as passagens do worker de indexação, padrão `60` |
 | `K8S_CONTEXT` | `scripts/up.sh` | Contexto do kubectl que o script exige, padrão `docker-desktop` |

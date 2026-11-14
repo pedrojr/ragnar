@@ -59,7 +59,7 @@ Set `summaries.provider` and Ragnar fills in the URL and the model. Any other Op
    url = "http://host.docker.internal:11434/v1"
    ```
 
-   The `indexer` service maps `host.docker.internal` to the host, on Linux as well. If Ollama runs as a Compose service of its own, use `http://ollama:11434/v1`.
+   The `indexer` service maps `host.docker.internal` to the host, on Linux as well. If Ollama runs as a Compose service of its own, use `http://ollama:11434/v1`. `scripts/index.sh` runs on the host with the same `server.toml`, and on Linux with Docker Engine the host does not resolve `host.docker.internal`: add it to `/etc/hosts` as `127.0.0.1`, or let the worker do the indexing.
 
 4. Preview a few files before indexing anything. See [Preview before indexing](#preview-before-indexing).
 

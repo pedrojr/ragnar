@@ -28,11 +28,13 @@ The project and the server own different settings.
 
 The worker reads a repository's `.ragnar/config.toml` from the tracked commit, and it uses only those two scopes. A repository cannot change an endpoint or turn off the secret scan, so a hostile commit cannot redirect your code or hide a credential.
 
+The CLI applies the same rule on your machine. When it reads `.ragnar/config.toml` from the project folder, it ignores `url`, `api_key_env` and `provider` in every section, plus `index.secret_scan` and `index.secret_action`, and prints a warning that names them. A cloned repository cannot point your embeddings at another server. Put those keys in `.rag/config.local.toml`, in environment variables, or in a file named by `RAGNAR_CONFIG`, which is read in full.
+
 ## Secrets
 
 Secrets never go in these files. Each section names the environment variable that holds its key, in `api_key_env`.
 
-On a developer machine, put those variables in `.rag/.env`. The CLI loads that file at startup and never replaces a variable that is already set. The `mcp` and `embedder` commands never read it.
+On a developer machine, put those variables in `.rag/.env`. The CLI loads that file at startup and never replaces a variable that is already set. The `mcp`, `embedder` and `embed-preload` commands never read it.
 
 ## Embeddings and summaries
 
@@ -123,6 +125,8 @@ Any endpoint compatible with `/v1/embeddings` works: the bundled embedder, Ollam
 | `concurrency` | `2` | Parallel requests while indexing |
 
 To change the model, set `model` and `dim`. The next run reindexes in full. A different dimension also needs `ragnar migrate --resize-embeddings`, which clears the index. The HNSW index supports up to 2,000 dimensions: for larger models, use `send_dimensions` to shorten the vectors.
+
+The default `url` uses port 8001, where the example infrastructure publishes its embedder. `ragnar embedder` listens on 8000 by default, so run it with `--port 8001`, or set `url`.
 
 A hosted provider receives your source code. Choose accordingly.
 
@@ -226,6 +230,7 @@ These configure a process, not retrieval.
 | `RAGNAR_CONFIG` | All | Path to the settings file |
 | `RAGNAR_POOL_MAX` | MCP server | Database connections, default `10` |
 | `RAGNAR_POOL_MAX_LIFETIME` | MCP server | Connection lifetime in seconds, default `120` |
+| `RAGNAR_STATEMENT_TIMEOUT` | MCP server | Longest query, as a PostgreSQL duration, default `30s` |
 | `RAGNAR_EMBED_THREADS` | Embedder | CPU threads |
 | `RAGNAR_EMBED_MAX_TOKENS` | Embedder | Input cut, default `512` |
 | `RAGNAR_EMBED_BATCH` | Embedder | Internal batch, default `8` |
@@ -247,5 +252,7 @@ The files in `example/` read these from `.env`. `ragnar init-env` writes the pas
 | `RAGNAR_WRITER_PASSWORD` | Compose, Kubernetes | Password of `ragnar_writer`, used in `RAGNAR_DSN_WRITE` |
 | `RAGNAR_READER_PASSWORD` | Compose, Kubernetes | Password of `ragnar_reader`, used in `RAGNAR_DSN_READ` |
 | `RAGNAR_EMBED_MEMORY` | Compose | Memory limit of the embedder container, default `3g` |
+| `RAGNAR_EMBED_THREADS` | Compose | CPU threads of the embedder container, default `4` |
+| `RAGNAR_LOCAL_EMBED_MODEL` | Compose, `k8s/base/embed.env` | Model baked into the bundled embedder, default `jinaai/jina-embeddings-v2-base-code`. Separate from `RAGNAR__EMBEDDING__MODEL`, so a hosted model leaves the container running |
 | `RAGNAR_SYNC_INTERVAL` | Compose | Seconds between the index worker's passes, default `60` |
 | `K8S_CONTEXT` | `scripts/up.sh` | kubectl context the script requires, default `docker-desktop` |

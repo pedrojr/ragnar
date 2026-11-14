@@ -4,9 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-CNPG_VERSION=1.30.1
-KEDA_VERSION=2.21.0
-METRICS_SERVER_VERSION=0.9.0
+. scripts/versions.sh
 CONTEXT="${K8S_CONTEXT:-docker-desktop}"
 
 step() { printf '\n== %s\n' "$*"; }
@@ -37,7 +35,9 @@ kubectl -n kube-system rollout status deploy/metrics-server --timeout=300s
 
 step "images"
 docker build -q --target app -t ragnar-app:0.1.0 -f docker/Dockerfile .. >/dev/null
-docker build -q --target embedder -t ragnar-embedder:0.1.0 -f docker/Dockerfile .. >/dev/null
+local_model=$(sed -n 's/^RAGNAR_LOCAL_EMBED_MODEL=//p' k8s/base/embed.env | tr -d '\r')
+docker build -q --target embedder --build-arg "EMBED_MODEL=${local_model:-jinaai/jina-embeddings-v2-base-code}" \
+  -t ragnar-embedder:0.1.0 -f docker/Dockerfile .. >/dev/null
 # The kubeadm provisioner of Docker Desktop sees the images built above. The kind provisioner runs each node in
 # a container with its own containerd, which keeps whatever image it loaded first under the same tag: copy every
 # image whose ID differs into each node.

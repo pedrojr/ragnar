@@ -177,7 +177,7 @@ The worker needs no inbound network, so prefer it. If you want indexing on each 
 
 ## Using another embedder
 
-Any endpoint compatible with `/v1/embeddings` works. Set these in `.env`, then run `docker compose up -d`:
+Any endpoint compatible with `/v1/embeddings` works. Set these in `.env`:
 
 ```bash
 RAGNAR__EMBEDDING__URL=https://api.example.com/v1
@@ -188,15 +188,19 @@ RAGNAR_EMBEDDING_API_KEY=<key>
 
 **This sends your source code to that provider.**
 
-On Kubernetes, set the URL, `MODEL` and `DIM` in `k8s/base/embed.env`, keep the key in `.env`, and run `./scripts/up.sh`.
+The bundled `embedder` container keeps serving its own model, `RAGNAR_LOCAL_EMBED_MODEL`, so the stack still starts. Nothing sends it requests.
 
-To bake another local model into the image, set the same `MODEL` and `DIM`, and run `docker compose build embedder`. It must be a model fastembed supports.
-
-A new dimension needs a schema change, which clears the index:
+A new dimension needs a schema change, which clears the index. Stop the worker first, so it does not write vectors of the old size in between:
 
 ```bash
+docker compose stop indexer
 docker compose run --rm tools migrate --resize-embeddings
+docker compose up -d
 ```
+
+On Kubernetes, set the URL, `MODEL` and `DIM` in `k8s/base/embed.env`, keep the key in `.env`, and run `./scripts/up.sh`.
+
+To bake another local model into the image, set `RAGNAR_LOCAL_EMBED_MODEL` and `RAGNAR__EMBEDDING__MODEL` to it in `.env`, with its `DIM`, and run `docker compose build embedder`. On Kubernetes, set `RAGNAR_LOCAL_EMBED_MODEL` and `MODEL` in `k8s/base/embed.env`; `up.sh` builds the image with it. It must be a model fastembed supports.
 
 ## Troubleshooting
 
@@ -207,7 +211,7 @@ docker compose run --rm tools migrate --resize-embeddings
 | Kubernetes stays at `failed to start` on Windows | WSL runs cgroup v1, which recent Kubernetes versions refuse | `wsl --update`, then `wsl --shutdown`, and start Docker Desktop again |
 | `secret found` in the worker log | A credential is in the repository | Rotate and remove it. The index stays on the last good commit |
 | `... is empty` in the worker log | `token_env` variable is not set | Set it in `.env`, then `docker compose up -d indexer` |
-| Embedder restarting | Out of memory | Give Docker more memory, or lower `RAGNAR_EMBED_BATCH` |
+| Embedder restarting | Out of memory | Give Docker more memory, or lower `RAGNAR_EMBED_BATCH` (default 8) in `.env` |
 | `smoke.sh` fails on `list_repos` | The first index has not finished | Check `docker compose logs indexer` |
 
 ## Limits

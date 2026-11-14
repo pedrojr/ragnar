@@ -31,7 +31,7 @@ Siga o [`example/README.pt-BR.md`](../../example/README.pt-BR.md) ou peça ao ag
 
 Quando deu certo:
 
-- `docker compose ps` mostra `db-primary`, `db-replica` e `embedder` saudáveis, `ragnar-mcp` e `indexer` no ar, e `migrate` encerrado com código 0.
+- `docker compose ps -a` mostra `db-primary`, `db-replica` e `embedder` saudáveis, `ragnar-mcp` e `indexer` no ar, e `migrate` encerrado com código 0.
 - `docker compose logs -f indexer` termina a primeira montagem com uma linha como `myapp: full at 3f2a9c1b7d10: 412 files, 1830 chunks, 1902.4s`.
 - `./scripts/smoke.sh myapp` passa em todas as verificações.
 
