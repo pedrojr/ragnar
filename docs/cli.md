@@ -25,7 +25,7 @@ Ragnarizes a project: writes `.ragnar/config.toml`, `.rag/`, the managed `.gitig
 
 ### `ragnar doctor`
 
-Checks the health of a ragnarized project.
+Checks the health of a ragnarized project. It fails when git tracks `.rag/.env` or `.rag/config.local.toml`, since the CLI does not trust them then.
 
 | Option | Default | Meaning |
 | --- | --- | --- |

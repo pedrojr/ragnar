@@ -197,6 +197,15 @@ def test_doctor_flags_an_unignored_local_folder_and_stray_root_files(tmp_path):
     assert checks["ragnar.toml"].level == "warn" and CONFIG_FILE in checks["ragnar.toml"].detail
 
 
+def test_doctor_fails_on_committed_local_files(tmp_path):
+    repo = make_repo(tmp_path)
+    init_project(repo)
+    _git(repo, "add", "-f", ENV_FILE)
+    _git(repo, "commit", "-q", "-m", "oops")
+    checks = [c for c in doctor(repo) if c.name == ".rag/"]
+    assert [c.level for c in checks] == ["ok", "fail"] and ENV_FILE in checks[1].detail
+
+
 def test_indexer_reads_the_config_committed_in_the_repository(tmp_path):
     repo = make_repo(tmp_path)
     init_project(repo)

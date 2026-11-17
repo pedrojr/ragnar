@@ -16,6 +16,7 @@ from .config import (
     PRESETS,
     Index,
     RagnarError,
+    committed,
     load_settings,
 )
 from .languages import BY_EXTENSION, is_denied
@@ -308,6 +309,10 @@ def doctor(root: Path, indexed_commit: str | None = None) -> list[Check]:
     ignored = _git(root, "check-ignore", "-q", "--no-index", f"{LOCAL_DIR}/{Path(ENV_FILE).name}") is not None
     checks.append(Check("ok" if ignored else "warn", f"{LOCAL_DIR}/",
                         "ignored by git" if ignored else "not ignored by git; run `ragnar init`"))
+    shared = [rel for rel in (ENV_FILE, LOCAL_CONFIG_FILE) if (root / rel).is_file() and committed(root, rel)]
+    if shared:
+        checks.append(Check("fail", f"{LOCAL_DIR}/", f"{', '.join(shared)} committed to git: the CLI does not trust "
+                            "them; run `git rm --cached` on them and rotate any key they held"))
 
     if has_agent_note(root):
         checks.append(Check("ok", "agent notes", "search rules in " + " and ".join(

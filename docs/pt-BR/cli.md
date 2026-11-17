@@ -25,7 +25,7 @@ Ragnariza um projeto: grava o `.ragnar/config.toml`, a `.rag/`, o bloco gerencia
 
 ### `ragnar doctor`
 
-Confere a saúde de um projeto ragnarizado.
+Confere a saúde de um projeto ragnarizado. Falha quando o git rastreia `.rag/.env` ou `.rag/config.local.toml`, porque a CLI deixa de confiar neles.
 
 | Opção | Padrão | Significado |
 | --- | --- | --- |
