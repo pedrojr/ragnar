@@ -78,6 +78,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Fixed
 
+- Contextual retrieval sends the model the text the indexer reads: legacy encodings decoded and form image data left out. A cp1252 file used to reach the model with replacement characters.
+- The CI templates in `example/ci/` pin Ragnar to a commit in `RAGNAR_REF` instead of installing it from `main`.
 - The CLI no longer trusts a `.rag/config.local.toml` or `.rag/.env` that git tracks. A repository can commit them even though `.gitignore` names them, and a clone could then point embeddings at another server. A tracked `config.local.toml` gets the rules of `.ragnar/config.toml`, a tracked `.env` is not loaded, and `ragnar doctor` fails on either.
 - The grep baseline of `ragnar eval` keeps paths that hold `:`. It used to cut them at the second colon.
 - Each file summary reaches the cache as the model returns it, and a failed model call leaves only that file without a summary. Before, one timeout stopped the whole indexing run and lost every summary already written. After three failed calls in a row, the run stops, so a model that is down does not leave every changed file without a summary.

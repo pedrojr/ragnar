@@ -78,6 +78,8 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 
 ### Corrigido
 
+- A recuperação contextual envia ao modelo o texto que o indexador lê, com codificações legadas decodificadas e sem os dados de imagem dos forms. Antes, um arquivo cp1252 chegava ao modelo com caracteres de substituição.
+- Os modelos de CI em `example/ci/` fixam o Ragnar num commit, em `RAGNAR_REF`, em vez de instalá-lo do `main`.
 - A CLI não confia mais num `.rag/config.local.toml` ou `.rag/.env` rastreado pelo git. Um repositório pode commitá-los mesmo com o `.gitignore` citando os dois, e um clone podia então apontar os embeddings para outro servidor. Um `config.local.toml` rastreado segue as regras do `.ragnar/config.toml`, um `.env` rastreado não é carregado, e o `ragnar doctor` falha nos dois casos.
 - A baseline de grep do `ragnar eval` mantém caminhos com `:`. Antes, ela os cortava no segundo dois-pontos.
 - Cada resumo de arquivo vai para o cache assim que o modelo responde, e uma chamada que falha deixa sem resumo só aquele arquivo. Antes, um único timeout parava a indexação inteira e perdia todos os resumos já escritos. Depois de três chamadas seguidas com falha, a execução para, para que um modelo fora do ar não deixe sem resumo todos os arquivos alterados.
