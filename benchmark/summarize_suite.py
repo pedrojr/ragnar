@@ -68,6 +68,11 @@ def agent_summary(rows: list[dict]) -> dict:
                         "turns": round(mean(r["turns"] or 0 for r in chosen), 1),
                         "context": round(median(r["input_tokens"] for r in chosen)),
                         "cost": round(sum(r["cost_usd"] or 0 for r in chosen), 2)}
+            if all("invented" in r for r in chosen):  # runs scored before these checks lack them
+                negatives = [r for r in chosen if r["category"] == "negative"]
+                out[arm] |= {"negatives": len(negatives), "not_found": sum(r["abstained"] for r in negatives),
+                             "citations": sum(r["citations"] for r in chosen),
+                             "invented": sum(len(r["invented"]) for r in chosen)}
     return out
 
 

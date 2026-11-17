@@ -37,6 +37,8 @@ Curated questions cover concepts, symbols, callers, cross-file flows, configurat
 | Solved | The answer reached the agent: the expected file appeared, and its evidence was in what the arm returned |
 | Tokens | What the arm put in the context, at four characters per token |
 
+Agent runs add two checks that need no model. On a question with no answer in the repository, the answer is correct only when it starts with NOT FOUND. A cited `path:line` is invented when the file or the line does not exist at the snapshot.
+
 ## Running
 
 You need Docker, `uv`, about 3 GB of disk, and a few hours on a CPU: embedding is the slow step. Each command is safe to run again.
@@ -71,6 +73,8 @@ For agent runs, start an MCP server on the benchmark database with `benchmark/se
 ```bash
 RAGNAR_BENCH_TOKEN=<any string> uv run python benchmark/serve.py --db final
 uv run python benchmark/agent.py --label final --questions 3 --model haiku
+uv run python benchmark/agent.py --label negative --category negative --split all --questions 1
+uv run python benchmark/agent.py --rescore final      # saved answers, scored again without model calls
 ```
 
 ## Limits

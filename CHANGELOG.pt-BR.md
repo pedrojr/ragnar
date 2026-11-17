@@ -46,6 +46,7 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - `ragnar stats`: relatório de uso a partir das linhas de auditoria do MCP (chamadas, tokens, buscas vazias ou com baixa confiança, perguntas repetidas) e, com `--labels`, perguntas do uso real: uma busca seguida de `read_code` num arquivo que ela devolveu. As linhas de auditoria agora trazem os paths que a busca devolveu.
 - `RAGNAR_STATEMENT_TIMEOUT` (padrão `30s`) limita cada consulta do servidor MCP, e as conexões dele são somente leitura na sessão, além de no role.
 - `RAGNAR_LOCAL_EMBED_MODEL` indica o modelo embutido no embedder do exemplo, separado do modelo que as buscas usam.
+- As execuções com agente em `benchmark/agent.py` incluem as perguntas sem resposta no repositório, em que o agente precisa responder NOT FOUND, e contam citações inventadas: um arquivo ou linha citado que não existe no snapshot. `--rescore` pontua de novo respostas salvas sem chamar o modelo, e `--category` e `--split all` escolhem as perguntas.
 
 ### Alterado
 

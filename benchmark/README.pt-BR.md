@@ -37,6 +37,8 @@ As curadas cobrem conceitos, símbolos, quem chama, fluxos entre arquivos, confi
 | Resolvida | A resposta chegou ao agente: o arquivo esperado apareceu, e sua evidência estava no que o braço devolveu |
 | Tokens | O que o braço colocou no contexto, a quatro caracteres por token |
 
+As execuções com agente somam duas verificações que não usam modelo. Numa pergunta sem resposta no repositório, a resposta só está certa quando começa com NOT FOUND. Um `path:line` citado é inventado quando o arquivo ou a linha não existe no snapshot.
+
 ## Como rodar
 
 Você precisa de Docker, `uv`, cerca de 3 GB de disco e algumas horas em CPU: o embedding é a etapa lenta. Cada comando pode rodar de novo com segurança.
@@ -71,6 +73,8 @@ Para as execuções com agente, suba um servidor MCP no banco do benchmark com o
 ```bash
 RAGNAR_BENCH_TOKEN=<qualquer texto> uv run python benchmark/serve.py --db final
 uv run python benchmark/agent.py --label final --questions 3 --model haiku
+uv run python benchmark/agent.py --label negative --category negative --split all --questions 1
+uv run python benchmark/agent.py --rescore final      # respostas salvas, pontuadas de novo sem chamar o modelo
 ```
 
 ## Limites

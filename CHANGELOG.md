@@ -46,6 +46,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `ragnar stats`: a usage report from the MCP audit lines (calls, tokens, empty and low-confidence searches, repeated questions), and with `--labels`, questions from real use: a search followed by `read_code` on a file it returned. Audit lines now carry the paths a search returned.
 - `RAGNAR_STATEMENT_TIMEOUT` (default `30s`) caps each query of the MCP server, and its connections are read-only in the session as well as in the role.
 - `RAGNAR_LOCAL_EMBED_MODEL` names the model baked into the example's embedder, apart from the model searches use.
+- Agent runs in `benchmark/agent.py` include the questions with no answer in the repository, where the agent must answer NOT FOUND, and count invented citations: a cited file or line that does not exist at the snapshot. `--rescore` scores saved answers again without model calls, and `--category` and `--split all` pick the questions.
 
 ### Changed
 

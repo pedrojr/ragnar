@@ -34,6 +34,10 @@ TEXT = {
         "agent_title": "Real agent, before and after",
         "agent_intro": ("Claude Code answered the same holdout questions in both modes, in {pairs} pairs. An answer counts as correct "
                         "when it cites an expected file. The Ragnar mode still has Grep, Read and Glob: the agent chooses what to use."),
+        "agent_checks": ("A question with no answer in the repository counts as correct when the agent says NOT FOUND: "
+                         "{grep_abstain} of {negatives} without Ragnar and {ragnar_abstain} with it. A citation is invented when its "
+                         "file or line does not exist at the snapshot: {grep_invented} of {grep_cited} without Ragnar, "
+                         "{ragnar_invented} of {ragnar_cited} with it."),
         "agent_head": ["Mode", "Runs", "Correct answers", "Turns (mean)", "Context read (median)", "Tokens generated (median)",
                        "Time (median)", "Total cost"],
         "agent_context": "Context adds up new and cached tokens across all turns.",
@@ -94,6 +98,10 @@ TEXT = {
         "agent_title": "Agente real, antes e depois",
         "agent_intro": ("O Claude Code respondeu as mesmas perguntas do holdout nos dois modos, em {pairs} pares. Uma resposta conta como "
                         "certa quando cita um arquivo esperado. O modo com Ragnar ainda tem Grep, Read e Glob: o agente escolhe o que usar."),
+        "agent_checks": ("Uma pergunta sem resposta no repositório conta como certa quando o agente diz NOT FOUND: "
+                         "{grep_abstain} de {negatives} sem Ragnar e {ragnar_abstain} com ele. Uma citação é inventada quando o "
+                         "arquivo ou a linha não existe no snapshot: {grep_invented} de {grep_cited} sem Ragnar, "
+                         "{ragnar_invented} de {ragnar_cited} com ele."),
         "agent_head": ["Modo", "Execuções", "Respostas certas", "Turnos (média)", "Contexto lido (mediana)", "Tokens gerados (mediana)",
                        "Tempo (mediana)", "Custo total"],
         "agent_context": "O contexto soma tokens novos e lidos de cache em todos os turnos.",
@@ -294,6 +302,13 @@ def agent_section(rows: list[dict]) -> str:
                                   hi=thousands(delta[2]), used=used)
     if failed:
         note += t("agent_failed").format(failed=failed)
+    if all("invented" in r for pair in both for r in pair):  # runs scored before these checks lack them
+        negatives = [(a, b) for a, b in both if a["category"] == "negative"]
+        note += " " + t("agent_checks").format(
+            negatives=len(negatives), grep_abstain=sum(a["abstained"] for a, _ in negatives),
+            ragnar_abstain=sum(b["abstained"] for _, b in negatives),
+            grep_invented=sum(len(a["invented"]) for a, _ in both), grep_cited=sum(a["citations"] for a, _ in both),
+            ragnar_invented=sum(len(b["invented"]) for _, b in both), ragnar_cited=sum(b["citations"] for _, b in both))
     return (f'<section id="agent"><h2>{t("agent_title")}</h2><p>{t("agent_intro").format(pairs=len(both))}</p>'
             + table(t("agent_head"), lines)
             + f'<p class="note">{esc(note)} {t("agent_context")}</p>'
