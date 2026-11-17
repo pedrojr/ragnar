@@ -587,7 +587,8 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
     extra_head = handler_words(chunks, symbols, blobs, chunker)
     edges = code_edges(chunker, blobs, chunks, symbols, definition_counts(dsn, repo, symbols, None if mode == "full" else paths))
     if settings.contextual.enabled and (chat := chat_from(settings)):
-        chunks = contextualize(chat, settings.contextual, chunks, blobs)
+        texts = {p: chunker.readable_text(p, b) or "" for p, b in blobs.items()}  # legacy encodings decoded, form images out
+        chunks = contextualize(chat, settings.contextual, chunks, texts)
     if settings.summaries.enabled and (chat := summary_chat_from(settings)):
         chunks += summary_chunks(chat, settings, dsn, chunker, blobs, symbols, edges)
     hashes = [content_hash(c.content, settings.embedding.doc_prefix) for c in chunks]

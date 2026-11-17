@@ -237,6 +237,26 @@ def test_file_summaries_are_cached_and_stay_out_of_line_tools(dsn, tmp_path, mon
         assert read["lines"][0] == (1, "package widget")
 
 
+def test_contextual_notes_get_legacy_files_as_decoded_text(dsn, tmp_path, monkeypatch):
+    prompts: list[str] = []
+
+    class FakeChat:
+        def complete(self, prompt: str) -> str:
+            prompts.append(prompt)
+            return "Validates the order."
+
+    monkeypatch.setattr("ragnar.indexer.chat_from", lambda settings: FakeChat())
+    repo, emb = make_repo(tmp_path), FakeEmbedder(768)
+    (repo / "pedido.py").write_bytes("# Validação do pedido\ndef valida():\n    return 1\n".encode("cp1252"))
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "cp1252 file")
+    settings = load_settings(tmp_path, overrides=["contextual.enabled=true", 'llm.url="http://llm"', 'llm.model="m"'],
+                             environ={})
+    index(str(repo), "ctx", dsn, emb, settings, scan=False)
+    legacy = [p for p in prompts if 'path="pedido.py"' in p]
+    assert legacy and "Validação do pedido" in legacy[0] and "�" not in legacy[0]
+
+
 def test_a_file_over_the_size_limit_is_never_read(dsn, tmp_path, monkeypatch):
     import ragnar.indexer as indexer
 

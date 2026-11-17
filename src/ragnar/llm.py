@@ -147,14 +147,16 @@ def expand_query(chat: Chat, strategy: str, variants: int, query: str) -> list[s
     return [line.strip() for line in lines if line.strip()][:variants]
 
 
-def contextualize(chat: Chat, cfg: Contextual, chunks: list[Chunk], documents: dict[str, bytes]) -> list[Chunk]:
+def contextualize(chat: Chat, cfg: Contextual, chunks: list[Chunk], documents: dict[str, str | bytes]) -> list[Chunk]:
     """Contextual retrieval: each chunk gets a model-written sentence on where it belongs.
 
     The sentence is embedded and searched with the chunk. It costs one model call per chunk,
     so run it on a cheap model and only after an evaluation shows the gain.
     """
     def one(c: Chunk) -> Chunk:
-        document = documents.get(c.path, b"").decode(errors="replace")[: cfg.max_file_chars]
+        # the indexer hands over decoded text: raw bytes of a cp1252 file would reach the model as U+FFFD
+        raw = documents.get(c.path, "")
+        document = (raw.decode(errors="replace") if isinstance(raw, bytes) else raw)[: cfg.max_file_chars]
         # one line: the chunk header must stay within the first lines, where read_code and excerpts look for it
         note = " ".join(chat.complete(CONTEXT_PROMPT.format(path=_attr(c.path), document=_data(document),
                                                                   chunk=_data(c.content))).split())
