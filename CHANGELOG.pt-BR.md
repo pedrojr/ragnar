@@ -78,6 +78,8 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 
 ### Corrigido
 
+- A CLI não confia mais num `.rag/config.local.toml` ou `.rag/.env` rastreado pelo git. Um repositório pode commitá-los mesmo com o `.gitignore` citando os dois, e um clone podia então apontar os embeddings para outro servidor. Um `config.local.toml` rastreado segue as regras do `.ragnar/config.toml`, um `.env` rastreado não é carregado, e o `ragnar doctor` falha nos dois casos.
+- A baseline de grep do `ragnar eval` mantém caminhos com `:`. Antes, ela os cortava no segundo dois-pontos.
 - Cada resumo de arquivo vai para o cache assim que o modelo responde, e uma chamada que falha deixa sem resumo só aquele arquivo. Antes, um único timeout parava a indexação inteira e perdia todos os resumos já escritos. Depois de três chamadas seguidas com falha, a execução para, para que um modelo fora do ar não deixe sem resumo todos os arquivos alterados.
 - Um erro num repositório do `ragnar sync`, de banco ou inesperado, não derruba mais o worker: os outros repositórios e a próxima passagem continuam.
 - O `.ragnar/config.toml` de um repositório não trava nem derruba mais o worker de indexação. Os tamanhos de `[index]` precisam ser positivos, `legacy_encoding` precisa ser uma codificação conhecida, e `[index]` e `[project]` precisam ser tabelas.
