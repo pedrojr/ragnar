@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import os
+
+import pytest
+
 from ragnar.evaluation import STOPWORDS, build_golden, format_report, grep_baseline, grep_terms, mrr, paired_ci, recall_at
 
 from .test_unit import _git, make_repo
@@ -56,6 +60,16 @@ def test_grep_baseline_ranks_files_with_more_terms(tmp_path):
     repo = make_repo(tmp_path)
     snapshot = _git(repo, "rev-parse", "HEAD").strip()
     assert grep_baseline(str(repo), snapshot, "redraws the button") == ["widget/button.go"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows file names cannot hold ':'")
+def test_grep_baseline_keeps_colons_in_paths(tmp_path):
+    repo = make_repo(tmp_path)
+    (repo / "time:zone.go").write_text("package x\n// redraws the button\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "colon")
+    snapshot = _git(repo, "rev-parse", "HEAD").strip()
+    assert "time:zone.go" in grep_baseline(str(repo), snapshot, "redraws the button")
 
 
 def test_accented_file_names_are_not_quoted(tmp_path):

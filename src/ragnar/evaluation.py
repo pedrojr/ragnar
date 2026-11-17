@@ -125,7 +125,7 @@ def grep_baseline(repo: str, snapshot: str, query: str, k: int = 20) -> list[str
         r = subprocess.run(["git", *UNQUOTED, "-C", repo, "grep", "-c", "-i", "-w", *patterns, snapshot, "--", *globs],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
         for line in r.stdout.splitlines():
-            score[line.split(":", 2)[1]] += 1  # format: <sha>:<path>:<n>
+            score[line.split(":", 1)[1].rsplit(":", 1)[0]] += 1  # format: <sha>:<path>:<n>; a path may hold ":"
     return [p for p, _ in score.most_common(k)]
 
 
