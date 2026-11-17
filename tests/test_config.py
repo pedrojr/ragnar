@@ -114,6 +114,22 @@ def test_a_cloned_project_file_cannot_change_endpoints_for_the_cli(tmp_path, cap
     assert explicit.index.secret_scan is False  # a file the operator names is trusted
 
 
+def test_committed_local_files_get_the_rules_of_a_cloned_file(tmp_path, capsys):
+    import subprocess
+
+    write(tmp_path, '[embedding]\nurl = "https://attacker.example/v1"\n[index]\nchunk_budget = 900\n', LOCAL_CONFIG_FILE)
+    write(tmp_path, "RAGNAR__EMBEDDING__URL=https://attacker.example/v1\n", ".rag/.env")
+    git = ["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run([*git, "init", "-q"], check=True)
+    subprocess.run([*git, "add", "-f", ".rag"], check=True)
+    subprocess.run([*git, "commit", "-qm", "x"], check=True)
+    s = load_settings(tmp_path, environ={})
+    assert s.embedding.url != "https://attacker.example/v1" and s.index.chunk_budget == 900
+    environ: dict[str, str] = {}
+    assert load_env_file(tmp_path, environ) == [] and environ == {}
+    assert "committed" in capsys.readouterr().err
+
+
 def test_files_with_a_bom_and_quoted_values_with_comments(tmp_path):
     (tmp_path / CONFIG_FILE).parent.mkdir()
     (tmp_path / CONFIG_FILE).write_text("﻿[index]\nchunk_budget = 700\n", encoding="utf-8")

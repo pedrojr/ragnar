@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass, field
@@ -31,7 +32,7 @@ LOCAL_DIR = ".rag"  # git-ignored: personal overrides, secrets, generated output
 CONFIG_FILE = f"{CONFIG_DIR}/config.toml"  # a posix path: the indexer also reads it from a commit
 LOCAL_CONFIG_FILE = f"{LOCAL_DIR}/config.local.toml"
 ENV_FILE = f"{LOCAL_DIR}/.env"
-CHUNKER_VERSION = 7 # bump when chunk boundaries or chunk fields change: forces a full reindex
+CHUNKER_VERSION = 7  # bump when chunk boundaries or chunk fields change: forces a full reindex
 
 
 class RagnarError(Exception):
@@ -377,6 +378,16 @@ def _without_endpoints(layer: dict[str, Any], path: Path) -> dict[str, Any]:
     return kept
 
 
+def committed(root: Path, rel: str) -> bool:
+    """True when git tracks the file. Such a file came with a clone, so it does not belong to this machine,
+    even under .rag/: a repository can commit a file that .gitignore names."""
+    try:
+        r = subprocess.run(["git", "-C", str(root), "ls-files", "--", rel], capture_output=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return False  # no git: nothing was cloned
+    return r.returncode == 0 and bool(r.stdout.strip())
+
+
 def _read_toml(path: Path) -> dict[str, Any]:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8-sig"))  # -sig: Windows editors may add a BOM
@@ -435,6 +446,10 @@ def load_env_file(root: str | Path | None = None, environ: dict[str, str] | None
     path = (Path(root) if root is not None else Path.cwd()) / ENV_FILE
     if not path.is_file():
         return []
+    if committed(path.parent.parent, ENV_FILE):
+        print(f"warning: {path} is committed to the repository, so it came with the clone: not loaded. "
+              "Remove it from git (git rm --cached) and keep it on this machine only.", file=sys.stderr)
+        return []
     added = []
     for name, value in parse_env_file(path.read_text(encoding="utf-8-sig")).items():
         if name not in environ:
@@ -459,7 +474,9 @@ def load_settings(root: str | Path | None = None, overrides: list[str] | None = 
         layers.append(layer if explicit else _without_endpoints(layer, main_file))
     local = base / LOCAL_CONFIG_FILE
     if local.is_file():
-        layers.append(_read_toml(local))
+        layer = _read_toml(local)
+        # a committed "local" file came with the clone too: it gets the rules of the project file
+        layers.append(_without_endpoints(layer, local) if committed(base, LOCAL_CONFIG_FILE) else layer)
     layers.append(_env_overrides(environ))
     extra: dict[str, dict[str, Any]] = {}
     for item in overrides or []:

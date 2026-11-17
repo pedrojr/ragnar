@@ -28,7 +28,7 @@ O projeto e o servidor são donos de configurações diferentes.
 
 O worker lê o `.ragnar/config.toml` do repositório no commit acompanhado e usa só esses dois escopos. Um repositório não muda endpoints nem desliga a varredura de segredos, então um commit malicioso não desvia seu código nem esconde uma credencial.
 
-A CLI aplica a mesma regra na sua máquina. Ao ler o `.ragnar/config.toml` da pasta do projeto, ela ignora `url`, `api_key_env` e `provider` em todas as seções, além de `index.secret_scan` e `index.secret_action`, e mostra um aviso com os nomes. Um repositório clonado não consegue apontar seus embeddings para outro servidor. Coloque essas chaves no `.rag/config.local.toml`, em variáveis de ambiente ou num arquivo indicado por `RAGNAR_CONFIG`, que é lido por inteiro.
+A CLI aplica a mesma regra na sua máquina. Ao ler o `.ragnar/config.toml` da pasta do projeto, ela ignora `url`, `api_key_env` e `provider` em todas as seções, além de `index.secret_scan` e `index.secret_action`, e mostra um aviso com os nomes. Um repositório clonado não consegue apontar seus embeddings para outro servidor. Coloque essas chaves no `.rag/config.local.toml`, em variáveis de ambiente ou num arquivo indicado por `RAGNAR_CONFIG`, que é lido por inteiro. Se o git rastreia o `.rag/config.local.toml`, o arquivo também veio com o clone, e a CLI aplica a ele a mesma regra. Se o git rastreia o `.rag/.env`, a CLI não o carrega e mostra um aviso.
 
 ## Segredos
 

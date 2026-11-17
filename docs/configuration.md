@@ -28,7 +28,7 @@ The project and the server own different settings.
 
 The worker reads a repository's `.ragnar/config.toml` from the tracked commit, and it uses only those two scopes. A repository cannot change an endpoint or turn off the secret scan, so a hostile commit cannot redirect your code or hide a credential.
 
-The CLI applies the same rule on your machine. When it reads `.ragnar/config.toml` from the project folder, it ignores `url`, `api_key_env` and `provider` in every section, plus `index.secret_scan` and `index.secret_action`, and prints a warning that names them. A cloned repository cannot point your embeddings at another server. Put those keys in `.rag/config.local.toml`, in environment variables, or in a file named by `RAGNAR_CONFIG`, which is read in full.
+The CLI applies the same rule on your machine. When it reads `.ragnar/config.toml` from the project folder, it ignores `url`, `api_key_env` and `provider` in every section, plus `index.secret_scan` and `index.secret_action`, and prints a warning that names them. A cloned repository cannot point your embeddings at another server. Put those keys in `.rag/config.local.toml`, in environment variables, or in a file named by `RAGNAR_CONFIG`, which is read in full. If git tracks `.rag/config.local.toml`, the file came with the clone too: the CLI applies the same rule to it. If git tracks `.rag/.env`, the CLI does not load it and prints a warning.
 
 ## Secrets
 
