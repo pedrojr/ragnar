@@ -173,7 +173,7 @@ Remove everything with `./scripts/down.sh`. With `--all`, it also removes the op
 
 ## Option 3: Index from CI
 
-The worker needs no inbound network, so prefer it. If you want indexing on each push and your runner can reach the database and the embedder, copy a template from [`ci/`](ci/): `github-actions.yml` or `gitlab-ci.yml`.
+The worker needs no inbound network, so prefer it. If you want indexing on each push and your runner can reach the database and the embedder, copy a template from [`ci/`](ci/): `github-actions.yml` or `gitlab-ci.yml`. Each template pins Ragnar to a commit in `RAGNAR_REF`. Set it to the commit your worker runs, so both chunk files the same way.
 
 ## Using another embedder
 

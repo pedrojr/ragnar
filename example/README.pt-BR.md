@@ -173,7 +173,7 @@ Remova tudo com `./scripts/down.sh`. Com `--all`, remove também os operadores.
 
 ## Opção 3: Indexar pelo CI
 
-O worker não precisa de rede de entrada, então prefira ele. Se quiser indexar a cada push e seu runner alcança o banco e o embedder, copie um modelo de [`ci/`](ci/): `github-actions.yml` ou `gitlab-ci.yml`.
+O worker não precisa de rede de entrada, então prefira ele. Se quiser indexar a cada push e seu runner alcança o banco e o embedder, copie um modelo de [`ci/`](ci/): `github-actions.yml` ou `gitlab-ci.yml`. Cada modelo fixa o Ragnar num commit, em `RAGNAR_REF`. Use o commit que o seu worker roda, para que os dois dividam os arquivos do mesmo jeito.
 
 ## Usar outro embedder
 

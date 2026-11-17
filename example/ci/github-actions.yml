@@ -12,6 +12,8 @@
 # Give this job the worker's server.toml through RAGNAR_CONFIG, for example from a copy in this repository.
 # With other settings, such as summaries or contextual retrieval on the worker only, each CI run and the
 # next worker pass rebuild the index in full, and CI runs drop the summaries.
+# Pin Ragnar to the commit the worker runs (RAGNAR_REF below). Another version may chunk files differently,
+# and then each CI run and the next worker pass rebuild the index in full. Change it when you update the worker.
 name: ragnar-index
 
 on:
@@ -20,6 +22,9 @@ on:
 
 permissions:
   contents: read
+
+env:
+  RAGNAR_REF: 98e6a9e764e5c95397504f56eeca221f5df23ad5
 
 jobs:
   index:
@@ -39,4 +44,4 @@ jobs:
           RAGNAR_DSN_WRITE: ${{ secrets.RAGNAR_DSN_WRITE }}
           RAGNAR__EMBEDDING__URL: ${{ vars.RAGNAR_EMBEDDING_URL }}
           RAGNAR_CONFIG: ${{ vars.RAGNAR_CONFIG }}   # empty when unset: the project's own file applies
-        run: uvx --from git+https://github.com/pedrojr/ragnar ragnar index . "${{ github.event.repository.name }}" --ref "${{ github.sha }}"
+        run: uvx --from "git+https://github.com/pedrojr/ragnar@${RAGNAR_REF}" ragnar index . "${{ github.event.repository.name }}" --ref "${{ github.sha }}"
