@@ -532,9 +532,13 @@ def test_edges_between_repositories(dsn, tmp_path):
     emb, settings = FakeEmbedder(768), load_settings(tmp_path, environ={})
     app, lib = _new_repo(tmp_path, "app"), _new_repo(tmp_path, "lib")
     _commit(app, {"shop/checkout.py": "def checkout_cart(items):\n    total = compute_invoice_total(items)\n"
-                                      "    return total\n"}, "app")
+                                      "    shipping_quote(items)\n    return total\n"}, "app")
     _commit(lib, {"billing/invoice.py": "def compute_invoice_total(items):\n    return sum(i.price for i in items)\n"},
             "lib")
+    # a Go repository declares shipping_quote: Python code does not call Go by name
+    golib = _new_repo(tmp_path, "golib")
+    _commit(golib, {"ship/quote.go": "package ship\n\nfunc shipping_quote() int {\n\treturn 1\n}\n"}, "go")
+    index(str(golib), "xgo", dsn, emb, settings, scan=False)
     # the caller first: the edge appears when the other repository declares the name
     index(str(app), "xapp", dsn, emb, settings, scan=False)
     with psycopg.connect(dsn) as conn:
@@ -549,6 +553,9 @@ def test_edges_between_repositories(dsn, tmp_path):
         # a client that cannot read xlib does not see where the name is declared
         assert callees(conn, ["xapp"], "checkout_cart")[0]["path"] is None
         assert trace_flow(conn, ["xapp", "xlib"], "checkout_cart", "compute_invoice_total")
+        assert not edge_references(conn, ["xapp", "xgo"], "shipping_quote")
+        assert conn.execute("SELECT count(*) FROM code_xref_name WHERE repo = 'xapp' "
+                            "AND name = 'shipping_quote'").fetchone()[0] == 0
 
     # an incremental run of the caller keeps the edge
     _commit(app, {"shop/checkout.py": "def checkout_cart(items):\n\n    total = compute_invoice_total(items)\n"
