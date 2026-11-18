@@ -38,7 +38,8 @@ def test_events_are_off_by_default_and_validated(tmp_path):
     assert settings.events.provider == "none" and isinstance(sink_from(settings.events), NullSink)
     on = load_settings(tmp_path, environ={"RAGNAR__EVENTS__PROVIDER": "nats", "RAGNAR__EVENTS__URL": "nats://n:4222"})
     assert (on.events.provider, on.events.url) == ("nats", "nats://n:4222")
-    for key, value in (("PROVIDER", "kafka"), ("QUEUE", "0"), ("SUBJECT_PREFIX", "ragnar.*")):
+    for key, value in (("PROVIDER", "kafka"), ("QUEUE", "0"), ("SUBJECT_PREFIX", "ragnar.*"), ("SUBJECT_PREFIX", "a..b"),
+                       ("SUBJECT_PREFIX", ".ragnar"), ("SUBJECT_PREFIX", "rag\tnar")):
         with pytest.raises(RagnarError):
             load_settings(tmp_path, environ={f"RAGNAR__EVENTS__{key}": value})
 
@@ -60,3 +61,55 @@ def test_an_unreachable_broker_drops_instead_of_blocking():
         sink.publish("search_code", "c", 1, [node("r", "a.py", "hit", 1, 2)])
     assert time.perf_counter() - t0 < 0.5
     assert EVENTS.labels("dropped")._value.get() - before >= 3
+
+
+def test_close_does_not_wait_for_a_broker_it_never_reached():
+    sink = NatsSink(Events(provider="nats", url="nats://127.0.0.1:1"), environ={})
+    sink.publish("search_code", "c", 1, [node("r", "a.py", "hit", 1, 2)])
+    t0 = time.perf_counter()
+    sink.close()
+    assert time.perf_counter() - t0 < 1
+
+
+def test_the_server_process_exits_and_sends_what_it_queued(tmp_path):
+    """With a live broker: a process that published and returns must exit by itself, with the message sent."""
+    import asyncio
+    import os
+    import subprocess
+    import sys
+
+    url = os.environ.get("RAGNAR_TEST_NATS_URL")
+    if not url:
+        pytest.skip("RAGNAR_TEST_NATS_URL is not set")
+    import nats
+
+    prefix = f"exittest{os.getpid()}"
+    script = tmp_path / "publish.py"
+    script.write_text(
+        "import time\n"
+        "from ragnar.config import Events\n"
+        "from ragnar.events import node, sink_from\n"
+        f"sink = sink_from(Events(provider='nats', url={url!r}, subject_prefix={prefix!r}))\n"
+        "while not sink.connected.is_set():\n"
+        "    time.sleep(0.05)\n"
+        "sink.publish('find_symbol', 'c', 1, [node('demo', 'a.py', 'symbol', 1, 2)])\n", encoding="utf-8")
+
+    async def run() -> list[str]:
+        nc = await nats.connect(url)
+        got: list[str] = []
+
+        async def keep(m):
+            got.append(m.subject)
+
+        await nc.subscribe(f"{prefix}.>", cb=keep)
+        await nc.flush()
+        proc = await asyncio.to_thread(subprocess.run, [sys.executable, str(script)], timeout=20)
+        assert proc.returncode == 0
+        for _ in range(40):
+            if got:
+                break
+            await asyncio.sleep(0.05)
+        await nc.close()
+        return got
+
+    assert asyncio.run(run()) == [f"{prefix}.demo.find_symbol"]

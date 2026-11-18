@@ -1,5 +1,7 @@
 # Receives the MCP server's graph access events (ragnar.mcp.<repo>.<tool>). One pod without persistence:
 # the events are a live feed, and a consumer that needs history stores them itself (or turns on JetStream).
+# No credentials: any pod in the cluster can subscribe and see paths and symbols of every repository.
+# Outside a test cluster, turn on NATS authentication or restrict it with a NetworkPolicy.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

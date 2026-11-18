@@ -13,6 +13,7 @@ counted (ragnar_events_total{result="dropped"}): a tool call never waits for the
 from __future__ import annotations
 
 import asyncio
+import atexit
 import json
 import os
 import queue
@@ -76,6 +77,8 @@ class NatsSink:
         self.auth = {k: environ[name] for k, name in (("user", cfg.user_env), ("password", cfg.password_env),
                                                       ("token", cfg.token_env)) if name and environ.get(name)}
         self.queue: queue.Queue = queue.Queue(maxsize=cfg.queue)
+        self.stopping = threading.Event()
+        self.connected = threading.Event()
         self.thread = threading.Thread(target=lambda: asyncio.run(self._main()), name="ragnar-events", daemon=True)
         self.thread.start()
 
@@ -86,24 +89,25 @@ class NatsSink:
             except queue.Full:
                 EVENTS.labels("dropped").inc()
 
-    def close(self) -> None:
-        try:
-            self.queue.put_nowait(None)
-        except queue.Full:
-            pass
-        self.thread.join(timeout=5)
+    def close(self, timeout: float = 5) -> None:
+        """Sends what is queued and disconnects. Without a connection there is nothing to wait for."""
+        self.stopping.set()
+        if self.connected.is_set():
+            self.thread.join(timeout=timeout)
 
     async def _main(self) -> None:
         import nats  # the events extra; imported here so the server starts without it when events are off
 
-        loop = asyncio.get_running_loop()
         nc = None
         warned = False
         while True:
             if nc is None:
+                if self.stopping.is_set():
+                    return
                 try:
                     nc = await nats.connect(servers=[self.cfg.url], connect_timeout=5, max_reconnect_attempts=-1,
                                             reconnect_time_wait=2, name="ragnar-mcp", **self.auth)
+                    self.connected.set()
                     warned = False
                 except Exception as exc:  # noqa: BLE001 - any failure means: try again later
                     if not warned:
@@ -111,10 +115,16 @@ class NatsSink:
                         warned = True
                     await asyncio.sleep(5)
                     continue
-            item = await loop.run_in_executor(None, self.queue.get)
-            if item is None:
-                await nc.drain()
-                return
+            # Never a blocking get in an executor: its worker thread is not a daemon, and the process could
+            # not exit while it waits. A short poll keeps the loop free and sees the stop flag.
+            try:
+                item = self.queue.get_nowait()
+            except queue.Empty:
+                if self.stopping.is_set():
+                    await nc.drain()
+                    return
+                await asyncio.sleep(0.05)
+                continue
             try:
                 await nc.publish(*item)
                 EVENTS.labels("published").inc()
@@ -122,7 +132,12 @@ class NatsSink:
                 EVENTS.labels("dropped").inc()
                 if nc.is_closed:
                     nc = None
+                    self.connected.clear()
 
 
 def sink_from(cfg: Events) -> NullSink | NatsSink:
-    return NatsSink(cfg) if cfg.provider == "nats" else NullSink()
+    if cfg.provider != "nats":
+        return NullSink()
+    sink = NatsSink(cfg)
+    atexit.register(sink.close)  # the queued messages go out when the server stops
+    return sink

@@ -322,7 +322,9 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings, events=None
                      for i, s in enumerate(steps, 1)]
             return _listing(lines, ""), {
                 "repos": repos, "query": f"{source} -> {target}",
-                "nodes": [node(s["repo"], s["path"], "trace", s["line"], s["line"], target=s["to"]) for s in steps]}
+                # the last step reaches what the agent asked for: its name stays out, as the query does
+                "nodes": [node(s["repo"], s["path"], "trace", s["line"], s["line"],
+                               target=None if i == len(steps) else s["to"]) for i, s in enumerate(steps, 1)]}
 
         return run("trace_flow", ctx, go)
 

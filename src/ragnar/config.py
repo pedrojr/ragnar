@@ -232,6 +232,8 @@ PROVIDERS: dict[str, tuple[str, str]] = {
 }
 # A repository may tune how it is chunked, but it never picks endpoints or turns off
 # the secret scan: the index worker runs with credentials the repository does not own.
+# NATS subject: tokens of printable characters joined by single dots, no wildcards
+SUBJECT = re.compile(r"[^\s.*>]+(?:\.[^\s.*>]+)*")
 SERVER_OWNED = {"secret_scan", "secret_action"}
 REPO_OWNED = {"index": {f.name for f in dataclasses.fields(Index)} - SERVER_OWNED}
 
@@ -318,8 +320,9 @@ def _validate(s: Settings) -> None:
         raise RagnarError(f"{small[0]} must be 1 or more")
     if s.events.queue < 1 or s.events.max_nodes < 1:
         raise RagnarError("events.queue and events.max_nodes must be 1 or more")
-    if not s.events.subject_prefix or any(ch in s.events.subject_prefix for ch in " *>"):
-        raise RagnarError("events.subject_prefix must be a NATS subject without spaces or wildcards")
+    if not SUBJECT.fullmatch(s.events.subject_prefix):
+        raise RagnarError("events.subject_prefix must be NATS subject tokens joined by dots, such as ragnar.mcp, "
+                          "without spaces, wildcards or empty tokens")
     if s.index.window_overlap >= s.index.window_lines:
         raise RagnarError("index.window_overlap must be smaller than index.window_lines")
     if s.project.languages:
