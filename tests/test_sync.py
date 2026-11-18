@@ -67,10 +67,26 @@ def test_git_auth_keeps_the_token_out_of_the_url(monkeypatch):
         git_auth_env(RepoSource("a", "u", token_env="GIT_TOKEN_X"))
 
 
+def test_a_pass_links_repositories_once_and_only_after_a_change(tmp_path):
+    linked = []
+    modes = {"a": "incremental", "b": "full", "c": "unchanged"}
+
+    def fake_index(url, name, dsn, emb, settings, ref, git_env, link_others):
+        assert link_others is False  # each run links only itself; the pass links the others once
+        return Result(name, modes[name], "a" * 40, 0, 0, 0, 0.0)
+
+    repos = [RepoSource(n, "u") for n in modes]
+    sync_once(repos, "dsn", FakeEmbedder(8), load_settings(tmp_path, environ={}), fake_index, linker=linked.append)
+    assert linked == ["dsn"]
+    modes.update(a="unchanged", b="unchanged")
+    sync_once(repos, "dsn", FakeEmbedder(8), load_settings(tmp_path, environ={}), fake_index, linker=linked.append)
+    assert linked == ["dsn"]
+
+
 def test_one_failure_does_not_stop_the_other_repositories(tmp_path):
     calls = []
 
-    def fake_index(url, name, dsn, emb, settings, ref, git_env):
+    def fake_index(url, name, dsn, emb, settings, ref, git_env, link_others):
         calls.append((name, ref))
         if name == "bad":
             raise RagnarError("secret found")
@@ -83,7 +99,7 @@ def test_one_failure_does_not_stop_the_other_repositories(tmp_path):
 
 
 def test_a_database_error_fails_only_its_repository(tmp_path):
-    def fake_index(url, name, dsn, emb, settings, ref, git_env):
+    def fake_index(url, name, dsn, emb, settings, ref, git_env, link_others):
         if name == "bad":
             raise psycopg.OperationalError("server closed the connection unexpectedly")
         return Result(name, "unchanged", "a" * 40, 0, 0, 0, 0.0)
@@ -95,7 +111,7 @@ def test_a_database_error_fails_only_its_repository(tmp_path):
 
 
 def test_an_unexpected_error_fails_only_its_repository(tmp_path, capsys):
-    def fake_index(url, name, dsn, emb, settings, ref, git_env):
+    def fake_index(url, name, dsn, emb, settings, ref, git_env, link_others):
         if name == "bad":
             raise LookupError("unknown encoding: nope")
         return Result(name, "unchanged", "a" * 40, 0, 0, 0, 0.0)

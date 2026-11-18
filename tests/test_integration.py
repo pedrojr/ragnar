@@ -532,7 +532,9 @@ def test_edges_between_repositories(dsn, tmp_path):
     emb, settings = FakeEmbedder(768), load_settings(tmp_path, environ={})
     app, lib = _new_repo(tmp_path, "app"), _new_repo(tmp_path, "lib")
     _commit(app, {"shop/checkout.py": "def checkout_cart(items):\n    total = compute_invoice_total(items)\n"
-                                      "    shipping_quote(items)\n    return total\n"}, "app")
+                                      "    shipping_quote(items)\n    return total\n",
+                  # the app has Go code too, so names declared in Go count for it (in its Go files only)
+                  "cmd/run.go": "package main\n\nfunc main() {}\n"}, "app")
     _commit(lib, {"billing/invoice.py": "def compute_invoice_total(items):\n    return sum(i.price for i in items)\n"},
             "lib")
     # a Go repository declares shipping_quote: Python code does not call Go by name
@@ -550,27 +552,59 @@ def test_edges_between_repositories(dsn, tmp_path):
         found = {c["name"]: c for c in callees(conn, ["xapp", "xlib"], "checkout_cart")}
         assert (found["compute_invoice_total"]["decl_repo"], found["compute_invoice_total"]["path"]) == \
             ("xlib", "billing/invoice.py")
-        # a client that cannot read xlib does not see where the name is declared
-        assert callees(conn, ["xapp"], "checkout_cart")[0]["path"] is None
+        # a client that cannot read xlib does not even learn that some repository declares the name
+        assert "compute_invoice_total" not in {c["name"] for c in callees(conn, ["xapp"], "checkout_cart")}
+        assert not edge_references(conn, ["xapp"], "compute_invoice_total")
+        assert trace_flow(conn, ["xapp"], "checkout_cart", "compute_invoice_total") is None
         assert trace_flow(conn, ["xapp", "xlib"], "checkout_cart", "compute_invoice_total")
+        # the graph list of search_code and repo_map follow the edge too
+        from ragnar.search import GRAPH_SQL, repo_map
+        seed = conn.execute("SELECT id FROM code_chunk WHERE repo = 'xapp' AND path = 'shop/checkout.py' "
+                            "AND kind = 'code' LIMIT 1").fetchone()[0]
+        near = conn.execute(GRAPH_SQL, {"ids": [seed], "repos": ["xapp", "xlib"], "prefix": "%", "kind": None,
+                                        "limit": 10}).fetchall()
+        assert conn.execute("SELECT repo, path FROM code_chunk WHERE id = ANY(%s)", ([r[0] for r in near],)).fetchall() \
+            == [("xlib", "billing/invoice.py")]
+        assert [(r["repo"], r["path"], r["refs"]) for r in repo_map(conn, ["xapp", "xlib"])] == \
+            [("xlib", "billing/invoice.py", 1)]
+        assert not repo_map(conn, ["xlib"])  # the reference is in a repository this caller cannot read
         assert not edge_references(conn, ["xapp", "xgo"], "shipping_quote")
-        assert conn.execute("SELECT count(*) FROM code_xref_name WHERE repo = 'xapp' "
-                            "AND name = 'shipping_quote'").fetchone()[0] == 0
+        # known to the app's Go files only
+        assert conn.execute("SELECT family FROM code_xref_name WHERE repo = 'xapp' "
+                            "AND name = 'shipping_quote'").fetchall() == [("go",)]
 
     # an incremental run of the caller keeps the edge
     _commit(app, {"shop/checkout.py": "def checkout_cart(items):\n\n    total = compute_invoice_total(items)\n"
                                       "    return total\n"}, "move")
     assert index(str(app), "xapp", dsn, emb, settings, scan=False).mode == "incremental"
     with psycopg.connect(dsn) as conn:
-        assert [r["line"] for r in edge_references(conn, ["xapp"], "compute_invoice_total")] == [3]
+        assert [r["line"] for r in edge_references(conn, ["xapp", "xlib"], "compute_invoice_total")] == [3]
 
-    # the declaration leaves: so does the edge
+    # Go declares the name too, then the Python declaration leaves: the name stays known, but only in Go,
+    # so the Python edge goes, and does not resolve to the Go function
+    _commit(golib, {"ship/total.go": "package ship\n\nfunc compute_invoice_total() int {\n\treturn 2\n}\n"}, "go2")
+    index(str(golib), "xgo", dsn, emb, settings, scan=False)
     _commit(lib, {"billing/invoice.py": "def other_helper():\n    return 1\n"}, "drop")
     index(str(lib), "xlib", dsn, emb, settings, scan=False)
     with psycopg.connect(dsn) as conn:
-        assert not edge_references(conn, ["xapp", "xlib"], "compute_invoice_total")
-        assert conn.execute("SELECT count(*) FROM code_xref_name WHERE repo = 'xapp' "
-                            "AND name = 'compute_invoice_total'").fetchone()[0] == 0
+        assert not edge_references(conn, ["xapp", "xlib", "xgo"], "compute_invoice_total")
+        assert set(conn.execute("SELECT name, family FROM code_xref_name WHERE repo = 'xapp' "
+                                "AND name = 'compute_invoice_total'").fetchall()) == {("compute_invoice_total", "go")}
+
+
+def test_a_failed_link_leaves_the_index_committed(dsn, tmp_path, monkeypatch, capsys):
+    from ragnar import xref
+
+    def broken(conn, repo, refresh=None):
+        raise RuntimeError("link exploded")
+
+    monkeypatch.setattr(xref, "link", broken)
+    repo = _new_repo(tmp_path, "linkfail")
+    _commit(repo, {"a.py": "def lonely_function():\n    return 1\n"}, "a")
+    r = index(str(repo), "xlinkfail", dsn, FakeEmbedder(768), load_settings(tmp_path, environ={}), scan=False)
+    assert r.mode == "full" and "cross-repository links not updated" in capsys.readouterr().err
+    with psycopg.connect(dsn) as conn:
+        assert conn.execute("SELECT count(*) FROM index_state WHERE repo = 'xlinkfail'").fetchone()[0] == 1
 
 
 def test_gc_removes_only_old_unused_rows(dsn):
@@ -589,7 +623,7 @@ def test_gc_removes_only_old_unused_rows(dsn):
                      "array_fill(0, ARRAY[768])::vector, 'h'")
         conn.execute(f"INSERT INTO embedding_checkpoint (model, content_hash, embedding, created_at) VALUES "
                      f"('m', 'old', '[0]', {old}), ('m', 'new', '[0]', now())")
-        conn.execute("INSERT INTO code_xref_name (repo, name) VALUES ('gone-repo', 'something')")
+        conn.execute("INSERT INTO code_xref_name (repo, name, family) VALUES ('gone-repo', 'something', 'python')")
     counted = collect(dsn, dry_run=True)
     assert (counted.summaries, counted.checkpoints, counted.xref_names) == (1, 1, 1)
     removed = collect(dsn)

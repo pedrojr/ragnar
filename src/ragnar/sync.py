@@ -30,6 +30,7 @@ import psycopg
 from .config import RagnarError, Settings
 from .embedder import Embedder, FakeEmbedder
 from .indexer import Result, index
+from .xref import link_all
 
 
 @dataclass(frozen=True)
@@ -84,7 +85,7 @@ def git_auth_env(source: RepoSource) -> dict[str, str] | None:
 
 
 def sync_once(repos: list[RepoSource], dsn: str, emb: Embedder | FakeEmbedder, settings: Settings,
-              indexer=index) -> tuple[list[Result], list[str]]:
+              indexer=index, linker=link_all) -> tuple[list[Result], list[str]]:
     """One pass over every repository. One failure does not stop the others."""
     results, errors = [], []
     for source in repos:
@@ -93,7 +94,7 @@ def sync_once(repos: list[RepoSource], dsn: str, emb: Embedder | FakeEmbedder, s
             if source.exclude:
                 own = dataclasses.replace(settings, index=dataclasses.replace(settings.index, exclude=source.exclude))
             result = indexer(source.url, source.name, dsn, emb, own, ref=source.branch,
-                             git_env=git_auth_env(source))
+                             git_env=git_auth_env(source), link_others=False)
             results.append(result)
             print(f"{result.repo}: {result.mode} at {result.commit_sha[:12]}: {result.files} files, "
                   f"{result.chunks} chunks, {result.seconds}s", flush=True)
@@ -106,6 +107,9 @@ def sync_once(repos: list[RepoSource], dsn: str, emb: Embedder | FakeEmbedder, s
             errors.append(f"{source.name}: unexpected {type(exc).__name__}: {exc}")
             print(f"error: {source.name}: unexpected error", file=sys.stderr, flush=True)
             traceback.print_exc()
+    # once per pass, not after each repository: the cross-repository edges of every repository at once
+    if any(r.mode != "unchanged" for r in results):
+        linker(dsn)
     return results, errors
 
 

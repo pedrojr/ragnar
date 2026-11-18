@@ -512,7 +512,9 @@ def repo_settings(repo_dir: Path, head: str, settings: Settings) -> Settings:
 
 def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settings: Settings | None = None,
           ref: str | None = None, full: bool = False, scan: bool = True,
-          git_env: dict[str, str] | None = None) -> Result:
+          git_env: dict[str, str] | None = None, link_others: bool = True) -> Result:
+    """Indexes one repository, then brings its cross-repository edges up to date and, with link_others,
+    those of the other repositories. `ragnar sync` links the others once per pass instead."""
     t0 = time.monotonic()
     if not REPO_NAME.match(repo):
         raise RagnarError(f"invalid repository name {repo!r}: use letters, digits, '.', '_', '-' and '@'")
@@ -639,11 +641,13 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
             (repo, head, emb.model, fingerprint, json.dumps(skipped_map, ensure_ascii=False)),
         )
         conn.execute("DELETE FROM embedding_checkpoint WHERE model = %s AND content_hash = ANY(%s)", (emb.model, hashes))
-        # links to the other repositories: the delete above took the xref edges of the replaced files
+        # the delete above took the xref edges of the replaced files; a full run matches every name again
         if mode == "full":
             conn.execute("DELETE FROM code_xref_name WHERE repo = %s", (repo,))
-        xref.link(conn, repo, None if mode == "full" else paths)
-    # the others may name what this run declared, or lost what it removed
-    xref.link_all(dsn, skip=repo)
+    # Links in their own transactions, after the swap: they do not hold the lock of a long run, and a failure
+    # leaves the index committed (xref.link_repo reports it, and the next link starts over).
+    xref.link_repo(dsn, repo, None if mode == "full" else paths)
+    if link_others:  # the others may name what this run declared, or lost what it removed
+        xref.link_all(dsn, skip=repo)
     return Result(repo, mode, head, len(blobs), len(chunks), deleted, round(time.monotonic() - t0, 1),
                   len(chunks) - len(missing), dict(skipped))

@@ -1,10 +1,12 @@
 -- Cross-repository references: a routine of one repository names a declaration of another (edge kind xref).
--- code_xref_name holds, per repository, the names of other repositories its xref edges were matched against.
--- When another repository declares a new name, only the files that hold it are scanned again.
+-- code_xref_name holds, per repository, the names of other repositories its xref edges were matched against,
+-- with the language family that declares them. When another repository declares a new name, only the files
+-- that hold it are scanned again.
 CREATE TABLE code_xref_name (
-  repo text NOT NULL,
-  name text NOT NULL,
-  PRIMARY KEY (repo, name)
+  repo   text NOT NULL,
+  name   text NOT NULL,
+  family text NOT NULL,
+  PRIMARY KEY (repo, name, family)
 );
 
 -- callers across repositories look an xref edge up by name alone

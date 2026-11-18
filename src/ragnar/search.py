@@ -697,6 +697,10 @@ def list_repos(conn: psycopg.Connection, repos: list[str] | None) -> list[dict]:
 
 EDGE_COLUMNS = ("repo", "path", "line", "src_symbol", "dst_name", "kind", "text")
 CALL_KINDS = ["ref", "event", "xref"]
+# An xref edge counts only when its declaration is in a repository the caller may read: otherwise the edge
+# would tell a token that some repository it cannot see declares the name.
+XREF_READABLE = """(e.kind <> 'xref' OR EXISTS (SELECT 1 FROM code_symbol x WHERE x.repo = ANY(%(repos)s)
+                    AND x.repo <> e.repo AND lower(x.name) = e.dst_name))"""
 
 
 def edge_references(conn: psycopg.Connection, repos: list[str], name: str, k: int = 30,
@@ -709,7 +713,7 @@ def edge_references(conn: psycopg.Connection, repos: list[str], name: str, k: in
             LEFT JOIN LATERAL (SELECT kind FROM code_chunk c WHERE c.repo = e.repo AND c.path = e.path
                                AND c.start_line <= e.line AND c.end_line >= e.line LIMIT 1) c ON true
             WHERE e.repo = ANY(%(repos)s) AND e.dst_name = %(name)s AND e.kind = ANY(%(kinds)s)
-              AND e.path LIKE %(prefix)s ESCAPE '\\'
+              AND e.path LIKE %(prefix)s ESCAPE '\\' AND """ + XREF_READABLE + """
             ORDER BY c.kind = 'test', e.repo, e.path, e.line LIMIT %(k)s""",
         {"repos": repos, "name": short.lower(), "kinds": CALL_KINDS, "prefix": like_prefix(path_prefix), "k": k},
     ).fetchall()
@@ -730,6 +734,7 @@ def callees(conn: psycopg.Connection, repos: list[str], name: str, k: int = 30) 
            LEFT JOIN code_symbol d ON lower(d.name) = e.dst_name
                                   AND (d.repo = e.repo OR (e.kind = 'xref' AND d.repo = ANY(%(repos)s)))
            WHERE s.repo = ANY(%(repos)s) AND lower(s.name) = %(name)s AND lower(s.symbol) LIKE %(owner)s ESCAPE '\\'
+             AND (e.kind <> 'xref' OR d.repo IS NOT NULL)
            ORDER BY e.dst_name, d.repo, d.path, d.start_line, e.line LIMIT %(k)s""",
         {"repos": repos, "name": short.lower(), "owner": f"%{like_prefix(owner.lower())}", "kinds": CALL_KINDS, "k": k},
     ).fetchall()
@@ -767,7 +772,7 @@ def trace_flow(conn: psycopg.Connection, repos: list[str], source: str, target: 
         rows = conn.execute(
             """SELECT lower(s.name), e.dst_name, e.repo, e.path, e.line, e.kind, e.text FROM code_symbol s
                JOIN code_edge e ON e.repo = s.repo AND e.path = s.path AND e.line BETWEEN s.start_line AND s.end_line
-               WHERE s.repo = ANY(%(repos)s) AND lower(s.name) = ANY(%(frontier)s)
+               WHERE s.repo = ANY(%(repos)s) AND lower(s.name) = ANY(%(frontier)s) AND """ + XREF_READABLE + """
                ORDER BY e.kind LIKE 'sql%%' DESC, e.path, e.line LIMIT %(cap)s""",
             {"repos": repos, "frontier": list(frontier), "cap": fan_out * len(frontier)}).fetchall()
         nxt: set[str] = set()

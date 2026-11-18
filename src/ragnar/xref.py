@@ -9,7 +9,7 @@ These edges have kind xref.
 The edges are matched from the indexed chunks, not from git, so any repository can be linked again
 without its source. Each repository keeps the set of names it was matched against (code_xref_name).
 When another repository declares a new name, only the files whose text holds it are scanned again, and
-a name nobody declares any more takes its edges with it.
+the files that linked to a name nobody declares any more are matched again without it.
 """
 
 from __future__ import annotations
@@ -82,70 +82,114 @@ def candidate_paths(conn: psycopg.Connection, repo: str, names: list[str]) -> se
     return paths
 
 
-def file_text(conn: psycopg.Connection, repo: str, path: str) -> str:
-    """The file, rebuilt from its chunks. Lines no chunk covers stay empty, so line numbers hold."""
-    lines: dict[int, str] = {}
-    for start, content in conn.execute("SELECT start_line, content FROM code_chunk WHERE repo = %s AND path = %s "
-                                       "AND kind IN ('code', 'test') ORDER BY start_line", (repo, path)):
+FILES_PER_READ = 200  # files whose chunks and symbols one query reads
+
+
+def file_texts(conn: psycopg.Connection, repo: str, paths: list[str]) -> dict[str, str]:
+    """Files rebuilt from their chunks. Lines no chunk covers stay empty, so line numbers hold."""
+    lines: dict[str, dict[int, str]] = {}
+    for start, content, path in conn.execute(
+            "SELECT start_line, content, path FROM code_chunk WHERE repo = %s AND path = ANY(%s) "
+            "AND kind IN ('code', 'test') ORDER BY path, start_line", (repo, paths)):
+        mine = lines.setdefault(path, {})
         for offset, line in enumerate(_body(content)):
-            lines.setdefault(start + offset, line)
-    return "\n".join(lines.get(n, "") for n in range(1, max(lines, default=0) + 1))
+            mine.setdefault(start + offset, line)
+    return {path: "\n".join(found.get(n, "") for n in range(1, max(found, default=0) + 1))
+            for path, found in lines.items()}
 
 
-def file_symbols(conn: psycopg.Connection, repo: str, path: str) -> list[Symbol]:
-    rows = conn.execute(f"SELECT {', '.join(SYMBOL_FIELDS)} FROM code_symbol WHERE repo = %s AND path = %s",
-                        (repo, path)).fetchall()
-    return [Symbol(*r) for r in rows]
+def file_symbols(conn: psycopg.Connection, repo: str, paths: list[str]) -> dict[str, list[Symbol]]:
+    out: dict[str, list[Symbol]] = {}
+    for row in conn.execute(f"SELECT {', '.join(SYMBOL_FIELDS)} FROM code_symbol WHERE repo = %s AND path = ANY(%s)",
+                            (repo, paths)):
+        out.setdefault(row[0], []).append(Symbol(*row))
+    return out
 
 
 def link(conn: psycopg.Connection, repo: str, refresh: list[str] | None = None) -> int:
     """Brings the xref edges of one repository up to date. refresh: paths to scan again whatever changed
-    (the files an indexing run just replaced). Returns the number of edges written."""
+    (the files an indexing run just replaced). Returns the number of edges written.
+
+    code_xref_name holds (name, family) pairs, so a name that moves to another language family is a change
+    too: the files that linked to it are matched again, and keep no edge to the other family's declaration.
+    """
     state = conn.execute("SELECT commit_sha FROM index_state WHERE repo = %s", (repo,)).fetchone()
     if state is None:
         return 0
     names = external_names(conn, repo)
-    stored = {r[0] for r in conn.execute("SELECT name FROM code_xref_name WHERE repo = %s", (repo,))}
-    added, removed = sorted(names.keys() - stored), sorted(stored - names.keys())
+    current = {(name, f) for name, families in names.items() for f in families}
+    stored = {tuple(r) for r in conn.execute("SELECT name, family FROM code_xref_name WHERE repo = %s", (repo,))}
+    added, removed = sorted(current - stored), sorted(stored - current)
+    paths = set(refresh or [])
     if removed:
-        conn.execute("DELETE FROM code_edge WHERE repo = %s AND kind = 'xref' AND dst_name = ANY(%s)", (repo, removed))
-        conn.execute("DELETE FROM code_xref_name WHERE repo = %s AND name = ANY(%s)", (repo, removed))
-    paths = set(refresh or []) | candidate_paths(conn, repo, added)
-    paths = {p for p in paths if not p.lower().endswith(FORM_EXTENSIONS)}
-    # every read before the COPY: a connection runs nothing else while a COPY is open
+        # files whose edges point at a name that left (or left a family): they are matched again below
+        paths |= {r[0] for r in conn.execute(
+            "SELECT DISTINCT path FROM code_edge WHERE repo = %s AND kind = 'xref' AND dst_name = ANY(%s)",
+            (repo, sorted({n for n, _ in removed})))}
+    paths |= candidate_paths(conn, repo, sorted({n for n, _ in added}))
+    paths_list = sorted(p for p in paths if not p.lower().endswith(FORM_EXTENSIONS))
     by_family: dict[str, set[str]] = {}
-    for name, families in names.items():
-        for f in families:
-            by_family.setdefault(f, set()).add(name)
-    edges = [e for path in sorted(paths) if (f := family(path)) in by_family for e in graph.reference_edges(
-        path, file_text(conn, repo, path), file_symbols(conn, repo, path), by_family[f], kind="xref")]
-    if paths:
-        conn.execute("DELETE FROM code_edge WHERE repo = %s AND kind = 'xref' AND path = ANY(%s)", (repo, sorted(paths)))
+    for name, f in current:
+        by_family.setdefault(f, set()).add(name)
+    # every read before the COPY: a connection runs nothing else while a COPY is open
+    edges: list[graph.Edge] = []
+    for i in range(0, len(paths_list), FILES_PER_READ):
+        group = [p for p in paths_list[i : i + FILES_PER_READ] if family(p) in by_family]
+        if not group:
+            continue
+        texts, symbols = file_texts(conn, repo, group), file_symbols(conn, repo, group)
+        for path in group:
+            if path in texts:
+                edges += graph.reference_edges(path, texts[path], symbols.get(path, []), by_family[family(path)],
+                                               kind="xref")
+    if paths_list:
+        conn.execute("DELETE FROM code_edge WHERE repo = %s AND kind = 'xref' AND path = ANY(%s)", (repo, paths_list))
     if edges:
         with conn.cursor().copy("COPY code_edge (repo, path, line, src_symbol, dst_name, kind, text, commit_sha) "
                                 "FROM STDIN") as cp:
             for e in edges:
                 cp.write_row((repo, e.path, e.line, e.src_symbol, e.dst_name, e.kind, e.text, state[0]))
+    if removed:
+        conn.execute("DELETE FROM code_xref_name WHERE repo = %s AND (name, family) IN "
+                     "(SELECT * FROM unnest(%s::text[], %s::text[]))",
+                     (repo, [n for n, _ in removed], [f for _, f in removed]))
     if added:
-        with conn.cursor().copy("COPY code_xref_name (repo, name) FROM STDIN") as cp:
-            for name in added:
-                cp.write_row((repo, name))
+        with conn.cursor().copy("COPY code_xref_name (repo, name, family) FROM STDIN") as cp:
+            for name, f in added:
+                cp.write_row((repo, name, f))
     return len(edges)
+
+
+def link_repo(dsn: str, repo: str, refresh: list[str] | None = None) -> int | None:
+    """link() in its own transaction, under the repository's indexing lock. None when it failed: the
+    failure is reported, and the repository's name set is cleared so the next link matches it all again."""
+    try:
+        with psycopg.connect(dsn) as conn:
+            conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (repo,))
+            return link(conn, repo, refresh)
+    except Exception as exc:  # noqa: BLE001 - the index itself is already committed; links can wait
+        print(f"{repo}: cross-repository links not updated: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        try:
+            with psycopg.connect(dsn) as conn:
+                conn.execute("DELETE FROM code_xref_name WHERE repo = %s", (repo,))
+        except Exception:  # noqa: BLE001 - the database is gone; the next run starts over anyway
+            pass
+        return None
 
 
 def link_all(dsn: str, skip: str | None = None, only: str | None = None) -> dict[str, int]:
     """Links every indexed repository (or one), each in its own transaction under its indexing lock.
-    A failure on one repository is reported and does not stop the others."""
-    with psycopg.connect(dsn) as conn:
-        repos = [r[0] for r in conn.execute("SELECT repo FROM index_state ORDER BY repo")]
+    A failure is reported and stops neither the others nor the caller: the indexes are already committed."""
+    try:
+        with psycopg.connect(dsn) as conn:
+            repos = [r[0] for r in conn.execute("SELECT repo FROM index_state ORDER BY repo")]
+    except psycopg.Error as exc:
+        print(f"cross-repository links not updated: {exc}", file=sys.stderr, flush=True)
+        return {}
     out: dict[str, int] = {}
     for repo in repos:
         if repo == skip or (only and repo != only):
             continue
-        try:
-            with psycopg.connect(dsn) as conn:
-                conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (repo,))
-                out[repo] = link(conn, repo)
-        except psycopg.Error as exc:
-            print(f"{repo}: cross-repository links not updated: {exc}", file=sys.stderr, flush=True)
+        if (edges := link_repo(dsn, repo)) is not None:
+            out[repo] = edges
     return out
