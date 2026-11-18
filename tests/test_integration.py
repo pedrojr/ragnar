@@ -2,6 +2,7 @@
 
 With the example Compose running:
   RAGNAR_TEST_ADMIN_DSN="postgresql://postgres:$POSTGRES_PASSWORD@127.0.0.1:15432/postgres" uv run pytest -m integration
+With RAGNAR_TEST_NATS_URL="nats://127.0.0.1:14222" (the Compose nats service), the events test runs too.
 Creates and drops the ragnar_test database; never touches the ragnar database.
 """
 
@@ -446,6 +447,62 @@ def test_mcp_over_http(dsn, tmp_path, monkeypatch):
     assert outline.startswith("demo:widget/button.go\n") and "widget > Button > Refresh" in outline
     assert code == '<code repo="demo" path="widget/button.go">\n1: package widget\n</code>'
     assert tools == TOOLS
+
+
+@pytest.mark.skipif(not os.environ.get("RAGNAR_TEST_NATS_URL"), reason="RAGNAR_TEST_NATS_URL is not set")
+def test_graph_access_events_reach_nats(dsn, tmp_path, monkeypatch):
+    import nats
+    import uvicorn
+
+    from ragnar.ops import mcp_client
+
+    index(str(make_repo(tmp_path)), "demo", dsn, FakeEmbedder(768), load_settings(tmp_path, environ={}), scan=False, full=True)
+    acl = tmp_path / "acl.json"
+    acl.write_text(json.dumps({"clients": [{"name": "team-a", "token_sha256": hash_token("tok"), "repos": ["de*"]}]}))
+    nats_url = os.environ["RAGNAR_TEST_NATS_URL"]
+    prefix = f"ragnartest{os.getpid()}"
+    for key, value in (("RAGNAR_DSN_READ", dsn), ("RAGNAR_ACL_FILE", str(acl)), ("RAGNAR__EMBEDDING__PROVIDER", "fake"),
+                       ("RAGNAR__EVENTS__PROVIDER", "nats"), ("RAGNAR__EVENTS__URL", nats_url),
+                       ("RAGNAR__EVENTS__SUBJECT_PREFIX", prefix)):
+        monkeypatch.setenv(key, value)
+    port = _free_port()
+    server = uvicorn.Server(uvicorn.Config("ragnar.mcp_server:build_app", factory=True, port=port, log_level="error"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    while not server.started:
+        time.sleep(0.05)
+
+    async def calls():
+        nc = await nats.connect(nats_url)
+        got = []
+        async def keep(m):
+            got.append((m.subject, json.loads(m.data)))
+
+        await nc.subscribe(f"{prefix}.>", cb=keep)
+        await nc.flush()
+        async with mcp_client(f"http://127.0.0.1:{port}/mcp", "tok") as c:
+            await c.call_tool("search_code", {"query": "NewButton"})
+            await c.call_tool("find_symbol", {"name": "Refresh"})
+            await c.call_tool("read_code", {"path": "button.go", "start_line": 1, "end_line": 3})
+        for _ in range(100):  # the server sends from its own thread
+            if len(got) >= 3:
+                break
+            await asyncio.sleep(0.05)
+        await nc.close()
+        return got
+
+    try:
+        got = asyncio.run(calls())
+    finally:
+        server.should_exit = True
+        thread.join(5)
+    by_tool = {payload["tool"]: (subj, payload) for subj, payload in got}
+    assert by_tool["search_code"][0] == f"{prefix}.demo.search_code"
+    search = by_tool["search_code"][1]
+    assert search["client"] == "team-a" and search["repo"] == "demo" and "query" not in search
+    assert search["nodes"][0]["path"] == "widget/button.go" and search["nodes"][0]["step"] == "hit"
+    assert by_tool["find_symbol"][1]["nodes"][0]["symbol"] == "widget > Button > Refresh"
+    assert by_tool["read_code"][1]["nodes"] == [{"path": "widget/button.go", "step": "read", "start_line": 1, "end_line": 3}]
 
 
 def _commit(repo, files: dict[str, str], message: str) -> None:

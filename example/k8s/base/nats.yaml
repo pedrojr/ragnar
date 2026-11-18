@@ -1,0 +1,39 @@
+# Receives the MCP server's graph access events (ragnar.mcp.<repo>.<tool>). One pod without persistence:
+# the events are a live feed, and a consumer that needs history stores them itself (or turns on JetStream).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragnar-nats
+  namespace: ragnar
+  labels: { app: ragnar-nats }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: ragnar-nats }
+  template:
+    metadata:
+      labels: { app: ragnar-nats }
+    spec:
+      containers:
+        - name: nats
+          image: nats:2.11.8-alpine
+          args: ["--http_port", "8222"]
+          ports:
+            - { containerPort: 4222, name: client }
+            - { containerPort: 8222, name: monitor }
+          readinessProbe:
+            httpGet: { path: /healthz, port: monitor }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { cpu: 250m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ragnar-nats
+  namespace: ragnar
+spec:
+  selector: { app: ragnar-nats }
+  ports:
+    - { port: 4222, targetPort: client, name: client }

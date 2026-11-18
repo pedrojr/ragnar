@@ -47,12 +47,13 @@ Changelog = "https://github.com/pedrojr/ragnar/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 embed = ["fastembed>=0.7,<1"]
+events = ["nats-py>=2.9,<3"]  # graph access events of the MCP server ([events] provider = "nats")
 
 [project.scripts]
 ragnar = "ragnar.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.8"]
+dev = ["pytest>=8", "ruff>=0.8", "nats-py>=2.9,<3"]
 
 [build-system]
 requires = ["hatchling"]

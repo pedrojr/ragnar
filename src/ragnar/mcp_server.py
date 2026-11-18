@@ -31,6 +31,7 @@ from . import __version__
 from .acl import Acl, Client
 from .config import RagnarError, Settings, env, load_settings, read_dsn
 from .embedder import QUERY_TIMEOUT, from_settings
+from .events import NullSink, node, sink_from
 from .llm import chat_from, reranker_from
 from .search import CHARS_PER_TOKEN as CHARS
 from .search import Pipeline, estimate_tokens
@@ -134,7 +135,8 @@ class BearerAuth:
         await self.app(scope, receive, send)
 
 
-def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServer:
+def build_server(pool: ConnectionPool, acl: Acl, settings: Settings, events=None) -> MCPServer:
+    events = events or NullSink()
     pipeline_args = (settings, from_settings(settings, QUERY_TIMEOUT), chat_from(settings), reranker_from(settings))
     server = MCPServer(
         name="ragnar",
@@ -195,9 +197,12 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
         LATENCY.labels("total").observe(time.perf_counter() - t0)
         tokens = estimate_tokens(text)
         CONTEXT_TOKENS.inc(tokens)
+        ms = round((time.perf_counter() - t0) * 1000)
+        nodes = info.pop("nodes", [])  # where the call read: for the events, not for the audit line
         audit.info(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "event": "tool", "tool": tool,
-                               "client": client.name, "ms": round((time.perf_counter() - t0) * 1000),
-                               "tokens": tokens, **info}, ensure_ascii=False, default=str))
+                               "client": client.name, "ms": ms, "tokens": tokens, **info},
+                              ensure_ascii=False, default=str))
+        events.publish(tool, client.name, ms, nodes)
         return text
 
     @server.tool(annotations=READ)
@@ -231,7 +236,8 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
                 EMPTY.inc()
             return render_hits(hits, pipeline.confidence), {
                 "repos": repos, "query": query, "confidence": pipeline.confidence, "chunk_ids": [h["id"] for h in hits],
-                "paths": list(dict.fromkeys(h["path"] for h in hits))}
+                "paths": list(dict.fromkeys(h["path"] for h in hits)),
+                "nodes": [node(h["repo"], h["path"], "hit", h["start_line"], h["end_line"], h["symbol"]) for h in hits]}
 
         return run("search_code", ctx, go)
 
@@ -248,7 +254,9 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
                         or db_find_references(c, repos, name, limit, path_prefix))
             lines = [f'{h["repo"]}:{h["path"]}:{h["line"]}  in {h["symbol"] or "(file)"}  [{h["kind"]}]\n    {_data(h["text"])}'
                      for h in hits]
-            return _listing(lines, f"No use of {name!r} found."), {"repos": repos, "query": name}
+            return _listing(lines, f"No use of {name!r} found."), {
+                "repos": repos, "query": name,
+                "nodes": [node(h["repo"], h["path"], "reference", h["line"], h["line"], h["symbol"]) for h in hits]}
 
         return run("find_references", ctx, go)
 
@@ -267,12 +275,17 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
                 hits = read(lambda c: db_edge_references(c, repos, name, limit))
                 lines = [f'{h["repo"]}:{h["path"]}:{h["line"]}  {h["symbol"] or "(file)"}  [{h["edge"]}]\n'
                          f'    {_data(h["text"])}' for h in hits]
+                nodes = [node(h["repo"], h["path"], "caller", h["line"], h["line"], h["symbol"]) for h in hits]
             else:
                 hits = read(lambda c: db_callees(c, repos, name, limit))
-                lines = [f'{h["name"]}  -> {h["path"]}:{h["start_line"]}  {h["symbol"]}' if h["path"] else
+                # a declaration in another repository (an xref edge) names its repository
+                lines = [f'{h["name"]}  -> {"" if h["decl_repo"] == h["repo"] else h["decl_repo"] + ":"}'
+                         f'{h["path"]}:{h["start_line"]}  {h["symbol"]}' if h["path"] else
                          f'{h["name"]}  (not declared in the index)' for h in hits]
+                nodes = [node(h["decl_repo"], h["path"], "callee", h["start_line"], h["start_line"], h["symbol"])
+                         for h in hits if h["path"]]
             text = _listing(lines, f"No {direction} of {name!r} in the code graph.")
-            return text, {"repos": repos, "query": name, "direction": direction}
+            return text, {"repos": repos, "query": name, "direction": direction, "nodes": nodes}
 
         return run("call_graph", ctx, go)
 
@@ -288,7 +301,9 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
             hits = read(lambda c: db_table_usage(c, repos, table, op, max(1, min(k, 200))))
             lines = [f'{h["repo"]}:{h["path"]}:{h["line"]}  {h["symbol"] or "(file)"}  [{h["edge"].removeprefix("sql_")} '
                      f'{h["table"]}]\n    {_data(h["text"])}' for h in hits]
-            return _listing(lines, f"No SQL on {table!r} found."), {"repos": repos, "query": table}
+            return _listing(lines, f"No SQL on {table!r} found."), {
+                "repos": repos, "query": table,
+                "nodes": [node(h["repo"], h["path"], "table", h["line"], h["line"], h["symbol"], h["table"]) for h in hits]}
 
         return run("find_table_usage", ctx, go)
 
@@ -305,7 +320,9 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
                 return f"No chain from {source!r} to {target!r} within {depth} steps.", {"repos": repos, "query": source}
             lines = [f'{i}. {s["repo"]}:{s["path"]}:{s["line"]}  -> {s["to"]}  [{s["edge"]}]\n    {_data(s["text"])}'
                      for i, s in enumerate(steps, 1)]
-            return _listing(lines, ""), {"repos": repos, "query": f"{source} -> {target}"}
+            return _listing(lines, ""), {
+                "repos": repos, "query": f"{source} -> {target}",
+                "nodes": [node(s["repo"], s["path"], "trace", s["line"], s["line"], target=s["to"]) for s in steps]}
 
         return run("trace_flow", ctx, go)
 
@@ -326,7 +343,8 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
                     break
                 lines.append(line)
             text = _listing(lines, f"No referenced files under {path_prefix or 'the repository'!r}.")
-            return text, {"repos": repos, "query": path_prefix}
+            return text, {"repos": repos, "query": path_prefix,
+                          "nodes": [node(r["repo"], r["path"], "map") for r in rows[:len(lines)]]}
 
         return run("repo_map", ctx, go)
 
@@ -340,7 +358,8 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
             hits = read(lambda c: db_file_outline(c, repos, path))
             lines = [f'{h["start_line"]}-{h["end_line"]}  {_data(h["symbol"])}  [{h["kind"]}]' for h in hits]
             head = f'{hits[0]["repo"]}:{hits[0]["path"]}\n' if hits else ""
-            return head + _listing(lines, f"No declarations found for {path!r}."), {"repos": repos, "query": path}
+            return head + _listing(lines, f"No declarations found for {path!r}."), {
+                "repos": repos, "query": path, "nodes": [node(hits[0]["repo"], hits[0]["path"], "outline")] if hits else []}
 
         return run("file_outline", ctx, go)
 
@@ -365,7 +384,9 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
                     break
                 body.append(f"{number}: {line}")
             text = f'<code repo="{_attr(found["repo"])}" path="{_attr(found["path"])}">\n{_data(chr(10).join(body))}\n</code>'
-            return text, {"repos": repos, "query": path, "path": found["path"]}
+            shown = [n for n, _ in found["lines"]][: len(body)]
+            return text, {"repos": repos, "query": path, "path": found["path"],
+                          "nodes": [node(found["repo"], found["path"], "read", shown[0], shown[-1])] if shown else []}
 
         return run("read_code", ctx, go)
 
@@ -382,7 +403,9 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
             lines = [f'{h["repo"]}:{h["path"]}:{h["start_line"]}-{h["end_line"]}  {h["symbol"]}  [{h["kind"]}]\n'
                      f'    {_data(h["signature"] or "")}' for h in hits]
             text = _listing(lines, f"No symbol matches {name!r}.")
-            return text, {"repos": repos, "query": name, "chunk_ids": [h["id"] for h in hits]}
+            return text, {"repos": repos, "query": name, "chunk_ids": [h["id"] for h in hits],
+                          "nodes": [node(h["repo"], h["path"], "symbol", h["start_line"], h["end_line"], h["symbol"])
+                                    for h in hits]}
 
         return run("find_symbol", ctx, go)
 
@@ -391,7 +414,7 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
         """Repositories this token may query, with indexed commit, model and indexing date."""
 
         def go(client: Client) -> tuple[str, dict]:
-            rows = read(lambda c: db_list_repos(c, client.resolve(None)))
+            rows = read(lambda c: db_list_repos(c, client.resolve(None, lambda: db_repo_names(c))))
             lines = [f'{r["repo"]}: commit {r["commit_sha"][:12]}, {r["chunks"]} chunks, '
                      f'model {r["embed_model"]}, indexed at {r["indexed_at"]:%Y-%m-%d %H:%M %Z}' for r in rows]
             return "\n".join(lines) or "No repository indexed for this token.", {}

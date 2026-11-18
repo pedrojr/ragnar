@@ -9,13 +9,13 @@ COPY --from=uv /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project --extra events
 COPY README.md LICENSE ./
 COPY src ./src
-RUN uv sync --frozen --no-dev --no-editable
+RUN uv sync --frozen --no-dev --no-editable --extra events
 
 FROM build AS build-embed
-RUN uv sync --frozen --no-dev --no-editable --extra embed
+RUN uv sync --frozen --no-dev --no-editable --extra embed --extra events
 
 FROM python:3.12-slim AS app
 ARG GITLEAKS_VERSION=8.30.1

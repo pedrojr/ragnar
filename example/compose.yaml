@@ -92,6 +92,9 @@ services:
       RAGNAR_CONFIG: /etc/ragnar/server.toml
       RAGNAR_LLM_API_KEY: ${RAGNAR_LLM_API_KEY:-}         # hosted chat model: multi-query, HyDE
       RAGNAR_RERANK_API_KEY: ${RAGNAR_RERANK_API_KEY:-}   # hosted reranker
+      # graph access events (where each tool call read), on ragnar.mcp.<repo>.<tool>; none turns them off
+      RAGNAR__EVENTS__PROVIDER: ${RAGNAR_EVENTS_PROVIDER:-nats}
+      RAGNAR__EVENTS__URL: nats://nats:4222
     extra_hosts:
       - "host.docker.internal:host-gateway"   # reaches an Ollama running on the host, for multi-query and HyDE
     volumes:
@@ -102,6 +105,24 @@ services:
       db-replica: { condition: service_healthy }
       embedder: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
+
+  # Receives the MCP server's graph access events. Watch them: docker compose run --rm nats-box nats sub "ragnar.mcp.>"
+  # The MCP does not wait for it: with NATS down, events are dropped and counted, and tool calls go on.
+  nats:
+    image: nats:2.11.8-alpine
+    command: ["--http_port", "8222"]
+    ports: ["127.0.0.1:14222:4222"]   # for the integration tests on the host
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz"]
+      interval: 5s
+      retries: 10
+
+  nats-box:
+    image: natsio/nats-box:0.18.1
+    profiles: ["tools"]
+    environment: { NATS_URL: "nats://nats:4222" }
+    depends_on:
+      nats: { condition: service_healthy }
 
   # The only writer: mirrors each repository in repos.toml and indexes new commits of its branch.
   indexer:

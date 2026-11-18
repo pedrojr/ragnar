@@ -178,6 +178,19 @@ class Llm:
 
 
 @dataclass(frozen=True)
+class Events:
+    """Graph access events of the MCP server (ragnar.events). Server side only."""
+    provider: str = "none"  # none | nats
+    url: str = "nats://127.0.0.1:4222"
+    subject_prefix: str = "ragnar.mcp"  # subject: <prefix>.<repo>.<tool>
+    user_env: str = "RAGNAR_NATS_USER"  # credentials, read from the environment when set
+    password_env: str = "RAGNAR_NATS_PASSWORD"
+    token_env: str = "RAGNAR_NATS_TOKEN"
+    queue: int = 10000  # messages waiting to be sent; beyond it new ones are dropped and counted
+    max_nodes: int = 200  # nodes per message
+
+
+@dataclass(frozen=True)
 class Settings:
     project: Project = field(default_factory=Project)
     index: Index = field(default_factory=Index)
@@ -188,6 +201,7 @@ class Settings:
     contextual: Contextual = field(default_factory=Contextual)
     summaries: Summaries = field(default_factory=Summaries)
     llm: Llm = field(default_factory=Llm)
+    events: Events = field(default_factory=Events)
 
 
 PRESETS: dict[str, dict[str, dict[str, Any]]] = {
@@ -206,6 +220,7 @@ CHOICES = {
     ("query", "strategy"): ("none", "multi_query", "hyde"),
     ("llm", "provider"): ("openai", "ollama", "anthropic"),
     ("summaries", "provider"): ("", "openai", "ollama", "anthropic"),
+    ("events", "provider"): ("none", "nats"),
 }
 # Chat providers: (default url, default model). openai has no defaults: any compatible endpoint
 # (vLLM, LiteLLM, a hosted API) needs both. ollama talks to its OpenAI-compatible /v1 API;
@@ -301,6 +316,10 @@ def _validate(s: Settings) -> None:
                                       ("query.variants", s.query.variants)) if value < 1]
     if small:
         raise RagnarError(f"{small[0]} must be 1 or more")
+    if s.events.queue < 1 or s.events.max_nodes < 1:
+        raise RagnarError("events.queue and events.max_nodes must be 1 or more")
+    if not s.events.subject_prefix or any(ch in s.events.subject_prefix for ch in " *>"):
+        raise RagnarError("events.subject_prefix must be a NATS subject without spaces or wildcards")
     if s.index.window_overlap >= s.index.window_lines:
         raise RagnarError("index.window_overlap must be smaller than index.window_lines")
     if s.project.languages:
@@ -369,7 +388,8 @@ def _without_endpoints(layer: dict[str, Any], path: Path) -> dict[str, Any]:
         if not isinstance(values, dict):
             kept[section] = values  # _merge reports it
             continue
-        server = ENDPOINT_KEYS | (SERVER_OWNED if section == "index" else set())
+        # the events section says where usage goes and which credentials to read: none of it is the project's
+        server = set(values) if section == "events" else ENDPOINT_KEYS | (SERVER_OWNED if section == "index" else set())
         dropped += [f"{section}.{k}" for k in values if k in server]
         kept[section] = {k: v for k, v in values.items() if k not in server}
     if dropped:

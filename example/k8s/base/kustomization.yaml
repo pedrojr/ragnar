@@ -7,6 +7,7 @@ resources:
   - db-cluster.yaml
   - db-scaledobject.yaml
   - embedder.yaml
+  - nats.yaml
   - mcp.yaml
   - indexer-cronjob.yaml
 configMapGenerator:

@@ -32,6 +32,9 @@ spec:
             - { name: RAGNAR_CONFIG, value: /etc/ragnar/server.toml }
             - { name: RAGNAR_POOL_MAX, value: "8" }
             - { name: RAGNAR_POOL_MAX_LIFETIME, value: "120" }   # renews connections, so a new replica receives load
+            # graph access events on ragnar.mcp.<repo>.<tool>; "none" turns them off
+            - { name: RAGNAR__EVENTS__PROVIDER, value: nats }
+            - { name: RAGNAR__EVENTS__URL, value: "nats://ragnar-nats:4222" }
           envFrom:
             - configMapRef: { name: ragnar-embed }
             - secretRef: { name: ragnar-model-keys, optional: true }   # hosted chat model, reranker or embedder
