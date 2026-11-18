@@ -15,6 +15,8 @@ In a [benchmark](benchmark/README.md) on 8 open source projects in Delphi, Java,
 - Your code stays with you: the index runs on your infrastructure. The MCP server is read-only.
 - Any model: agents connect over MCP. Embeddings, reranking and chat use any compatible endpoint, local or hosted.
 - Measured: `ragnar eval` compares retrieval with a grep baseline on your own git history.
+- Many repositories, one index: every repository of the company shares the database, calls between them show up in the code graph, and each token reads only its own repositories.
+- Observable: the MCP server can publish where each tool call read the index to NATS, by repository and tool.
 
 ## How it works
 

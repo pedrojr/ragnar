@@ -11,7 +11,7 @@ Summaries are off by default (`summaries.enabled = false`). This page shows how 
 1. At index time, Ragnar picks every code file of 30 lines or more. Tests, documentation and the folders you exclude are skipped.
 2. It sends the first 12,000 characters of each file to the model, with the names the file declares and the names it refers to.
 3. The model answers with two or three sentences.
-4. Ragnar stores the answer in a cache keyed by the file content and the model. A file that did not change never costs a second call, even in a full reindex.
+4. Ragnar stores the answer in a cache keyed by the file content and the model. A file that did not change never costs a second call, even in a full reindex. An incremental run summarizes only the files of its commits, the same way it embeds only their chunks.
 5. The summary is embedded and searched like any other chunk. `read_code`, `file_outline` and the line tools ignore it.
 
 ## Choose a provider
@@ -179,6 +179,10 @@ All keys of `[summaries]`. Empty keys fall back to `[llm]`; see [Configuration](
 `temperature` and `max_tokens` come from `[llm]`. A call that times out leaves only that file without a summary, and the run goes on. The file gets its summary when it changes, or on the next `ragnar index --full`, which asks the model only for the files missing from the cache. After three failed calls in a row, Ragnar treats the model as down and stops the run. The index keeps the previous commit, the summaries written so far stay in the cache, and the next run picks up from there.
 
 When `summaries.provider` is set, the section stands alone: `url` and `model` never come from `[llm]`. This lets summaries run on Haiku while multi-query runs on Ollama, or the reverse.
+
+## Clean the cache
+
+The cache keeps every summary a model wrote, including those of files that changed since, of another model or of another language. `ragnar gc` removes the ones no summary chunk uses and that are older than 7 days (`--older-than DAYS`). `--dry-run` only counts. See [Command line](cli.md#ragnar-gc).
 
 ## Troubleshooting
 

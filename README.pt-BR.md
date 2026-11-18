@@ -15,6 +15,8 @@ Em um [benchmark](benchmark/README.pt-BR.md) com 8 projetos open source em Delph
 - Seu código fica com você: o índice roda na sua infraestrutura. O servidor MCP é somente leitura.
 - Qualquer modelo: agentes conectam por MCP. Embeddings, reranking e chat usam qualquer endpoint compatível, local ou hospedado.
 - Medido: `ragnar eval` compara a recuperação com um baseline de grep no seu próprio histórico do git.
+- Muitos repositórios, um índice: todos os repositórios da empresa dividem o banco, as chamadas entre eles aparecem no grafo de código, e cada token lê só os seus repositórios.
+- Observável: o servidor MCP pode publicar no NATS onde cada chamada leu o índice, por repositório e ferramenta.
 
 ## Como funciona
 

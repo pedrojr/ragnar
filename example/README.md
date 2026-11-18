@@ -14,12 +14,14 @@ flowchart LR
     agent[AI agent] -- "HTTP + token" --> mcp[ragnar-mcp]
     mcp -- SELECT --> replicas
     mcp --> embedder
+    mcp -. "graph access events" .-> nats[(nats)]
     mcp -. "/metrics" .-> keda[Prometheus + KEDA<br/>Kubernetes only]
     keda -. "scales" .-> replicas
 ```
 
 - **One writer.** Only the worker writes to the index, and only on the primary. The `migrate` job applies the schema when the stack comes up.
 - **Read-only search.** The MCP server reads from replicas, with a role that can only `SELECT`.
+- **Usage events.** The MCP server publishes where each tool call read the index to NATS, on `ragnar.mcp.<repo>.<tool>`. It never waits for NATS. See [MCP server](../docs/mcp.md#graph-access-events).
 - **No inbound network.** The worker polls your git host, every minute under Compose and every 5 minutes under Kubernetes, so nothing has to reach this machine.
 
 ## Requirements
@@ -111,6 +113,7 @@ Every port binds to `127.0.0.1`.
 | 8080 | MCP (`/mcp`, `/metrics`, `/readyz`) | agents |
 | 15432 | Postgres primary | `scripts/index.sh` on the host |
 | 8001 | Embedder (`/v1/embeddings`) | `scripts/index.sh` on the host |
+| 14222 | NATS | consumers of the graph access events, integration tests |
 
 Replicas are not published. To add replicas: `docker compose up -d --scale db-replica=3`.
 
@@ -124,6 +127,9 @@ Replicas are not published. To add replicas: `docker compose up -d --scale db-re
 | Rebuild one repository | `./scripts/index.sh /path/to/myapp myapp --full` |
 | Create a team token | `uv run --project .. ragnar token --name team-a --repos myapp` |
 | Reload the ACL | `docker compose restart ragnar-mcp` |
+| Watch the graph access events | `docker compose run --rm nats-box nats sub "ragnar.mcp.>"` |
+| Turn the events off | `RAGNAR_EVENTS_PROVIDER=none` in `.env`, then `docker compose up -d ragnar-mcp` |
+| Prune unused cached summaries | `docker compose run --rm tools gc` |
 | Change retrieval settings | Edit `server.toml`, then `docker compose restart ragnar-mcp indexer` |
 | Stop, keeping the index | `docker compose down` |
 | Stop and **delete the index** | `docker compose down -v` |
@@ -147,6 +153,7 @@ docker compose down
 | `Deployment/ragnar-mcp` | MCP server, `LoadBalancer` on `localhost:8080` | HPA on CPU, 1 to 5 pods |
 | `Deployment/ragnar-embedder` | Python embedder | HPA on CPU, 1 to 3 pods |
 | `CronJob/ragnar-indexer` | The worker, every 5 minutes | One Job at a time |
+| `Deployment/ragnar-nats` | Receives the graph access events (`ragnar-nats:4222`) | Fixed, 1 pod |
 | `Deployment/prometheus` | Collects `ragnar_search_total` for KEDA | Fixed |
 
 To index right after a merge, run from CI:

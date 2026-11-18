@@ -74,6 +74,8 @@ Maps an unfamiliar area: the files under a folder that the rest of the code refe
 
 The indexer links names, not compiled symbols. A word in a routine that names a declaration of the repository counts as a reference. This works for every language, including Delphi units the grammar cannot parse. Names declared in more than four places, such as `Create`, and names shorter than four characters are left out, so the edges that remain point somewhere specific. Form events link a control to its handler. SQL in strings links a routine to the tables it reads and writes. The graph can hold false edges: confirm the steps before you rely on them.
 
+Names also link across repositories in the same database. When a routine names something the repository does not declare, and another indexed repository declares it in four places or fewer, the edge gets kind `xref`. `call_graph`, `find_references`, `trace_flow` and `repo_map` follow these edges within the repositories the token may read, and `callees` writes the other repository before the path (`lib:billing/invoice.py:12`). When a repository declares a new name, the files of the other repositories that hold it are scanned again at the end of the indexing run. Tables need nothing extra: `find_table_usage` already finds the same table in every repository.
+
 ### `file_outline`
 
 Lists the declarations of a file with their lines, with no bodies. Use it to find your way around a large file before reading any of it.
@@ -120,7 +122,7 @@ Each client has a token. `acl.json` stores its SHA-256 hash and the repositories
 {"clients": [{"name": "team-a", "token_sha256": "...", "repos": ["myapp"]}]}
 ```
 
-`"*"` allows every repository. A client filter narrows access, and it never widens it. A request without a known token gets a 401 before it reaches the MCP layer.
+`"*"` allows every repository. A glob such as `"billing-*"` allows the repositories whose names match it (case-sensitive), including ones indexed later. A client filter narrows access, and it never widens it. A request without a known token gets a 401 before it reaches the MCP layer.
 
 Create tokens with `ragnar token --name team-a --repos myapp,other`, then restart the server to reload the file.
 
@@ -145,8 +147,31 @@ Keep `/metrics` off public networks. It exposes counters, not code.
 | `ragnar_auth_rejected_total` | Refused requests |
 | `ragnar_context_tokens_total` | Estimated tokens returned to agents |
 | `ragnar_search_seconds{phase}` | Latency per phase |
+| `ragnar_events_total{result}` | Graph access events `published` or `dropped` |
 
 Each tool call also writes a JSON audit line to standard output: client, tool, query, chunk ids, latency and tokens. The query text appears there, so treat these logs as sensitive.
+
+## Graph access events
+
+With `[events] provider = "nats"`, the server publishes where each tool call read the index. A call sends one message per repository it touched, on `<subject_prefix>.<repo>.<tool>` (default prefix `ragnar.mcp`), so a consumer subscribes by topic:
+
+| Subject | Receives |
+| --- | --- |
+| `ragnar.mcp.>` | Everything |
+| `ragnar.mcp.billing.>` | Every call that read `billing` |
+| `ragnar.mcp.*.trace_flow` | Every `trace_flow` call |
+
+A dot in a repository name becomes `_` in the subject; the message carries the real name.
+
+```json
+{"schema": 1, "ts": "2026-11-18T10:00:00-0300", "tool": "call_graph", "client": "team-a", "ms": 14,
+ "repo": "billing", "truncated": false,
+ "nodes": [{"path": "invoice.py", "step": "callee", "start_line": 12, "end_line": 12, "symbol": "compute_total"}]}
+```
+
+`step` says how the call reached the node: `hit` (search_code), `symbol`, `reference`, `caller`, `callee`, `trace`, `table` (with `target`, the table), `map`, `outline` or `read`. The query text is never in the message. `list_repos` and calls that return nothing send no message.
+
+Publishing only observes. The call puts its messages on a queue of `events.queue` entries and returns; a separate thread sends them. When NATS is down or slow, the queue fills and new messages are dropped and counted in `ragnar_events_total{result="dropped"}`. The tool call never waits for the broker. Settings: [Configuration](configuration.md#events).
 
 ## Bundled embedder
 

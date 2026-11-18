@@ -59,6 +59,23 @@ Indexes the branches listed in `repos.toml`. Needs `RAGNAR_DSN_WRITE`. Takes `--
 | `--watch` | Off | Keeps polling |
 | `--interval` | `60` | Seconds between passes with `--watch` |
 
+### `ragnar link`
+
+Updates the code graph edges between repositories (kind `xref`) from what is already indexed. Every indexing run does this on its own; run it once after upgrading from a version without cross-repository edges. Needs `RAGNAR_DSN_WRITE`.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--repo` | All | Only this repository |
+
+### `ragnar gc`
+
+Removes cached rows that no index uses: file summaries no summary chunk holds, embedding checkpoints of runs that never resumed, and the cross-repository names of repositories no longer indexed. Needs `RAGNAR_DSN_WRITE`.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--older-than` | `7` | Days. Younger rows stay, since a running index may still need them |
+| `--dry-run` | Off | Only counts |
+
 ### `ragnar migrate`
 
 Applies pending migrations on the primary. Needs `RAGNAR_DSN_WRITE`.

@@ -11,7 +11,7 @@ Os resumos vêm desligados (`summaries.enabled = false`). Esta página mostra co
 1. Ao indexar, o Ragnar seleciona todo arquivo de código com 30 linhas ou mais. Testes, documentação e as pastas excluídas ficam de fora.
 2. Ele envia ao modelo os primeiros 12.000 caracteres de cada arquivo, junto com os nomes que o arquivo declara e os nomes a que ele se refere.
 3. O modelo responde com duas ou três frases.
-4. O Ragnar guarda a resposta em um cache indexado pelo conteúdo do arquivo e pelo modelo. Um arquivo que não mudou nunca custa uma segunda chamada, nem em uma reindexação completa.
+4. O Ragnar guarda a resposta em um cache indexado pelo conteúdo do arquivo e pelo modelo. Um arquivo que não mudou nunca custa uma segunda chamada, nem em uma reindexação completa. Uma execução incremental resume só os arquivos dos seus commits, do mesmo jeito que só gera vetores para os chunks deles.
 5. O resumo vira vetor e é buscado como qualquer outro chunk. `read_code`, `file_outline` e as ferramentas de linha o ignoram.
 
 ## Escolha o provedor
@@ -179,6 +179,10 @@ Todas as chaves de `[summaries]`. Chaves vazias usam o valor de `[llm]`; veja [C
 `temperature` e `max_tokens` vêm de `[llm]`. Uma chamada que estoura o tempo deixa sem resumo só aquele arquivo, e a execução continua. O arquivo ganha o resumo quando mudar, ou no próximo `ragnar index --full`, que pede ao modelo só os arquivos que faltam no cache. Depois de três chamadas seguidas com falha, o Ragnar considera o modelo fora do ar e para a execução. O índice fica no commit anterior, os resumos já feitos ficam no cache, e a próxima execução continua dali.
 
 Quando `summaries.provider` está definido, a seção fica independente: `url` e `model` nunca vêm de `[llm]`. Assim os resumos podem rodar no Haiku enquanto o multi-query roda no Ollama, ou o contrário.
+
+## Limpar o cache
+
+O cache guarda todo resumo que um modelo já escreveu, inclusive os de arquivos que mudaram depois, de outro modelo ou de outro idioma. O `ragnar gc` remove os que nenhum chunk de resumo usa e que têm mais de 7 dias (`--older-than DIAS`). `--dry-run` só conta. Veja [Linha de comando](cli.md#ragnar-gc).
 
 ## Problemas comuns
 

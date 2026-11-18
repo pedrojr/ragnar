@@ -218,6 +218,21 @@ Any endpoint with the `/rerank` request shape used by Jina, Cohere and TEI works
 | `max_tokens` | `300` | Reply limit |
 | `timeout` | `60.0` | Seconds |
 
+## `[events]`
+
+Graph access events of the MCP server: see [MCP server](mcp.md#graph-access-events). Server side only: a committed project file cannot set any of these keys. Needs the `events` extra (`nats-py`), which the example images include.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `provider` | `"none"` | `none` or `nats` |
+| `url` | `"nats://127.0.0.1:4222"` | NATS server |
+| `subject_prefix` | `"ragnar.mcp"` | Messages go to `<prefix>.<repo>.<tool>` |
+| `user_env` | `"RAGNAR_NATS_USER"` | Variable with the user, read when set |
+| `password_env` | `"RAGNAR_NATS_PASSWORD"` | Variable with the password, read when set |
+| `token_env` | `"RAGNAR_NATS_TOKEN"` | Variable with the token, read when set |
+| `queue` | `10000` | Messages waiting to be sent. Beyond it, new ones are dropped and counted |
+| `max_nodes` | `200` | Nodes per message. Beyond it, the message has `"truncated": true` |
+
 ## Runtime variables
 
 These configure a process, not retrieval.

@@ -9,13 +9,13 @@
 | Plugin | `.claude-plugin/`, `.mcp.json`, `skills/`, `hooks/`, `bin/` | Conecta o agente e guia o fluxo |
 | CLI | `src/ragnar/cli.py` | Todas as operações, para pessoas e skills |
 | Indexador | `chunker.py`, `languages.py`, `delphi.py`, `indexer.py` | Transforma um commit em chunks, símbolos e vetores |
-| Grafo de código | `graph.py` | Liga rotinas aos nomes que usam, eventos de formulário aos handlers e SQL às tabelas |
+| Grafo de código | `graph.py`, `xref.py` | Liga rotinas aos nomes que usam, no repositório e entre repositórios, eventos de formulário aos handlers e SQL às tabelas |
 | Worker | `sync.py` | Acompanha branches e chama o indexador |
 | Recuperação | `search.py`, `llm.py` | O pipeline de busca, e o modelo de chat e o reranker opcionais |
-| Servidor MCP | `mcp_server.py`, `acl.py` | Acesso somente leitura para agentes |
+| Servidor MCP | `mcp_server.py`, `acl.py`, `events.py` | Acesso somente leitura para agentes, e eventos de acesso ao grafo no NATS |
 | Embedder | `embed_server.py`, `embedder.py` | Embedder de CPU incluído, e cliente para qualquer endpoint |
 | Avaliação | `evaluation.py`, `stats.py` | Mede a recuperação contra o grep, e relata o uso real pelas linhas de auditoria |
-| Operação | `ops.py`, `migrate.py`, `migrations/` | Teste de fumaça, teste de carga e migrações do esquema |
+| Operação | `ops.py`, `migrate.py`, `migrations/`, `cleanup.py` | Teste de fumaça, teste de carga, migrações do esquema e `ragnar gc` |
 | Preparação do projeto | `project.py` | `ragnar init` e `ragnar doctor` |
 | Configuração | `config.py` | Camadas, validação e fingerprint |
 
@@ -28,18 +28,21 @@ Indexação:
 3. Lê o conteúdo dos arquivos no commit com `git cat-file`.
 4. Normaliza encodings e procura segredos. Um achado interrompe a execução, a menos que o servidor defina `index.secret_action = "skip"`.
 5. Monta chunks, símbolos e arestas do grafo de código, além de resumos e notas de contexto quando estão ligados. Depois calcula embeddings fora de qualquer transação. Chunks inalterados reaproveitam seus vetores, e os vetores novos vão para um checkpoint, então uma execução interrompida continua de onde parou.
-6. Numa transação curta, trava o repositório, confirma que ninguém gravou, troca os chunks e registra o commit.
+6. Numa transação curta, trava o repositório, confirma que ninguém gravou, troca os chunks, liga-os aos nomes que outros repositórios declaram e registra o commit.
+7. Atualiza as arestas entre repositórios dos outros repositórios, uma transação para cada, lendo só os arquivos que contêm nomes que esta execução acrescentou.
 
 Busca:
 
 1. O agente chama uma ferramenta MCP com um token.
 2. O servidor confere o token e resolve quais repositórios ele pode ler.
 3. Numa réplica, o `search_code` roda o pipeline de [Técnicas de recuperação](retrieval.md). As outras ferramentas leem símbolos, o grafo de código ou linhas dos chunks.
-4. O resultado volta entre delimitadores, e uma linha de auditoria é gravada.
+4. O resultado volta entre delimitadores, e uma linha de auditoria é gravada. Com os eventos ligados, os lugares que a chamada leu vão para o NATS por uma thread separada.
 
 ## Decisões de projeto
 
 **Ler commits, nunca o diretório de trabalho.** O índice reflete um estado conhecido, e segredos ou rascunhos não commitados nunca entram. Mudanças locais ficam com a skill `search`.
+
+**Um serviço MCP, muitas réplicas.** Todos os agentes usam o mesmo servidor MCP, sem estado. Ele escala na horizontal atrás de um balanceador, e cada token define quais repositórios o cliente lê. Não existe um MCP separado por perfil de acesso.
 
 **Um escritor, muitos leitores.** Só o indexador grava, e só no primário. O servidor MCP conecta com um papel que só lê, nas réplicas. Um bug ou uma injeção de prompt no caminho da busca não altera o índice.
 
@@ -61,7 +64,8 @@ Busca:
 | --- | --- |
 | `code_chunk` | Uma linha por chunk: localização, tipo, texto, tsvector, embedding |
 | `code_symbol` | Uma linha por definição: nome, nome qualificado, assinatura |
-| `code_edge` | Grafo de código: rotina para nome (`ref`), controle para handler (`event`), rotina para tabela (`sql_read`, `sql_write`) |
+| `code_edge` | Grafo de código: rotina para nome (`ref`), rotina para nome de outro repositório (`xref`), controle para handler (`event`), rotina para tabela (`sql_read`, `sql_write`) |
+| `code_xref_name` | Por repositório: os nomes de outros repositórios contra os quais as arestas `xref` foram procuradas |
 | `index_state` | Por repositório: commit indexado, modelo, fingerprint das configurações, arquivos deixados de fora |
 | `embedding_checkpoint` | Vetores de uma execução que ainda não fez commit |
 | `summary_cache` | Resumos de arquivo por modelo e conteúdo do arquivo |

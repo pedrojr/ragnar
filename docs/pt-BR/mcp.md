@@ -74,6 +74,8 @@ Mapeia uma área desconhecida: os arquivos de uma pasta que o resto do código m
 
 O indexador liga nomes, não símbolos compilados. Uma palavra numa rotina que nomeia uma declaração do repositório conta como referência. Isso funciona em todas as linguagens, inclusive em units Delphi que a gramática não consegue ler. Nomes declarados em mais de quatro lugares, como `Create`, e nomes com menos de quatro caracteres ficam de fora, então as arestas que sobram apontam para algo específico. Eventos de formulário ligam um controle ao seu handler. SQL em strings liga uma rotina às tabelas que ela lê e grava. O grafo pode ter arestas falsas: confirme os passos antes de depender deles.
 
+Os nomes também ligam repositórios do mesmo banco. Quando uma rotina cita algo que o repositório não declara, e outro repositório indexado declara em quatro lugares ou menos, a aresta ganha o tipo `xref`. `call_graph`, `find_references`, `trace_flow` e `repo_map` seguem essas arestas dentro dos repositórios que o token pode ler, e o `callees` escreve o outro repositório antes do caminho (`lib:billing/invoice.py:12`). Quando um repositório declara um nome novo, os arquivos dos outros repositórios que o contêm são lidos de novo no fim da indexação. Tabelas não precisam de nada a mais: o `find_table_usage` já acha a mesma tabela em todos os repositórios.
+
 ### `file_outline`
 
 Lista as declarações de um arquivo com suas linhas, sem os corpos. Use para se orientar em um arquivo grande antes de ler qualquer parte dele.
@@ -120,7 +122,7 @@ Cada cliente tem um token. O `acl.json` guarda o hash SHA-256 e os repositórios
 {"clients": [{"name": "time-a", "token_sha256": "...", "repos": ["myapp"]}]}
 ```
 
-`"*"` libera todos os repositórios. O filtro do cliente restringe o acesso e nunca o amplia. Uma requisição sem token conhecido recebe 401 antes de chegar à camada MCP.
+`"*"` libera todos os repositórios. Um glob como `"billing-*"` libera os repositórios cujo nome casa com ele (diferencia maiúsculas), inclusive os indexados depois. O filtro do cliente restringe o acesso e nunca o amplia. Uma requisição sem token conhecido recebe 401 antes de chegar à camada MCP.
 
 Crie tokens com `ragnar token --name time-a --repos myapp,outro` e reinicie o servidor para recarregar o arquivo.
 
@@ -145,8 +147,31 @@ Mantenha `/metrics` fora de redes públicas. Ele expõe contadores, não código
 | `ragnar_auth_rejected_total` | Requisições recusadas |
 | `ragnar_context_tokens_total` | Tokens estimados devolvidos aos agentes |
 | `ragnar_search_seconds{phase}` | Latência por fase |
+| `ragnar_events_total{result}` | Eventos de acesso ao grafo `published` (publicados) ou `dropped` (descartados) |
 
 Cada chamada também grava uma linha JSON de auditoria na saída padrão: cliente, ferramenta, consulta, ids de chunks, latência e tokens. O texto da consulta aparece ali, então trate esses logs como sensíveis.
+
+## Eventos de acesso ao grafo
+
+Com `[events] provider = "nats"`, o servidor publica onde cada chamada leu o índice. Uma chamada manda uma mensagem por repositório que tocou, no subject `<subject_prefix>.<repo>.<tool>` (prefixo padrão `ragnar.mcp`), então quem consome assina por tópico:
+
+| Subject | Recebe |
+| --- | --- |
+| `ragnar.mcp.>` | Tudo |
+| `ragnar.mcp.billing.>` | Toda chamada que leu o `billing` |
+| `ragnar.mcp.*.trace_flow` | Toda chamada de `trace_flow` |
+
+Um ponto no nome do repositório vira `_` no subject; a mensagem leva o nome real.
+
+```json
+{"schema": 1, "ts": "2026-11-18T10:00:00-0300", "tool": "call_graph", "client": "time-a", "ms": 14,
+ "repo": "billing", "truncated": false,
+ "nodes": [{"path": "invoice.py", "step": "callee", "start_line": 12, "end_line": 12, "symbol": "compute_total"}]}
+```
+
+`step` diz como a chamada chegou ao nó: `hit` (search_code), `symbol`, `reference`, `caller`, `callee`, `trace`, `table` (com `target`, a tabela), `map`, `outline` ou `read`. O texto da consulta nunca vai na mensagem. `list_repos` e chamadas sem resultado não mandam mensagem.
+
+A publicação só observa. A chamada põe as mensagens numa fila de `events.queue` posições e retorna; uma thread separada as envia. Com o NATS fora do ar ou lento, a fila enche e as mensagens novas são descartadas e contadas em `ragnar_events_total{result="dropped"}`. A chamada da ferramenta nunca espera o broker. Configurações: [Configuração](configuration.md#events).
 
 ## Embedder incluído
 

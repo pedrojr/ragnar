@@ -14,12 +14,14 @@ flowchart LR
     agent[Agente de IA] -- "HTTP + token" --> mcp[ragnar-mcp]
     mcp -- SELECT --> replicas
     mcp --> embedder
+    mcp -. "eventos de acesso ao grafo" .-> nats[(nats)]
     mcp -. "/metrics" .-> keda[Prometheus + KEDA<br/>só no Kubernetes]
     keda -. "escala" .-> replicas
 ```
 
 - **Um escritor.** Só o worker grava no índice, e só no primário. O job `migrate` aplica o esquema quando a infraestrutura sobe.
 - **Busca somente leitura.** O servidor MCP lê das réplicas, com um papel que só faz `SELECT`.
+- **Eventos de uso.** O servidor MCP publica no NATS onde cada chamada leu o índice, em `ragnar.mcp.<repo>.<tool>`. Ele nunca espera o NATS. Veja [Servidor MCP](../docs/pt-BR/mcp.md#eventos-de-acesso-ao-grafo).
 - **Sem rede de entrada.** O worker consulta seu host git, a cada minuto no Compose e a cada 5 minutos no Kubernetes, então nada precisa alcançar esta máquina.
 
 ## Requisitos
@@ -111,6 +113,7 @@ Todas as portas ficam em `127.0.0.1`.
 | 8080 | MCP (`/mcp`, `/metrics`, `/readyz`) | agentes |
 | 15432 | Primário do Postgres | `scripts/index.sh` no host |
 | 8001 | Embedder (`/v1/embeddings`) | `scripts/index.sh` no host |
+| 14222 | NATS | consumidores dos eventos de acesso ao grafo, testes de integração |
 
 As réplicas não são publicadas. Para adicionar réplicas: `docker compose up -d --scale db-replica=3`.
 
@@ -124,6 +127,9 @@ As réplicas não são publicadas. Para adicionar réplicas: `docker compose up 
 | Refazer um repositório | `./scripts/index.sh /caminho/do/myapp myapp --full` |
 | Criar token de um time | `uv run --project .. ragnar token --name time-a --repos myapp` |
 | Recarregar a ACL | `docker compose restart ragnar-mcp` |
+| Acompanhar os eventos de acesso ao grafo | `docker compose run --rm nats-box nats sub "ragnar.mcp.>"` |
+| Desligar os eventos | `RAGNAR_EVENTS_PROVIDER=none` no `.env`, depois `docker compose up -d ragnar-mcp` |
+| Limpar resumos sem uso do cache | `docker compose run --rm tools gc` |
 | Mudar a recuperação | Edite `server.toml` e rode `docker compose restart ragnar-mcp indexer` |
 | Parar mantendo o índice | `docker compose down` |
 | Parar e **apagar o índice** | `docker compose down -v` |
@@ -147,6 +153,7 @@ O `up.sh` pode rodar de novo e recarrega `repos.toml`, `acl.json` e `server.toml
 | `Deployment/ragnar-mcp` | Servidor MCP, `LoadBalancer` em `localhost:8080` | HPA por CPU, de 1 a 5 pods |
 | `Deployment/ragnar-embedder` | Embedder Python | HPA por CPU, de 1 a 3 pods |
 | `CronJob/ragnar-indexer` | O worker, a cada 5 minutos | Um Job por vez |
+| `Deployment/ragnar-nats` | Recebe os eventos de acesso ao grafo (`ragnar-nats:4222`) | Fixo, 1 pod |
 | `Deployment/prometheus` | Coleta `ragnar_search_total` para o KEDA | Fixo |
 
 Para indexar logo depois de um merge, rode no CI:

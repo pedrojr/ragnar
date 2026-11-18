@@ -59,6 +59,23 @@ Indexa os branches listados no `repos.toml`. Precisa do `RAGNAR_DSN_WRITE`. Acei
 | `--watch` | Desligado | Continua consultando |
 | `--interval` | `60` | Segundos entre as passagens com `--watch` |
 
+### `ragnar link`
+
+Atualiza as arestas do grafo de código entre repositórios (tipo `xref`) a partir do que já está indexado. Toda indexação faz isso sozinha; rode uma vez depois de atualizar de uma versão sem arestas entre repositórios. Precisa do `RAGNAR_DSN_WRITE`.
+
+| Opção | Padrão | Significado |
+| --- | --- | --- |
+| `--repo` | Todos | Só este repositório |
+
+### `ragnar gc`
+
+Remove do cache as linhas que nenhum índice usa: resumos de arquivo que nenhum chunk de resumo guarda, checkpoints de embedding de execuções que não voltaram, e os nomes entre repositórios de repositórios que saíram do índice. Precisa do `RAGNAR_DSN_WRITE`.
+
+| Opção | Padrão | Significado |
+| --- | --- | --- |
+| `--older-than` | `7` | Dias. Linhas mais novas ficam, porque uma indexação em andamento ainda pode precisar delas |
+| `--dry-run` | Desligado | Só conta |
+
 ### `ragnar migrate`
 
 Aplica as migrações pendentes no primário. Precisa do `RAGNAR_DSN_WRITE`.
