@@ -1,7 +1,8 @@
 """Per-client tokens and the repositories each one may read.
 
 JSON file: {"clients": [{"name": "...", "token_sha256": "...", "repos": ["myapp"]}]}.
-"*" in repos allows every repository. The server stores only the token hash.
+"*" in repos allows every repository, and a glob such as "billing-*" allows the repositories it matches
+(fnmatch, case-sensitive). The server stores only the token hash.
 """
 
 from __future__ import annotations
@@ -9,7 +10,9 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 from .config import RagnarError
@@ -32,13 +35,28 @@ class Client:
     def all_repos(self) -> bool:
         return "*" in self.repos
 
-    def resolve(self, requested: str | None) -> list[str] | None:
-        """Repositories the query may see. None = all. A client filter narrows, it never widens."""
+    @property
+    def has_patterns(self) -> bool:
+        return any(any(ch in r for ch in "*?[") for r in self.repos)
+
+    def allows(self, repo: str) -> bool:
+        return any(fnmatchcase(repo, r) for r in self.repos)
+
+    def resolve(self, requested: str | None, known: Callable[[], list[str]] | None = None) -> list[str] | None:
+        """Repositories the query may see. None = all. A client filter narrows, it never widens.
+
+        known lists the indexed repositories; a client with globs needs it to expand them."""
         if requested:
-            if not self.all_repos and requested not in self.repos:
+            if not self.allows(requested):
                 raise RagnarError(f"no permission for repository {requested!r}")
             return [requested]
-        return None if self.all_repos else list(self.repos)
+        if self.all_repos:
+            return None
+        if not self.has_patterns:
+            return list(self.repos)
+        if known is None:
+            raise RagnarError("the repository list is needed to expand this client's globs")
+        return [r for r in known() if self.allows(r)]
 
 
 class Acl:

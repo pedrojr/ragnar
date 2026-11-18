@@ -121,6 +121,21 @@ def test_acl_resolution():
     assert acl.client_for("bearer t2").resolve(None) is None
 
 
+def test_acl_globs_match_repository_names():
+    acl = Acl.from_json(json.dumps({"clients": [
+        {"name": "billing", "token_sha256": hash_token("t"), "repos": ["billing-*", "shared"]},
+    ]}))
+    c = acl.client_for("Bearer t")
+    known = lambda: ["billing-api", "billing-web", "shared", "shipping", "Billing-old"]  # noqa: E731
+    assert c.resolve(None, known) == ["billing-api", "billing-web", "shared"]
+    assert c.resolve("billing-api") == ["billing-api"]
+    for denied in ("shipping", "Billing-old", "billing"):
+        with pytest.raises(RagnarError):
+            c.resolve(denied)
+    with pytest.raises(RagnarError):
+        c.resolve(None)  # without the repository list the globs cannot expand
+
+
 def test_acl_repos_must_be_a_list(tmp_path):
     # a string would become its characters: "a*" would grant every repository through its "*"
     path = tmp_path / "acl.json"

@@ -175,7 +175,7 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings) -> MCPServe
                     raise RagnarError("read database unavailable") from None
 
     def repos_for(client: Client, requested: str | None) -> list[str]:
-        repos = client.resolve(requested)
+        repos = client.resolve(requested, lambda: read(db_repo_names))
         if repos is None:
             repos = read(db_repo_names)
         return repos
@@ -438,6 +438,7 @@ def build_app():
                            f"-c statement_timeout={os.environ.get('RAGNAR_STATEMENT_TIMEOUT', '30s')}"},
         open=True,
     )
-    server = build_server(pool, acl, load_settings())
+    settings = load_settings()
+    server = build_server(pool, acl, settings, sink_from(settings.events))
     app = server.streamable_http_app(stateless_http=True, json_response=True, host="0.0.0.0")
     return BearerAuth(app, acl)

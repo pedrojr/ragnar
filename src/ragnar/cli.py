@@ -319,7 +319,7 @@ def main(argv: list[str] | None = None) -> None:
 
     s = sub.add_parser("token", help="creates a token and its ACL entry")
     s.add_argument("--name", required=True)
-    s.add_argument("--repos", required=True, help="comma-separated list; * allows all")
+    s.add_argument("--repos", required=True, help="comma-separated list of names or globs (billing-*); * allows all")
     s.set_defaults(fn=cmd_token)
 
     s = sub.add_parser("migrate", help="applies migrations on the primary (RAGNAR_DSN_WRITE)")
