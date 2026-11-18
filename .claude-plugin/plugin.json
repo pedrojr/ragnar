@@ -1,6 +1,6 @@
 {
   "name": "ragnar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ragnarize your codebase: build, tune and maintain a code RAG, and search it through a read-only MCP server on your own infrastructure.",
   "author": { "name": "Pedro Júnior" },
   "homepage": "https://github.com/pedrojr/ragnar",

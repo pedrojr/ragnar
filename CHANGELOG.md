@@ -47,6 +47,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `RAGNAR_STATEMENT_TIMEOUT` (default `30s`) caps each query of the MCP server, and its connections are read-only in the session as well as in the role.
 - `RAGNAR_LOCAL_EMBED_MODEL` names the model baked into the example's embedder, apart from the model searches use.
 - Agent runs in `benchmark/agent.py` include the questions with no answer in the repository, where the agent must answer NOT FOUND, and count invented citations: a cited file or line that does not exist at the snapshot. `--rescore` scores saved answers again without model calls, and `--category` and `--split all` pick the questions.
+- Code graph edges between repositories (kind `xref`, migration 010): a routine that names a declaration of another indexed repository is linked to it. `call_graph`, `find_references`, `trace_flow`, `repo_map` and the graph list of `search_code` follow these edges within the repositories the token may read. Each indexing run links its repository and then rescans, in the others, only the files that hold names it added. `ragnar link` does it on demand, for example once after upgrading.
+- `ragnar gc` removes unused cached summaries, embedding checkpoints of runs that never resumed, and cross-repository names of repositories no longer indexed. Rows younger than `--older-than` (7 days) stay.
+- ACL globs: `"repos": ["billing-*"]` allows every repository whose name matches, including ones indexed later.
+- Graph access events (`[events]`, extra `events`): the MCP server publishes to NATS where each tool call read the index, one message per repository on `ragnar.mcp.<repo>.<tool>`, without the query text. Publishing never blocks a call; when NATS is down, messages are dropped and counted in `ragnar_events_total`. The example Compose and Kubernetes run a NATS server with events on.
 
 ### Changed
 
@@ -75,6 +79,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - History questions skip commit messages that say nothing, and drop from their answers the files changed by more than 5% of the commits. The benchmark also reports whether any right file is in the top 10 (`hit10`) and records the confidence of each search.
 - **Breaking:** run inside a project, the CLI ignores `url`, `api_key_env` and `provider` in the committed `.ragnar/config.toml`, plus `index.secret_scan` and `index.secret_action`, and warns about them. A cloned repository could point embeddings at its own server with any key variable, or turn the secret scan off. Move those keys to `.rag/config.local.toml`; a file named by `RAGNAR_CONFIG` is still read in full.
 - The chunker version changed, so indexes rebuild in full on the next run. Unchanged chunks keep their vectors.
+- Version 0.2.0. The example images are tagged `0.2.0`.
 
 ### Fixed
 

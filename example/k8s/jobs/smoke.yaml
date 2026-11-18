@@ -12,7 +12,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: smoke
-          image: ragnar-app:0.1.0
+          image: ragnar-app:0.2.0
           imagePullPolicy: IfNotPresent
           command: ["ragnar", "smoke", "--url", "http://ragnar-mcp:8080/mcp", "--repo", "__REPO__", "--replica-host", "ragnar-db-ro"]
           env:

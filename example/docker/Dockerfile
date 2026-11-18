@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # One codebase, two images (build from the repository root):
-#   docker build --target app      -t ragnar-app:0.1.0 -f example/docker/Dockerfile .        (ragnar mcp | migrate | index | sync | smoke | load)
-#   docker build --target embedder -t ragnar-embedder:0.1.0 -f example/docker/Dockerfile .   (ragnar embedder, with the model baked in)
+#   docker build --target app      -t ragnar-app:0.2.0 -f example/docker/Dockerfile .        (ragnar mcp | migrate | index | sync | smoke | load)
+#   docker build --target embedder -t ragnar-embedder:0.2.0 -f example/docker/Dockerfile .   (ragnar embedder, with the model baked in)
 FROM ghcr.io/astral-sh/uv:0.11.28 AS uv
 
 FROM python:3.12-slim AS build

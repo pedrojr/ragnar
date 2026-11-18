@@ -11,7 +11,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: migrate
-          image: ragnar-app:0.1.0
+          image: ragnar-app:0.2.0
           imagePullPolicy: IfNotPresent
           command: ["ragnar", "migrate"]
           env:

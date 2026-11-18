@@ -1,6 +1,6 @@
 [project]
 name = "ragnar-rag"
-version = "0.1.0"
+version = "0.2.0"
 description = "Ragnarize your codebase: a code RAG plugin for AI agents, with language-aware indexing and a read-only MCP server."
 readme = "README.md"
 license = "MIT"

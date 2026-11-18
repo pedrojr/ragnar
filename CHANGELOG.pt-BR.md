@@ -47,6 +47,10 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - `RAGNAR_STATEMENT_TIMEOUT` (padrão `30s`) limita cada consulta do servidor MCP, e as conexões dele são somente leitura na sessão, além de no role.
 - `RAGNAR_LOCAL_EMBED_MODEL` indica o modelo embutido no embedder do exemplo, separado do modelo que as buscas usam.
 - As execuções com agente em `benchmark/agent.py` incluem as perguntas sem resposta no repositório, em que o agente precisa responder NOT FOUND, e contam citações inventadas: um arquivo ou linha citado que não existe no snapshot. `--rescore` pontua de novo respostas salvas sem chamar o modelo, e `--category` e `--split all` escolhem as perguntas.
+- Arestas do grafo de código entre repositórios (tipo `xref`, migração 010): uma rotina que cita uma declaração de outro repositório indexado fica ligada a ela. `call_graph`, `find_references`, `trace_flow`, `repo_map` e a lista do grafo do `search_code` seguem essas arestas dentro dos repositórios que o token pode ler. Cada indexação liga o próprio repositório e depois relê, nos outros, só os arquivos que contêm nomes que ela acrescentou. O `ragnar link` faz isso sob demanda, por exemplo uma vez depois de atualizar.
+- `ragnar gc` remove resumos sem uso do cache, checkpoints de embedding de execuções que não voltaram e nomes entre repositórios de repositórios que saíram do índice. Linhas mais novas que `--older-than` (7 dias) ficam.
+- Globs na ACL: `"repos": ["billing-*"]` libera todo repositório cujo nome casa, inclusive os indexados depois.
+- Eventos de acesso ao grafo (`[events]`, extra `events`): o servidor MCP publica no NATS onde cada chamada leu o índice, uma mensagem por repositório em `ragnar.mcp.<repo>.<tool>`, sem o texto da consulta. A publicação nunca trava uma chamada; com o NATS fora do ar, as mensagens são descartadas e contadas em `ragnar_events_total`. O Compose e o Kubernetes do exemplo sobem um servidor NATS com os eventos ligados.
 
 ### Alterado
 
@@ -75,6 +79,7 @@ Todas as mudanças relevantes ficam registradas aqui. O formato segue o [Keep a 
 - As perguntas do histórico pulam mensagens de commit que não dizem nada e tiram das respostas os arquivos alterados por mais de 5% dos commits. O benchmark também informa se algum arquivo certo está entre os 10 primeiros (`hit10`) e registra a confiança de cada busca.
 - **Incompatível:** rodando dentro de um projeto, a CLI ignora `url`, `api_key_env` e `provider` no `.ragnar/config.toml` commitado, além de `index.secret_scan` e `index.secret_action`, e avisa sobre eles. Um repositório clonado podia apontar os embeddings para um servidor dele, com qualquer variável de chave, ou desligar a varredura de segredos. Mova essas chaves para o `.rag/config.local.toml`; um arquivo indicado por `RAGNAR_CONFIG` continua sendo lido por inteiro.
 - A versão do chunker mudou, então os índices são refeitos por inteiro na próxima execução. Chunks sem mudança mantêm os vetores.
+- Versão 0.2.0. As imagens do exemplo têm a tag `0.2.0`.
 
 ### Corrigido
 

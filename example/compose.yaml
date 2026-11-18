@@ -6,7 +6,7 @@
 name: ragnar
 
 x-app: &app
-  image: ragnar-app:0.1.0   # built by the ragnar-mcp service
+  image: ragnar-app:0.2.0   # built by the ragnar-mcp service
   # no env_file here: each service receives only the credential it uses (the MCP never sees the write password)
 
 x-embedding: &embedding
@@ -51,7 +51,7 @@ services:
       retries: 60
 
   embedder:
-    image: ragnar-embedder:0.1.0
+    image: ragnar-embedder:0.2.0
     build:
       context: ..
       dockerfile: example/docker/Dockerfile

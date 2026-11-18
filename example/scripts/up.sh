@@ -34,17 +34,17 @@ kubectl -n keda rollout status deploy/keda-admission --timeout=300s
 kubectl -n kube-system rollout status deploy/metrics-server --timeout=300s
 
 step "images"
-docker build -q --target app -t ragnar-app:0.1.0 -f docker/Dockerfile .. >/dev/null
+docker build -q --target app -t ragnar-app:0.2.0 -f docker/Dockerfile .. >/dev/null
 local_model=$(sed -n 's/^RAGNAR_LOCAL_EMBED_MODEL=//p' k8s/base/embed.env | tr -d '\r')
 docker build -q --target embedder --build-arg "EMBED_MODEL=${local_model:-jinaai/jina-embeddings-v2-base-code}" \
-  -t ragnar-embedder:0.1.0 -f docker/Dockerfile .. >/dev/null
+  -t ragnar-embedder:0.2.0 -f docker/Dockerfile .. >/dev/null
 # The kubeadm provisioner of Docker Desktop sees the images built above. The kind provisioner runs each node in
 # a container with its own containerd, which keeps whatever image it loaded first under the same tag: copy every
 # image whose ID differs into each node.
 images_changed=false
 for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
   docker exec "$node" true 2>/dev/null || continue   # not a node container: the cluster shares Docker's images
-  for image in ragnar-app:0.1.0 ragnar-embedder:0.1.0; do
+  for image in ragnar-app:0.2.0 ragnar-embedder:0.2.0; do
     # layers, not IDs: a BuildKit rebuild of the same content gets a new image ID
     want=$(docker image inspect --format '{{join .RootFS.Layers " "}}' "$image")
     have=$(docker exec "$node" crictl inspecti -o go-template \
