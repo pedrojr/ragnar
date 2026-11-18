@@ -169,9 +169,11 @@ Um ponto no nome do repositório vira `_` no subject; a mensagem leva o nome rea
  "nodes": [{"path": "invoice.py", "step": "callee", "start_line": 12, "end_line": 12, "symbol": "compute_total"}]}
 ```
 
-`step` diz como a chamada chegou ao nó: `hit` (search_code), `symbol`, `reference`, `caller`, `callee`, `trace`, `table` (com `target`, a tabela), `map`, `outline` ou `read`. O texto da consulta nunca vai na mensagem. `list_repos` e chamadas sem resultado não mandam mensagem.
+`step` diz como a chamada chegou ao nó: `hit` (search_code), `symbol`, `reference`, `caller`, `callee`, `trace`, `table` (com `target`, a tabela), `map`, `outline` ou `read`. A consulta nunca vai na mensagem, e o último passo do `trace_flow` vai sem `target`, porque esse é o nome que o agente pediu. `list_repos` e chamadas sem resultado não mandam mensagem.
 
-A publicação só observa. A chamada põe as mensagens numa fila de `events.queue` posições e retorna; uma thread separada as envia. Com o NATS fora do ar ou lento, a fila enche e as mensagens novas são descartadas e contadas em `ragnar_events_total{result="dropped"}`. A chamada da ferramenta nunca espera o broker. Configurações: [Configuração](configuration.md#events).
+A publicação só observa. A chamada põe as mensagens numa fila de `events.queue` posições e retorna; uma thread separada as envia. Com o NATS fora do ar ou lento, a fila enche e as mensagens novas são descartadas e contadas em `ragnar_events_total{result="dropped"}`. A chamada da ferramenta nunca espera o broker. Quando o servidor para, ele envia o que ainda está na fila. Configurações: [Configuração](configuration.md#events).
+
+As mensagens citam arquivos e símbolos de todos os repositórios, independentemente do que a ACL deixa cada token ler, então quem assina vê mais do que qualquer cliente. Os servidores NATS do `example/` não pedem credenciais: deixe-os numa rede privada, ou ligue a autenticação do NATS e defina `events.user_env` e `events.password_env` (ou `events.token_env`).
 
 ## Embedder incluído
 

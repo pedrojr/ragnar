@@ -69,7 +69,7 @@ Updates the code graph edges between repositories (kind `xref`) from what is alr
 
 ### `ragnar gc`
 
-Removes cached rows that no index uses: file summaries no summary chunk holds, embedding checkpoints of runs that never resumed, and the cross-repository names of repositories no longer indexed. Needs `RAGNAR_DSN_WRITE`.
+Removes cached rows that no index uses: file summaries no summary chunk holds, embedding checkpoints of runs that never resumed, and the cross-repository names of repositories no longer in `index_state` (Ragnar has no command that removes a repository; this covers one deleted by hand). Needs `RAGNAR_DSN_WRITE`.
 
 | Option | Default | Meaning |
 | --- | --- | --- |

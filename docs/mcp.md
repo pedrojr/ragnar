@@ -169,9 +169,11 @@ A dot in a repository name becomes `_` in the subject; the message carries the r
  "nodes": [{"path": "invoice.py", "step": "callee", "start_line": 12, "end_line": 12, "symbol": "compute_total"}]}
 ```
 
-`step` says how the call reached the node: `hit` (search_code), `symbol`, `reference`, `caller`, `callee`, `trace`, `table` (with `target`, the table), `map`, `outline` or `read`. The query text is never in the message. `list_repos` and calls that return nothing send no message.
+`step` says how the call reached the node: `hit` (search_code), `symbol`, `reference`, `caller`, `callee`, `trace`, `table` (with `target`, the table), `map`, `outline` or `read`. The query is never in the message, and the last step of `trace_flow` leaves out its `target`, since that is the name the agent asked for. `list_repos` and calls that return nothing send no message.
 
-Publishing only observes. The call puts its messages on a queue of `events.queue` entries and returns; a separate thread sends them. When NATS is down or slow, the queue fills and new messages are dropped and counted in `ragnar_events_total{result="dropped"}`. The tool call never waits for the broker. Settings: [Configuration](configuration.md#events).
+Publishing only observes. The call puts its messages on a queue of `events.queue` entries and returns; a separate thread sends them. When NATS is down or slow, the queue fills and new messages are dropped and counted in `ragnar_events_total{result="dropped"}`. The tool call never waits for the broker. When the server stops, it sends what is still queued. Settings: [Configuration](configuration.md#events).
+
+The messages name files and symbols of every repository, whatever the ACL lets each token read, so a subscriber sees more than any one client. The NATS servers in `example/` take no credentials: keep them on a private network, or turn on NATS authentication and set `events.user_env` and `events.password_env` (or `events.token_env`).
 
 ## Bundled embedder
 

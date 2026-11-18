@@ -28,8 +28,8 @@ Indexação:
 3. Lê o conteúdo dos arquivos no commit com `git cat-file`.
 4. Normaliza encodings e procura segredos. Um achado interrompe a execução, a menos que o servidor defina `index.secret_action = "skip"`.
 5. Monta chunks, símbolos e arestas do grafo de código, além de resumos e notas de contexto quando estão ligados. Depois calcula embeddings fora de qualquer transação. Chunks inalterados reaproveitam seus vetores, e os vetores novos vão para um checkpoint, então uma execução interrompida continua de onde parou.
-6. Numa transação curta, trava o repositório, confirma que ninguém gravou, troca os chunks, liga-os aos nomes que outros repositórios declaram e registra o commit.
-7. Atualiza as arestas entre repositórios dos outros repositórios, uma transação para cada, lendo só os arquivos que contêm nomes que esta execução acrescentou.
+6. Numa transação curta, trava o repositório, confirma que ninguém gravou, troca os chunks e registra o commit.
+7. Numa transação própria, liga o repositório aos nomes que outros repositórios declaram. Depois atualiza as arestas entre repositórios dos outros repositórios, uma transação para cada, lendo só os arquivos que contêm nomes que surgiram ou saíram. O `ragnar sync` faz esta última parte uma vez por passagem. Uma falha aqui deixa o índice gravado; o próximo link começa de novo.
 
 Busca:
 

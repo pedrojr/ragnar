@@ -28,8 +28,8 @@ Indexing:
 3. It reads file contents from the commit with `git cat-file`.
 4. It normalizes encodings and scans for secrets. A finding stops the run, unless the server sets `index.secret_action = "skip"`.
 5. It builds chunks, symbols and code graph edges, plus summaries and context notes when they are on. Then it computes embeddings outside any transaction. Unchanged chunks reuse their vectors, and new vectors are checkpointed, so a stopped run resumes.
-6. In one short transaction, it locks the repository, confirms no one else wrote, swaps the chunks, links them to the names other repositories declare, and records the commit.
-7. It brings the cross-repository edges of the other repositories up to date, one transaction each, scanning only the files that hold names this run added.
+6. In one short transaction, it locks the repository, confirms no one else wrote, swaps the chunks, and records the commit.
+7. In a transaction of its own, it links the repository to the names other repositories declare. Then it brings the other repositories' cross-repository edges up to date, one transaction each, scanning only the files that hold names that appeared or left. `ragnar sync` does this last part once per pass. A failure here leaves the index committed; the next link starts over.
 
 Searching:
 

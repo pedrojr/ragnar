@@ -69,7 +69,7 @@ Atualiza as arestas do grafo de código entre repositórios (tipo `xref`) a part
 
 ### `ragnar gc`
 
-Remove do cache as linhas que nenhum índice usa: resumos de arquivo que nenhum chunk de resumo guarda, checkpoints de embedding de execuções que não voltaram, e os nomes entre repositórios de repositórios que saíram do índice. Precisa do `RAGNAR_DSN_WRITE`.
+Remove do cache as linhas que nenhum índice usa: resumos de arquivo que nenhum chunk de resumo guarda, checkpoints de embedding de execuções que não voltaram, e os nomes entre repositórios de repositórios que não estão mais no `index_state` (o Ragnar não tem comando que remove um repositório; isto cobre um apagado à mão). Precisa do `RAGNAR_DSN_WRITE`.
 
 | Opção | Padrão | Significado |
 | --- | --- | --- |
