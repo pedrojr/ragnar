@@ -448,6 +448,94 @@ def test_mcp_over_http(dsn, tmp_path, monkeypatch):
     assert tools == TOOLS
 
 
+def _commit(repo, files: dict[str, str], message: str) -> None:
+    for rel, text in files.items():
+        path = repo / rel
+        if text is None:
+            path.unlink()
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", message)
+
+
+def _new_repo(root, name: str):
+    repo = root / name
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "t")
+    return repo
+
+
+def test_edges_between_repositories(dsn, tmp_path):
+    from ragnar.search import callees, edge_references, trace_flow
+
+    emb, settings = FakeEmbedder(768), load_settings(tmp_path, environ={})
+    app, lib = _new_repo(tmp_path, "app"), _new_repo(tmp_path, "lib")
+    _commit(app, {"shop/checkout.py": "def checkout_cart(items):\n    total = compute_invoice_total(items)\n"
+                                      "    return total\n"}, "app")
+    _commit(lib, {"billing/invoice.py": "def compute_invoice_total(items):\n    return sum(i.price for i in items)\n"},
+            "lib")
+    # the caller first: the edge appears when the other repository declares the name
+    index(str(app), "xapp", dsn, emb, settings, scan=False)
+    with psycopg.connect(dsn) as conn:
+        assert not edge_references(conn, ["xapp", "xlib"], "compute_invoice_total")
+    index(str(lib), "xlib", dsn, emb, settings, scan=False)
+    with psycopg.connect(dsn) as conn:
+        refs = edge_references(conn, ["xapp", "xlib"], "compute_invoice_total")
+        assert [(r["repo"], r["path"], r["line"], r["edge"]) for r in refs] == [("xapp", "shop/checkout.py", 2, "xref")]
+        found = {c["name"]: c for c in callees(conn, ["xapp", "xlib"], "checkout_cart")}
+        assert (found["compute_invoice_total"]["decl_repo"], found["compute_invoice_total"]["path"]) == \
+            ("xlib", "billing/invoice.py")
+        # a client that cannot read xlib does not see where the name is declared
+        assert callees(conn, ["xapp"], "checkout_cart")[0]["path"] is None
+        assert trace_flow(conn, ["xapp", "xlib"], "checkout_cart", "compute_invoice_total")
+
+    # an incremental run of the caller keeps the edge
+    _commit(app, {"shop/checkout.py": "def checkout_cart(items):\n\n    total = compute_invoice_total(items)\n"
+                                      "    return total\n"}, "move")
+    assert index(str(app), "xapp", dsn, emb, settings, scan=False).mode == "incremental"
+    with psycopg.connect(dsn) as conn:
+        assert [r["line"] for r in edge_references(conn, ["xapp"], "compute_invoice_total")] == [3]
+
+    # the declaration leaves: so does the edge
+    _commit(lib, {"billing/invoice.py": "def other_helper():\n    return 1\n"}, "drop")
+    index(str(lib), "xlib", dsn, emb, settings, scan=False)
+    with psycopg.connect(dsn) as conn:
+        assert not edge_references(conn, ["xapp", "xlib"], "compute_invoice_total")
+        assert conn.execute("SELECT count(*) FROM code_xref_name WHERE repo = 'xapp' "
+                            "AND name = 'compute_invoice_total'").fetchone()[0] == 0
+
+
+def test_gc_removes_only_old_unused_rows(dsn):
+    from ragnar.cleanup import collect
+
+    with psycopg.connect(dsn) as conn:
+        conn.execute("DELETE FROM summary_cache")
+        conn.execute("DELETE FROM embedding_checkpoint")
+        old = "now() - interval '10 days'"
+        conn.execute(f"INSERT INTO summary_cache (model, source_hash, summary, created_at) VALUES "
+                     f"('m', 'old-unused', 'Nobody uses this.', {old}), ('m', 'new-unused', 'Written just now.', now()), "
+                     f"('m', 'old-used', 'Formats the invoice.', {old})")
+        conn.execute("INSERT INTO code_chunk (repo, path, symbol, language, kind, start_line, end_line, commit_sha, "
+                     "content, search_text, embedding, content_hash) SELECT 'gcdemo', 'a.py', '(summary)', 'python', "
+                     "'summary', 1, 3, 'x', '# file: a.py\n# symbol: (summary)\nFormats the invoice.', 'x', "
+                     "array_fill(0, ARRAY[768])::vector, 'h'")
+        conn.execute(f"INSERT INTO embedding_checkpoint (model, content_hash, embedding, created_at) VALUES "
+                     f"('m', 'old', '[0]', {old}), ('m', 'new', '[0]', now())")
+        conn.execute("INSERT INTO code_xref_name (repo, name) VALUES ('gone-repo', 'something')")
+    counted = collect(dsn, dry_run=True)
+    assert (counted.summaries, counted.checkpoints, counted.xref_names) == (1, 1, 1)
+    removed = collect(dsn)
+    assert (removed.summaries, removed.checkpoints, removed.xref_names) == (1, 1, 1)
+    with psycopg.connect(dsn) as conn:
+        assert {r[0] for r in conn.execute("SELECT source_hash FROM summary_cache")} == {"new-unused", "old-used"}
+        assert {r[0] for r in conn.execute("SELECT content_hash FROM embedding_checkpoint")} == {"new"}
+        conn.execute("DELETE FROM code_chunk WHERE repo = 'gcdemo'")
+
+
 def test_resize_embeddings_clears_every_index_table(dsn, tmp_path, monkeypatch):
     # runs last: it empties the module's database
     index(str(make_repo(tmp_path)), "demo", dsn, FakeEmbedder(768), load_settings(tmp_path, environ={}), scan=False, full=True)
@@ -458,5 +546,5 @@ def test_resize_embeddings_clears_every_index_table(dsn, tmp_path, monkeypatch):
     monkeypatch.setenv("RAGNAR__EMBEDDING__DIM", "768")
     assert resize_embeddings(dsn) == 768
     with psycopg.connect(dsn) as conn:
-        for table in ("code_chunk", "code_symbol", "code_edge", "index_state", "embedding_checkpoint"):
+        for table in ("code_chunk", "code_symbol", "code_edge", "code_xref_name", "index_state", "embedding_checkpoint"):
             assert conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 0, table

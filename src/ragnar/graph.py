@@ -6,7 +6,8 @@ repository counts as a reference. That works on every language, including Delphi
 cannot parse, at the price of some noise. Names declared in many places (Create, Execute) or too
 short to mean anything are left out, so the edges that remain point somewhere specific.
 
-kinds: ref (a routine names a declaration), event (a form control calls a handler),
+kinds: ref (a routine names a declaration), xref (a routine names a declaration of another repository,
+       see ragnar.xref), event (a form control calls a handler),
        sql_read and sql_write (a routine runs SQL on a table).
 """
 
@@ -62,7 +63,7 @@ def useful_names(definitions: dict[str, int]) -> set[str]:
     return {n for n, count in definitions.items() if len(n) >= MIN_NAME and count <= MAX_DEFINITIONS}
 
 
-def reference_edges(path: str, text: str, symbols: list[Symbol], names: set[str]) -> list[Edge]:
+def reference_edges(path: str, text: str, symbols: list[Symbol], names: set[str], kind: str = "ref") -> list[Edge]:
     """One edge per routine and referenced name, at the first line that names it."""
     scopes = Scopes(symbols)
     declared = {(s.start_line, s.name.lower()) for s in symbols}
@@ -77,7 +78,7 @@ def reference_edges(path: str, text: str, symbols: list[Symbol], names: set[str]
             if (number, name) in declared or (scope, name) in seen:
                 continue
             seen.add((scope, name))
-            out.append(Edge(path, number, scope, name, "ref", line.strip()[:MAX_LINE_CHARS]))
+            out.append(Edge(path, number, scope, name, kind, line.strip()[:MAX_LINE_CHARS]))
     return out
 
 

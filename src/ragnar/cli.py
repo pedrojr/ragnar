@@ -121,6 +121,22 @@ def cmd_migrate(args) -> None:
         print(f"index cleared, embedding dimension is now {resize_embeddings(write_dsn())}: index every repository again")
 
 
+def cmd_link(args) -> None:
+    from .xref import link_all
+
+    for repo, edges in link_all(write_dsn(), only=args.repo).items():
+        print(f"{repo}: {edges} cross-repository edges written")
+
+
+def cmd_gc(args) -> None:
+    from .cleanup import collect
+
+    r = collect(write_dsn(), args.older_than, args.dry_run)
+    verb = "would remove" if args.dry_run else "removed"
+    print(f"{verb}: {r.summaries} unused summaries, {r.checkpoints} stale embedding checkpoints, "
+          f"{r.xref_names} cross-repository names of repositories no longer indexed")
+
+
 def cmd_index(args) -> None:
     from .embedder import from_settings
     from .indexer import index
@@ -335,6 +351,16 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--no-secret-scan", action="store_true", help="for tests only: skips gitleaks")
     with_overrides(s)
     s.set_defaults(fn=cmd_index)
+
+    s = sub.add_parser("link", help="updates the edges between repositories from the index (RAGNAR_DSN_WRITE)")
+    s.add_argument("--repo", help="only this repository")
+    s.set_defaults(fn=cmd_link)
+
+    s = sub.add_parser("gc", help="removes cached summaries and vectors no index uses (RAGNAR_DSN_WRITE)")
+    s.add_argument("--older-than", type=float, default=7, metavar="DAYS",
+                   help="keeps rows younger than this, which a running index may still need (default 7)")
+    s.add_argument("--dry-run", action="store_true", help="only counts")
+    s.set_defaults(fn=cmd_gc)
 
     s = sub.add_parser("sync", help="indexes the branches listed in repos.toml (RAGNAR_DSN_WRITE)")
     s.add_argument("--config", default="repos.toml")

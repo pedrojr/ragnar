@@ -23,7 +23,7 @@ from pathlib import Path
 
 import psycopg
 
-from . import delphi, graph
+from . import delphi, graph, xref
 from .chunker import Chunk, Chunker, Symbol, normalize_source, split_identifiers
 from .config import (
     CONFIG_FILE,
@@ -639,5 +639,11 @@ def index(source: str, repo: str, dsn: str, emb: Embedder | FakeEmbedder, settin
             (repo, head, emb.model, fingerprint, json.dumps(skipped_map, ensure_ascii=False)),
         )
         conn.execute("DELETE FROM embedding_checkpoint WHERE model = %s AND content_hash = ANY(%s)", (emb.model, hashes))
+        # links to the other repositories: the delete above took the xref edges of the replaced files
+        if mode == "full":
+            conn.execute("DELETE FROM code_xref_name WHERE repo = %s", (repo,))
+        xref.link(conn, repo, None if mode == "full" else paths)
+    # the others may name what this run declared, or lost what it removed
+    xref.link_all(dsn, skip=repo)
     return Result(repo, mode, head, len(blobs), len(chunks), deleted, round(time.monotonic() - t0, 1),
                   len(chunks) - len(missing), dict(skipped))

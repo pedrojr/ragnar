@@ -54,15 +54,18 @@ WITH seed AS (
   SELECT seed.ord, d.repo, d.path, d.start_line AS line FROM seed
   CROSS JOIN LATERAL (
     SELECT DISTINCT d.repo, d.path, d.start_line FROM code_edge e
-    JOIN code_symbol d ON d.repo = e.repo AND lower(d.name) = e.dst_name
+    JOIN code_symbol d ON lower(d.name) = e.dst_name
+                      AND (d.repo = e.repo OR (e.kind = 'xref' AND d.repo = ANY(%(repos)s)))
     WHERE e.repo = seed.repo AND e.path = seed.path AND e.line BETWEEN seed.start_line AND seed.end_line
-      AND e.kind IN ('ref', 'event') AND NOT (d.path = seed.path AND d.start_line BETWEEN seed.start_line AND seed.end_line)
+      AND e.kind IN ('ref', 'event', 'xref')
+      AND NOT (d.repo = seed.repo AND d.path = seed.path AND d.start_line BETWEEN seed.start_line AND seed.end_line)
     LIMIT 8) d
 ), caller AS (
   SELECT seed.ord, e.repo, e.path, e.line FROM seed
   CROSS JOIN LATERAL (
     SELECT DISTINCT e.repo, e.path, e.line FROM code_symbol s
-    JOIN code_edge e ON e.repo = s.repo AND e.dst_name = lower(s.name) AND e.kind IN ('ref', 'event')
+    JOIN code_edge e ON e.dst_name = lower(s.name)
+                    AND ((e.repo = s.repo AND e.kind IN ('ref', 'event')) OR (e.kind = 'xref' AND e.repo <> s.repo))
     WHERE s.repo = seed.repo AND s.path = seed.path AND s.start_line BETWEEN seed.start_line AND seed.end_line
       AND e.path <> seed.path
     LIMIT 8) e
@@ -693,13 +696,13 @@ def list_repos(conn: psycopg.Connection, repos: list[str] | None) -> list[dict]:
 
 
 EDGE_COLUMNS = ("repo", "path", "line", "src_symbol", "dst_name", "kind", "text")
-CALL_KINDS = ["ref", "event"]
+CALL_KINDS = ["ref", "event", "xref"]
 
 
 def edge_references(conn: psycopg.Connection, repos: list[str], name: str, k: int = 30,
                     path_prefix: str = "") -> list[dict]:
-    """Routines and form events that name a declaration, from the code graph. Empty when the graph has
-    no edge for the name: it only holds names declared in few places of the repository."""
+    """Routines and form events that name a declaration, from the code graph, in this repository and in the
+    others (xref). Empty when the graph has no edge for the name: it only holds names declared in few places."""
     _, short = split_qualified(name)
     rows = conn.execute(
         """SELECT e.repo, e.path, e.line, e.src_symbol, e.kind, e.text, c.kind FROM code_edge e
@@ -715,21 +718,23 @@ def edge_references(conn: psycopg.Connection, repos: list[str], name: str, k: in
 
 
 def callees(conn: psycopg.Connection, repos: list[str], name: str, k: int = 30) -> list[dict]:
-    """Declarations named inside the routines called `name`, with where each is declared."""
+    """Declarations named inside the routines called `name`, with where each is declared. An xref edge
+    resolves in the other repositories the caller may read."""
     owner, short = split_qualified(name)
     rows = conn.execute(
-        """SELECT DISTINCT ON (e.dst_name, d.path, d.start_line) e.repo, e.dst_name, e.kind, e.line, e.text,
-                  d.path, d.start_line, d.symbol
+        """SELECT DISTINCT ON (e.dst_name, d.repo, d.path, d.start_line) e.repo, e.dst_name, e.kind, e.line, e.text,
+                  d.path, d.start_line, d.symbol, d.repo
            FROM code_symbol s
            JOIN code_edge e ON e.repo = s.repo AND e.path = s.path AND e.line BETWEEN s.start_line AND s.end_line
                             AND e.kind = ANY(%(kinds)s)
-           LEFT JOIN code_symbol d ON d.repo = e.repo AND lower(d.name) = e.dst_name
+           LEFT JOIN code_symbol d ON lower(d.name) = e.dst_name
+                                  AND (d.repo = e.repo OR (e.kind = 'xref' AND d.repo = ANY(%(repos)s)))
            WHERE s.repo = ANY(%(repos)s) AND lower(s.name) = %(name)s AND lower(s.symbol) LIKE %(owner)s ESCAPE '\\'
-           ORDER BY e.dst_name, d.path, d.start_line, e.line LIMIT %(k)s""",
+           ORDER BY e.dst_name, d.repo, d.path, d.start_line, e.line LIMIT %(k)s""",
         {"repos": repos, "name": short.lower(), "owner": f"%{like_prefix(owner.lower())}", "kinds": CALL_KINDS, "k": k},
     ).fetchall()
     return [{"repo": r[0], "name": r[1], "edge": r[2], "line": r[3], "text": r[4], "path": r[5], "start_line": r[6],
-             "symbol": r[7]} for r in rows]
+             "symbol": r[7], "decl_repo": r[8]} for r in rows]
 
 
 def table_usage(conn: psycopg.Connection, repos: list[str], table: str, op: str | None = None, k: int = 50) -> list[dict]:
@@ -789,7 +794,9 @@ WITH defs AS (
   WHERE repo = ANY(%(repos)s) AND path LIKE %(prefix)s ESCAPE '\\' AND kind <> 'test'
 ), degree AS (
   SELECT d.repo, d.path, count(*) AS refs FROM defs d
-  JOIN code_edge e ON e.repo = d.repo AND e.dst_name = d.name AND e.path <> d.path AND e.kind IN ('ref', 'event')
+  JOIN code_edge e ON e.dst_name = d.name
+                  AND ((e.repo = d.repo AND e.path <> d.path AND e.kind IN ('ref', 'event'))
+                       OR (e.kind = 'xref' AND e.repo <> d.repo AND e.repo = ANY(%(repos)s)))
   GROUP BY d.repo, d.path
 )
 SELECT g.repo, g.path, g.refs,
