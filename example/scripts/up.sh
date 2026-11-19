@@ -74,6 +74,12 @@ done
 apply_secret generic ragnar-model-keys "${model_keys[@]}"
 apply_config() { kubectl -n ragnar create configmap "$@" --dry-run=client -o yaml | kubectl apply -f - >/dev/null; }
 apply_config ragnar-repos --from-file=repos.toml=repos.toml
+# The CronJob clones inside the cluster, where a folder mounted by compose.local.yaml does not exist.
+local_urls=$(sed -n -E 's/^[[:space:]]*url[[:space:]]*=[[:space:]]*"(\/[^"]*|[A-Za-z]:[^"]*|file:[^"]*)".*/\1/p' repos.toml | tr -d '\r')
+if [ -n "$local_urls" ]; then
+  echo "warning: repos.toml follows local paths the cluster cannot reach: $(echo $local_urls)" >&2
+  echo "  CronJob/ragnar-indexer will fail on them. Use a URL, or index them with scripts/index.sh --target k8s." >&2
+fi
 apply_config ragnar-server --from-file=server.toml=server.toml
 apply_secret generic ragnar-mcp-tokens \
   --from-literal=RAGNAR_MCP_TOKEN="$RAGNAR_MCP_TOKEN" --from-literal=RAGNAR_MCP_TOKEN_RESTRICTED="$RAGNAR_MCP_TOKEN_RESTRICTED"

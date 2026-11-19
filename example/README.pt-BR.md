@@ -165,6 +165,8 @@ kubectl -n ragnar create job --from=cronjob/ragnar-indexer idx-$(date +%s)
 
 O `index.sh --target k8s` roda o indexador num pod temporário, com as configurações do worker e pelos Services, então usa todos os pods do embedder. Um clone local viaja como git bundle, que só leva commits. No primeiro build de um repositório grande, prefira o CronJob: ele não depende de uma sessão `kubectl exec` aberta por horas. Cada execução para depois de 6 horas (`activeDeadlineSeconds` em `k8s/base/indexer-cronjob.yaml`), e a seguinte retoma do checkpoint de embeddings.
 
+O CronJob lê o mesmo `repos.toml` do Compose, mas clona dentro do cluster. Uma pasta que o `compose.local.yaml` monta, como `/src/myapp`, não existe lá, e toda execução falha nessa entrada. No Kubernetes, dê a cada entrada uma URL que o cluster alcança, ou indexe o clone local com `index.sh --target k8s`. O `up.sh` avisa quando o `repos.toml` tem caminhos locais.
+
 O Docker Desktop publica o `LoadBalancer` em todas as interfaces de rede, não só em `127.0.0.1`. Outras máquinas da sua rede alcançam a porta 8080, a menos que um firewall bloqueie. O token continua valendo.
 
 Teste de carga:
