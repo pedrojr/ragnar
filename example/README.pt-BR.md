@@ -122,6 +122,7 @@ As réplicas não são publicadas. Para adicionar réplicas: `docker compose up 
 | Tarefa | Comando |
 | --- | --- |
 | Acompanhar outro repositório | Edite `repos.toml`. O worker relê o arquivo antes de cada passada e mantém a última lista válida se o arquivo tiver erro |
+| Deixar de acompanhar um repositório | Tire-o do `repos.toml` e rode `docker compose run --rm tools remove myapp` |
 | Mudar o intervalo | Defina `RAGNAR_SYNC_INTERVAL` no `.env` e rode `docker compose up -d indexer` |
 | Indexar agora, de um clone local | `./scripts/index.sh /caminho/do/myapp myapp` |
 | Refazer um repositório | `./scripts/index.sh /caminho/do/myapp myapp --full` |

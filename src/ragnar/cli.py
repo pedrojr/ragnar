@@ -137,6 +137,20 @@ def cmd_gc(args) -> None:
           f"{r.xref_names} cross-repository names of repositories no longer indexed")
 
 
+def cmd_remove(args) -> None:
+    from .cleanup import remove_repo
+    from .xref import link_all
+
+    counts = remove_repo(write_dsn(), args.repo, args.dry_run)
+    if counts is None:
+        raise RagnarError(f"repository {args.repo!r} is not indexed")
+    verb = "would remove" if args.dry_run else "removed"
+    print(f"{args.repo}: {verb} {counts['code_chunk']} chunks, {counts['code_symbol']} symbols, "
+          f"{counts['code_edge']} edges")
+    if not args.dry_run:  # the others lose their edges to its names
+        link_all(write_dsn())
+
+
 def cmd_index(args) -> None:
     from .embedder import from_settings
     from .indexer import index
@@ -361,6 +375,11 @@ def main(argv: list[str] | None = None) -> None:
                    help="keeps rows younger than this, which a running index may still need (default 7)")
     s.add_argument("--dry-run", action="store_true", help="only counts")
     s.set_defaults(fn=cmd_gc)
+
+    s = sub.add_parser("remove", help="takes a repository out of the index (RAGNAR_DSN_WRITE)")
+    s.add_argument("repo")
+    s.add_argument("--dry-run", action="store_true", help="only counts")
+    s.set_defaults(fn=cmd_remove)
 
     s = sub.add_parser("sync", help="indexes the branches listed in repos.toml (RAGNAR_DSN_WRITE)")
     s.add_argument("--config", default="repos.toml")

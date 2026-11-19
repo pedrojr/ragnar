@@ -67,9 +67,18 @@ Updates the code graph edges between repositories (kind `xref`) from what is alr
 | --- | --- | --- |
 | `--repo` | All | Only this repository |
 
+### `ragnar remove`
+
+Takes a repository out of the index: its chunks, symbols, edges and state. Then it links the other repositories again, so their edges to its declarations go too. Taking an entry out of `repos.toml` only stops the worker from following it; the index keeps serving it until this command runs. It waits for an indexing run of the same repository to finish. The cached summaries and vectors stay for `ragnar gc`. Needs `RAGNAR_DSN_WRITE`.
+
+```bash
+ragnar remove old-app --dry-run   # counts what would go
+ragnar remove old-app
+```
+
 ### `ragnar gc`
 
-Removes cached rows that no index uses: file summaries no summary chunk holds, embedding checkpoints of runs that never resumed, and the cross-repository names of repositories no longer in `index_state` (Ragnar has no command that removes a repository; this covers one deleted by hand). Needs `RAGNAR_DSN_WRITE`.
+Removes cached rows that no index uses: file summaries no summary chunk holds, embedding checkpoints of runs that never resumed, and the cross-repository names of repositories no longer in `index_state`. Needs `RAGNAR_DSN_WRITE`.
 
 | Option | Default | Meaning |
 | --- | --- | --- |

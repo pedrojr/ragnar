@@ -45,3 +45,25 @@ def collect(dsn: str, older_than_days: float = 7, dry_run: bool = False) -> Clea
             conn.execute("DELETE FROM embedding_checkpoint WHERE created_at < now() - make_interval(days => %(days)s)", age)
             conn.execute("DELETE FROM code_xref_name x WHERE NOT EXISTS (SELECT 1 FROM index_state s WHERE s.repo = x.repo)")
     return Cleanup(summaries, checkpoints, xref_names)
+
+
+REPO_TABLES = ("code_chunk", "code_symbol", "code_edge", "code_xref_name")
+
+
+def remove_repo(dsn: str, repo: str, dry_run: bool = False) -> dict[str, int] | None:
+    """Takes a repository out of the index: its chunks, symbols, edges and state. None when it is not indexed.
+
+    Runs under the repository's indexing lock, so it waits for a run in progress. The cached summaries and
+    vectors stay for `ragnar gc`, and the other repositories' edges to its names go with the next link."""
+    with psycopg.connect(dsn) as conn:
+        conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (repo,))
+        if conn.execute("SELECT 1 FROM index_state WHERE repo = %s", (repo,)).fetchone() is None:
+            return None
+        verb = "SELECT count(*) FROM" if dry_run else "DELETE FROM"
+        out = {}
+        for table in REPO_TABLES:
+            cur = conn.execute(f"{verb} {table} WHERE repo = %s", (repo,))
+            out[table] = cur.fetchone()[0] if dry_run else cur.rowcount
+        if not dry_run:
+            conn.execute("DELETE FROM index_state WHERE repo = %s", (repo,))
+    return out

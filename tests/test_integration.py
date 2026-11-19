@@ -607,6 +607,31 @@ def test_a_failed_link_leaves_the_index_committed(dsn, tmp_path, monkeypatch, ca
         assert conn.execute("SELECT count(*) FROM index_state WHERE repo = 'xlinkfail'").fetchone()[0] == 1
 
 
+def test_remove_takes_a_repository_and_the_edges_to_it_out(dsn, tmp_path):
+    from ragnar.cleanup import remove_repo
+    from ragnar.search import edge_references
+    from ragnar.xref import link_all
+
+    emb, settings = FakeEmbedder(768), load_settings(tmp_path, environ={})
+    app, lib = _new_repo(tmp_path, "rmapp"), _new_repo(tmp_path, "rmlib")
+    _commit(app, {"a.py": "def place_order_now():\n    return price_with_discount(1)\n"}, "a")
+    _commit(lib, {"b.py": "def price_with_discount(x):\n    return x\n"}, "b")
+    index(str(lib), "rmlib", dsn, emb, settings, scan=False)
+    index(str(app), "rmapp", dsn, emb, settings, scan=False)
+    with psycopg.connect(dsn) as conn:
+        assert edge_references(conn, ["rmapp", "rmlib"], "price_with_discount")
+    counted = remove_repo(dsn, "rmlib", dry_run=True)
+    assert counted["code_chunk"] > 0 and counted["code_symbol"] > 0
+    assert remove_repo(dsn, "rmlib") == counted
+    assert remove_repo(dsn, "rmlib") is None
+    link_all(dsn)
+    with psycopg.connect(dsn) as conn:
+        assert conn.execute("SELECT count(*) FROM code_chunk WHERE repo = 'rmlib'").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM index_state WHERE repo = 'rmlib'").fetchone()[0] == 0
+        # the app's edge to the removed declaration goes with the next link
+        assert conn.execute("SELECT count(*) FROM code_edge WHERE repo = 'rmapp' AND kind = 'xref'").fetchone()[0] == 0
+
+
 def test_gc_removes_only_old_unused_rows(dsn):
     from ragnar.cleanup import collect
 

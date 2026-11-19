@@ -122,6 +122,7 @@ Replicas are not published. To add replicas: `docker compose up -d --scale db-re
 | Task | Command |
 | --- | --- |
 | Follow another repository | Edit `repos.toml`. The worker reads it again before each pass, and keeps the last valid list if the file has an error |
+| Stop following a repository | Take it out of `repos.toml`, then `docker compose run --rm tools remove myapp` |
 | Change the polling interval | Set `RAGNAR_SYNC_INTERVAL` in `.env`, then `docker compose up -d indexer` |
 | Index now, from a local clone | `./scripts/index.sh /path/to/myapp myapp` |
 | Rebuild one repository | `./scripts/index.sh /path/to/myapp myapp --full` |

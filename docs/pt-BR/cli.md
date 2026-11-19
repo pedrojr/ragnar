@@ -67,9 +67,18 @@ Atualiza as arestas do grafo de código entre repositórios (tipo `xref`) a part
 | --- | --- | --- |
 | `--repo` | Todos | Só este repositório |
 
+### `ragnar remove`
+
+Tira um repositório do índice: chunks, símbolos, arestas e estado. Depois liga de novo os outros repositórios, e as arestas deles para as declarações do removido também saem. Tirar uma entrada do `repos.toml` só faz o worker parar de segui-la; o índice continua servindo o repositório até este comando rodar. Ele espera terminar uma indexação do mesmo repositório que esteja em andamento. Os resumos e vetores em cache ficam para o `ragnar gc`. Precisa do `RAGNAR_DSN_WRITE`.
+
+```bash
+ragnar remove app-antigo --dry-run   # conta o que sairia
+ragnar remove app-antigo
+```
+
 ### `ragnar gc`
 
-Remove do cache as linhas que nenhum índice usa: resumos de arquivo que nenhum chunk de resumo guarda, checkpoints de embedding de execuções que não voltaram, e os nomes entre repositórios de repositórios que não estão mais no `index_state` (o Ragnar não tem comando que remove um repositório; isto cobre um apagado à mão). Precisa do `RAGNAR_DSN_WRITE`.
+Remove do cache as linhas que nenhum índice usa: resumos de arquivo que nenhum chunk de resumo guarda, checkpoints de embedding de execuções que não voltaram, e os nomes entre repositórios de repositórios que não estão mais no `index_state`. Precisa do `RAGNAR_DSN_WRITE`.
 
 | Opção | Padrão | Significado |
 | --- | --- | --- |
