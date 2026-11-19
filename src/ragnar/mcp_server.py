@@ -117,6 +117,19 @@ def render_hits(hits: list[dict], confidence: str = "") -> str:
     )
 
 
+def numbered_lines(lines: list[tuple[int, str]], budget: int | None) -> tuple[list[str], list[int]]:
+    """read_code's body within a character budget, and the numbers of the lines it shows."""
+    body, shown, used = [], [], 0
+    for number, line in lines:
+        used += len(line) + 8
+        if budget and used > budget:
+            body.append(f"... stopped at the token budget; continue from line {number}")
+            break
+        body.append(f"{number}: {line}")
+        shown.append(number)
+    return body, shown
+
+
 class BearerAuth:
     """Refuses with 401 any /mcp call without a known token, before it reaches the MCP layer."""
 
@@ -377,16 +390,8 @@ def build_server(pool: ConnectionPool, acl: Acl, settings: Settings, events=None
             found = read(lambda c: db_read_code(c, repos, path, start_line, end_line))
             if found is None:
                 return f"{path!r} is not in the index.", {"repos": repos, "query": path}
-            budget = settings.retrieval.max_context_tokens * CHARS or None
-            body, used = [], 0
-            for number, line in found["lines"]:
-                used += len(line) + 8
-                if budget and used > budget:
-                    body.append(f"... stopped at the token budget; continue from line {number}")
-                    break
-                body.append(f"{number}: {line}")
+            body, shown = numbered_lines(found["lines"], settings.retrieval.max_context_tokens * CHARS or None)
             text = f'<code repo="{_attr(found["repo"])}" path="{_attr(found["path"])}">\n{_data(chr(10).join(body))}\n</code>'
-            shown = [n for n, _ in found["lines"]][: len(body)]
             return text, {"repos": repos, "query": path, "path": found["path"],
                           "nodes": [node(found["repo"], found["path"], "read", shown[0], shown[-1])] if shown else []}
 

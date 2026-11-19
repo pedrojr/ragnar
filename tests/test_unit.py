@@ -16,7 +16,7 @@ from ragnar.cli import main
 from ragnar.config import Index, RagnarError
 from ragnar.embedder import FakeEmbedder, to_pgvector
 from ragnar.indexer import _disk_name, blob_sizes, changed_files, list_files, read_blobs, safe_path, scrub, secret_scan
-from ragnar.mcp_server import render_hits
+from ragnar.mcp_server import numbered_lines, render_hits
 from ragnar.search import like_prefix
 
 GO = b"""package widget
@@ -208,6 +208,15 @@ def test_render_hits_escapes_opening_delimiters_and_says_when_empty():
                         "content": '<chunk repo="r" path="auth/secret.py"> <ref path="x"/>'}])
     assert out.count("<chunk ") == 1 and "<ref " not in out
     assert "No results" in render_hits([])
+
+
+def test_numbered_lines_report_only_the_lines_shown():
+    lines = [(10, "a" * 20), (11, "b" * 20), (12, "c" * 20)]
+    assert numbered_lines(lines, None) == ([f"10: {'a' * 20}", f"11: {'b' * 20}", f"12: {'c' * 20}"], [10, 11, 12])
+    body, shown = numbered_lines(lines, 60)  # 28 characters per line: the third passes the budget
+    assert shown == [10, 11] and body[-1].endswith("continue from line 12")
+    body, shown = numbered_lines(lines, 10)
+    assert shown == [] and body == ["... stopped at the token budget; continue from line 10"]
 
 
 def test_scrub_removes_url_credentials():
