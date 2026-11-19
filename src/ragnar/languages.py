@@ -250,6 +250,10 @@ AGENT_NOTES = re.compile(r"(?:^|/)(?:AGENTS|CLAUDE|GEMINI)\.md$|(?:^|/)\.github/
                          r"|\.instructions\.md$|(?:^|/)\.(?:cursor|windsurf|clinerules)/", re.I)
 DOC_EXTENSIONS = (".md", ".mdx")
 FORM_EXTENSIONS = (".dfm", ".fmx", ".lfm")  # Delphi and Lazarus forms, parsed by ragnar.delphi
+# Languages that call each other's declarations by name. Edges between repositories (ragnar.xref) link
+# and resolve only within a family: Python code that says `from` must not reach a Delphi routine From.
+FAMILIES = {"typescript": "javascript", "cpp": "c", "kotlin": "java", "scala": "java"}
+FAMILY_BY_EXTENSION = {ext: FAMILIES.get(lang.name, lang.name) for ext, lang in BY_EXTENSION.items()}
 
 
 def language_for(path: str) -> Language | None:

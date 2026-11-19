@@ -12,6 +12,7 @@ notion of rarity, so "how", "the" and "is" would weigh as much as "circuit".
 
 from __future__ import annotations
 
+import json
 import math
 import re
 import sys
@@ -23,7 +24,19 @@ import psycopg
 from .chunker import split_identifiers, unaccent
 from .config import RagnarError, Retrieval, Settings
 from .embedder import Embedder, FakeEmbedder, to_pgvector
+from .languages import FAMILY_BY_EXTENSION
 from .llm import Chat, Reranker, expand_query
+
+
+def same_family(a: str, b: str) -> str:
+    """SQL: the two paths are in one language family, as ragnar.xref computes it. An xref edge resolves only
+    to declarations of its own family. A query that uses it takes the families parameter (FAMILIES_PARAM)."""
+    ext = r"substring(lower({}) from '(\.[^./]+)$')"
+    return f"(%(families)s::jsonb ->> {ext.format(a)}) = (%(families)s::jsonb ->> {ext.format(b)})"
+
+
+FAMILIES_PARAM = json.dumps(FAMILY_BY_EXTENSION)
+
 
 FILTERS = """repo = ANY(%(repos)s) AND path LIKE %(prefix)s ESCAPE '\\'
     AND (%(kind)s::text IS NULL OR kind = %(kind)s)"""
@@ -46,7 +59,7 @@ WHERE repo = %(repo)s AND path = %(path)s AND id <> %(id)s AND kind <> 'summary'
 ORDER BY LEAST(abs(%(start)s - end_line), abs(start_line - %(end)s)) LIMIT %(limit)s"""
 # Graph neighbors of the best hits: what they call, and who calls them. Each seed brings a few of each,
 # in seed order, so a utility called from everywhere does not flood the list.
-GRAPH_SQL = """
+GRAPH_SQL = f"""
 WITH seed AS (
   SELECT c.id, c.repo, c.path, c.start_line, c.end_line, s.ord
   FROM unnest(%(ids)s::bigint[]) WITH ORDINALITY AS s(id, ord) JOIN code_chunk c ON c.id = s.id
@@ -55,7 +68,8 @@ WITH seed AS (
   CROSS JOIN LATERAL (
     SELECT DISTINCT d.repo, d.path, d.start_line FROM code_edge e
     JOIN code_symbol d ON lower(d.name) = e.dst_name
-                      AND (d.repo = e.repo OR (e.kind = 'xref' AND d.repo = ANY(%(repos)s)))
+                      AND (d.repo = e.repo OR (e.kind = 'xref' AND d.repo = ANY(%(repos)s)
+                                               AND {same_family("d.path", "e.path")}))
     WHERE e.repo = seed.repo AND e.path = seed.path AND e.line BETWEEN seed.start_line AND seed.end_line
       AND e.kind IN ('ref', 'event', 'xref')
       AND NOT (d.repo = seed.repo AND d.path = seed.path AND d.start_line BETWEEN seed.start_line AND seed.end_line)
@@ -65,7 +79,8 @@ WITH seed AS (
   CROSS JOIN LATERAL (
     SELECT DISTINCT e.repo, e.path, e.line FROM code_symbol s
     JOIN code_edge e ON e.dst_name = lower(s.name)
-                    AND ((e.repo = s.repo AND e.kind IN ('ref', 'event')) OR (e.kind = 'xref' AND e.repo <> s.repo))
+                    AND ((e.repo = s.repo AND e.kind IN ('ref', 'event')) OR (e.kind = 'xref' AND e.repo <> s.repo
+                                                                                  AND {same_family("s.path", "e.path")}))
     WHERE s.repo = seed.repo AND s.path = seed.path AND s.start_line BETWEEN seed.start_line AND seed.end_line
       AND e.path <> seed.path
     LIMIT 8) e
@@ -521,7 +536,8 @@ class Pipeline:
         scores = fused_scores(ranked, cfg.rrf_k)
         if cfg.graph_weight:
             seeds = sorted(scores, key=lambda i: (-scores[i], i))[: cfg.graph_seeds]
-            self.graph_ids = [r[0] for r in conn.execute(GRAPH_SQL, {**base, "ids": seeds}).fetchall()]
+            args = {**base, "ids": seeds, "families": FAMILIES_PARAM}
+            self.graph_ids = [r[0] for r in conn.execute(GRAPH_SQL, args).fetchall()]
             if self.graph_ids:
                 ranked.append((cfg.graph_weight, self.graph_ids))
                 scores = fused_scores(ranked, cfg.rrf_k)
@@ -699,8 +715,8 @@ EDGE_COLUMNS = ("repo", "path", "line", "src_symbol", "dst_name", "kind", "text"
 CALL_KINDS = ["ref", "event", "xref"]
 # An xref edge counts only when its declaration is in a repository the caller may read: otherwise the edge
 # would tell a token that some repository it cannot see declares the name.
-XREF_READABLE = """(e.kind <> 'xref' OR EXISTS (SELECT 1 FROM code_symbol x WHERE x.repo = ANY(%(repos)s)
-                    AND x.repo <> e.repo AND lower(x.name) = e.dst_name))"""
+XREF_READABLE = f"""(e.kind <> 'xref' OR EXISTS (SELECT 1 FROM code_symbol x WHERE x.repo = ANY(%(repos)s)
+                    AND x.repo <> e.repo AND lower(x.name) = e.dst_name AND {same_family("x.path", "e.path")}))"""
 
 
 def edge_references(conn: psycopg.Connection, repos: list[str], name: str, k: int = 30,
@@ -715,7 +731,8 @@ def edge_references(conn: psycopg.Connection, repos: list[str], name: str, k: in
             WHERE e.repo = ANY(%(repos)s) AND e.dst_name = %(name)s AND e.kind = ANY(%(kinds)s)
               AND e.path LIKE %(prefix)s ESCAPE '\\' AND """ + XREF_READABLE + """
             ORDER BY c.kind = 'test', e.repo, e.path, e.line LIMIT %(k)s""",
-        {"repos": repos, "name": short.lower(), "kinds": CALL_KINDS, "prefix": like_prefix(path_prefix), "k": k},
+        {"repos": repos, "name": short.lower(), "kinds": CALL_KINDS, "prefix": like_prefix(path_prefix), "k": k,
+         "families": FAMILIES_PARAM},
     ).fetchall()
     return [{"repo": r[0], "path": r[1], "line": r[2], "symbol": r[3], "edge": r[4], "text": r[5], "kind": r[6] or "code"}
             for r in rows]
@@ -726,17 +743,19 @@ def callees(conn: psycopg.Connection, repos: list[str], name: str, k: int = 30) 
     resolves in the other repositories the caller may read."""
     owner, short = split_qualified(name)
     rows = conn.execute(
-        """SELECT DISTINCT ON (e.dst_name, d.repo, d.path, d.start_line) e.repo, e.dst_name, e.kind, e.line, e.text,
+        f"""SELECT DISTINCT ON (e.dst_name, d.repo, d.path, d.start_line) e.repo, e.dst_name, e.kind, e.line, e.text,
                   d.path, d.start_line, d.symbol, d.repo
            FROM code_symbol s
            JOIN code_edge e ON e.repo = s.repo AND e.path = s.path AND e.line BETWEEN s.start_line AND s.end_line
                             AND e.kind = ANY(%(kinds)s)
            LEFT JOIN code_symbol d ON lower(d.name) = e.dst_name
-                                  AND (d.repo = e.repo OR (e.kind = 'xref' AND d.repo = ANY(%(repos)s)))
+                                  AND (d.repo = e.repo OR (e.kind = 'xref' AND d.repo = ANY(%(repos)s)
+                                                           AND {same_family("d.path", "e.path")}))
            WHERE s.repo = ANY(%(repos)s) AND lower(s.name) = %(name)s AND lower(s.symbol) LIKE %(owner)s ESCAPE '\\'
              AND (e.kind <> 'xref' OR d.repo IS NOT NULL)
            ORDER BY e.dst_name, d.repo, d.path, d.start_line, e.line LIMIT %(k)s""",
-        {"repos": repos, "name": short.lower(), "owner": f"%{like_prefix(owner.lower())}", "kinds": CALL_KINDS, "k": k},
+        {"repos": repos, "name": short.lower(), "owner": f"%{like_prefix(owner.lower())}", "kinds": CALL_KINDS, "k": k,
+         "families": FAMILIES_PARAM},
     ).fetchall()
     return [{"repo": r[0], "name": r[1], "edge": r[2], "line": r[3], "text": r[4], "path": r[5], "start_line": r[6],
              "symbol": r[7], "decl_repo": r[8]} for r in rows]
@@ -774,7 +793,7 @@ def trace_flow(conn: psycopg.Connection, repos: list[str], source: str, target: 
                JOIN code_edge e ON e.repo = s.repo AND e.path = s.path AND e.line BETWEEN s.start_line AND s.end_line
                WHERE s.repo = ANY(%(repos)s) AND lower(s.name) = ANY(%(frontier)s) AND """ + XREF_READABLE + """
                ORDER BY e.kind LIKE 'sql%%' DESC, e.path, e.line LIMIT %(cap)s""",
-            {"repos": repos, "frontier": list(frontier), "cap": fan_out * len(frontier)}).fetchall()
+            {"repos": repos, "frontier": list(frontier), "cap": fan_out * len(frontier), "families": FAMILIES_PARAM}).fetchall()
         nxt: set[str] = set()
         for src, dst, repo, path, line, kind, text in rows:
             if dst in parent:
@@ -793,7 +812,7 @@ def trace_flow(conn: psycopg.Connection, repos: list[str], source: str, target: 
     return None
 
 
-REPO_MAP_SQL = """
+REPO_MAP_SQL = f"""
 WITH defs AS (
   SELECT DISTINCT repo, path, lower(name) AS name FROM code_symbol
   WHERE repo = ANY(%(repos)s) AND path LIKE %(prefix)s ESCAPE '\\' AND kind <> 'test'
@@ -801,7 +820,8 @@ WITH defs AS (
   SELECT d.repo, d.path, count(*) AS refs FROM defs d
   JOIN code_edge e ON e.dst_name = d.name
                   AND ((e.repo = d.repo AND e.path <> d.path AND e.kind IN ('ref', 'event'))
-                       OR (e.kind = 'xref' AND e.repo <> d.repo AND e.repo = ANY(%(repos)s)))
+                       OR (e.kind = 'xref' AND e.repo <> d.repo AND e.repo = ANY(%(repos)s)
+                           AND {same_family("d.path", "e.path")}))
   GROUP BY d.repo, d.path
 )
 SELECT g.repo, g.path, g.refs,
@@ -818,5 +838,5 @@ def repo_map(conn: psycopg.Connection, repos: list[str], path_prefix: str = "", 
     A map ranked by the code graph: where to start reading in an unfamiliar area.
     """
     rows = conn.execute(REPO_MAP_SQL, {"repos": repos, "prefix": like_prefix(path_prefix), "k": k,
-                                       "per_file": per_file}).fetchall()
+                                       "per_file": per_file, "families": FAMILIES_PARAM}).fetchall()
     return [{"repo": r[0], "path": r[1], "refs": r[2], "names": r[3] or ""} for r in rows]

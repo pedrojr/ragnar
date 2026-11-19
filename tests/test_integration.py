@@ -558,11 +558,11 @@ def test_edges_between_repositories(dsn, tmp_path):
         assert trace_flow(conn, ["xapp"], "checkout_cart", "compute_invoice_total") is None
         assert trace_flow(conn, ["xapp", "xlib"], "checkout_cart", "compute_invoice_total")
         # the graph list of search_code and repo_map follow the edge too
-        from ragnar.search import GRAPH_SQL, repo_map
+        from ragnar.search import FAMILIES_PARAM, GRAPH_SQL, repo_map
         seed = conn.execute("SELECT id FROM code_chunk WHERE repo = 'xapp' AND path = 'shop/checkout.py' "
                             "AND kind = 'code' LIMIT 1").fetchone()[0]
         near = conn.execute(GRAPH_SQL, {"ids": [seed], "repos": ["xapp", "xlib"], "prefix": "%", "kind": None,
-                                        "limit": 10}).fetchall()
+                                        "limit": 10, "families": FAMILIES_PARAM}).fetchall()
         assert conn.execute("SELECT repo, path FROM code_chunk WHERE id = ANY(%s)", ([r[0] for r in near],)).fetchall() \
             == [("xlib", "billing/invoice.py")]
         assert [(r["repo"], r["path"], r["refs"]) for r in repo_map(conn, ["xapp", "xlib"])] == \
@@ -590,6 +590,25 @@ def test_edges_between_repositories(dsn, tmp_path):
         assert not edge_references(conn, ["xapp", "xlib", "xgo"], "compute_invoice_total")
         assert set(conn.execute("SELECT name, family FROM code_xref_name WHERE repo = 'xapp' "
                                 "AND name = 'compute_invoice_total'").fetchall()) == {("compute_invoice_total", "go")}
+
+
+def test_an_xref_edge_resolves_only_in_its_language_family(dsn, tmp_path):
+    from ragnar.search import callees, edge_references, repo_map, trace_flow
+
+    emb, settings = FakeEmbedder(768), load_settings(tmp_path, environ={})
+    app, lib, golib = (_new_repo(tmp_path, n) for n in ("fapp", "flib", "fgo"))
+    _commit(app, {"a.py": "def settle_account_now():\n    return apply_ledger_rules(1)\n"}, "a")
+    _commit(lib, {"b.py": "def apply_ledger_rules(x):\n    return x\n"}, "b")
+    _commit(golib, {"c.go": "package c\n\nfunc apply_ledger_rules() int {\n\treturn 1\n}\n"}, "c")
+    for repo, name in ((lib, "flib"), (golib, "fgo"), (app, "fapp")):
+        index(str(repo), name, dsn, emb, settings, scan=False)
+    with psycopg.connect(dsn) as conn:
+        assert [c["decl_repo"] for c in callees(conn, ["fapp", "flib", "fgo"], "settle_account_now")] == ["flib"]
+        # a token that reads the Go repository but not the Python one sees no edge, nor a path through it
+        assert not edge_references(conn, ["fapp", "fgo"], "apply_ledger_rules")
+        assert not callees(conn, ["fapp", "fgo"], "settle_account_now")
+        assert trace_flow(conn, ["fapp", "fgo"], "settle_account_now", "apply_ledger_rules") is None
+        assert [r["repo"] for r in repo_map(conn, ["fapp", "flib", "fgo"])] == ["flib"]
 
 
 def test_a_failed_link_leaves_the_index_committed(dsn, tmp_path, monkeypatch, capsys):

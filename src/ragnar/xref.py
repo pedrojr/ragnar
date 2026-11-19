@@ -16,23 +16,21 @@ from __future__ import annotations
 
 import re
 import sys
+from pathlib import PurePosixPath
 
 import psycopg
 
 from . import graph
 from .chunker import Symbol
-from .languages import FORM_EXTENSIONS, language_for
+from .languages import FAMILY_BY_EXTENSION, FORM_EXTENSIONS
 from .search import _body
 
 BATCH = 300  # names per full-text query
 SYMBOL_FIELDS = ("path", "symbol", "name", "node_type", "kind", "start_line", "end_line", "signature")
-# languages that call each other's declarations by name
-FAMILIES = {"typescript": "javascript", "cpp": "c", "kotlin": "java", "scala": "java"}
 
 
 def family(path: str) -> str | None:
-    lang = language_for(path)
-    return FAMILIES.get(lang.name, lang.name) if lang else None
+    return FAMILY_BY_EXTENSION.get(PurePosixPath(path).suffix.lower())
 
 
 def repo_families(conn: psycopg.Connection, repo: str) -> set[str]:
