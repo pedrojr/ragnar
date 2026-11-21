@@ -592,6 +592,23 @@ def test_edges_between_repositories(dsn, tmp_path):
                                 "AND name = 'compute_invoice_total'").fetchall()) == {("compute_invoice_total", "go")}
 
 
+def test_the_graph_list_keeps_a_caller_at_the_same_path_in_another_repository(dsn, tmp_path):
+    from ragnar.search import FAMILIES_PARAM, GRAPH_SQL
+
+    emb, settings = FakeEmbedder(768), load_settings(tmp_path, environ={})
+    app, lib = _new_repo(tmp_path, "papp"), _new_repo(tmp_path, "plib")
+    _commit(lib, {"core/util.py": "def compute_tax_amount(value):\n    return value * 0.1\n"}, "lib")
+    _commit(app, {"core/util.py": "def bill(value):\n    return compute_tax_amount(value)\n"}, "app")
+    index(str(lib), "plib", dsn, emb, settings, scan=False)
+    index(str(app), "papp", dsn, emb, settings, scan=False)
+    with psycopg.connect(dsn) as conn:
+        seed = conn.execute("SELECT id FROM code_chunk WHERE repo = 'plib' AND kind = 'code' LIMIT 1").fetchone()[0]
+        near = conn.execute(GRAPH_SQL, {"ids": [seed], "repos": ["papp", "plib"], "prefix": "%", "kind": None,
+                                        "limit": 10, "families": FAMILIES_PARAM}).fetchall()
+        assert conn.execute("SELECT repo, path FROM code_chunk WHERE id = ANY(%s)", ([r[0] for r in near],)).fetchall() \
+            == [("papp", "core/util.py")]
+
+
 def test_an_xref_edge_resolves_only_in_its_language_family(dsn, tmp_path):
     from ragnar.search import callees, edge_references, repo_map, trace_flow
 

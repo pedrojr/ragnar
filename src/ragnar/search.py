@@ -82,7 +82,7 @@ WITH seed AS (
                     AND ((e.repo = s.repo AND e.kind IN ('ref', 'event')) OR (e.kind = 'xref' AND e.repo <> s.repo
                                                                                   AND {same_family("s.path", "e.path")}))
     WHERE s.repo = seed.repo AND s.path = seed.path AND s.start_line BETWEEN seed.start_line AND seed.end_line
-      AND e.path <> seed.path
+      AND NOT (e.repo = seed.repo AND e.path = seed.path)
     LIMIT 8) e
 ), near AS (SELECT * FROM callee UNION ALL SELECT * FROM caller)
 SELECT c.id FROM near
