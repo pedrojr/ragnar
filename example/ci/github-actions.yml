@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 env:
-  RAGNAR_REF: ea2f1f3a37d718c721aa171e3e0b6f05c5a3974f
+  RAGNAR_REF: b0967a0a7d87932e56c0266522217979a71bf8ca
 
 jobs:
   index:

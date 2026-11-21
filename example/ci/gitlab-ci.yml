@@ -21,7 +21,7 @@ ragnar-index:
   resource_group: ragnar-index   # one writer at a time
   variables:
     GIT_DEPTH: "0"
-    RAGNAR_REF: ea2f1f3a37d718c721aa171e3e0b6f05c5a3974f
+    RAGNAR_REF: b0967a0a7d87932e56c0266522217979a71bf8ca
   before_script:
     - apt-get update -qq && apt-get install -y -qq git
     - curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz -C /usr/local/bin gitleaks
